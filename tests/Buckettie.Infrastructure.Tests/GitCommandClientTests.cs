@@ -75,6 +75,36 @@ public sealed class GitCommandClientTests
     }
 
     [Fact]
+    public async Task GetRemoteHeadAsync_WhenCalled_UsesFixedRemoteTrackingReference()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.GetRemoteHeadAsync(
+            "repository-root",
+            "origin",
+            "develop",
+            TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "rev-parse", "--verify", "--end-of-options", "refs/remotes/origin/develop");
+    }
+
+    [Fact]
+    public async Task GetAheadBehindAsync_WhenCalled_UsesFixedRemoteTrackingReference()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.GetAheadBehindAsync(
+            "repository-root",
+            "origin",
+            "develop",
+            TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "rev-list", "--left-right", "--count", "HEAD...refs/remotes/origin/develop");
+    }
+
+    [Fact]
     public async Task FetchAsync_WhenProcessTimesOut_ReturnsTimeout()
     {
         _executor.Result = new(null, string.Empty, string.Empty, false, true, false);

@@ -26,6 +26,10 @@ public sealed record GitRepositoryStatus(
     string Repository,
     string LocalBranch,
     string LocalHead,
+    string RemoteDevelopHead,
+    string RemoteMainHead,
+    int Ahead,
+    int Behind,
     bool WorkingTreeClean);
 
 /// <summary>

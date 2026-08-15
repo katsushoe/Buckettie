@@ -127,21 +127,48 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
     }
 
     /// <inheritdoc />
-    public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
+    public async Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repository,
         BitbucketPullRequestState? state,
+        string? source,
+        string? destination,
         CancellationToken cancellationToken = default)
     {
         if (state is not null && !Enum.IsDefined(state.Value))
         {
-            return Task.FromResult(BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Failure(
-                BitbucketError.InvalidPullRequest));
+            return BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Failure(
+                BitbucketError.InvalidPullRequest);
         }
 
-        return TryGet(repository, out RepositoryOptions? options)
-            ? _client.ListPullRequestsAsync(repository, options!.Workspace, options.Slug, state, cancellationToken)
-            : Task.FromResult(BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Failure(
-                BitbucketError.RepositoryNotAllowed));
+        if (!IsValidOptionalBranch(source) || !IsValidOptionalBranch(destination))
+        {
+            return BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Failure(BitbucketError.InvalidBranch);
+        }
+
+        if (!TryGet(repository, out RepositoryOptions? options) || options is null)
+        {
+            return BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Failure(
+                BitbucketError.RepositoryNotAllowed);
+        }
+
+        BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>> result = await _client.ListPullRequestsAsync(
+            repository,
+            options.Workspace,
+            options.Slug,
+            state,
+            cancellationToken).ConfigureAwait(false);
+        if (!result.IsSuccess || result.Value is null)
+        {
+            return result;
+        }
+
+        IReadOnlyList<BitbucketPullRequestInfo> filtered = result.Value
+            .Where(pullRequest => source is null
+                || string.Equals(pullRequest.SourceBranch, source, StringComparison.Ordinal))
+            .Where(pullRequest => destination is null
+                || string.Equals(pullRequest.DestinationBranch, destination, StringComparison.Ordinal))
+            .ToArray();
+        return BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Success(filtered);
     }
 
     /// <inheritdoc />
@@ -272,6 +299,9 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
 
     private static bool IsValidTagInput(string tag) =>
         !string.IsNullOrWhiteSpace(tag) && tag.Length <= 255 && !tag.Any(char.IsControl);
+
+    private static bool IsValidOptionalBranch(string? branch) =>
+        branch is null || (!string.IsNullOrWhiteSpace(branch) && branch.Length <= 255 && !branch.Any(char.IsControl));
 
     private static RepositoryPolicy CreatePolicy(string repository, RepositoryOptions options) => new(
         repository,

@@ -13,7 +13,7 @@ The design rationale and alternatives are recorded in [ADR 0001](docs/adr/0001-w
 
 ## Git execution
 
-Buckettie exposes typed Git operations only. It does not accept shell commands, executable paths, or arbitrary Git arguments. Repository LocalRoot and HTTPS Bitbucket Remote URL are validated before every operation, and configured operands are separated from options with `--`. Inherited Git override variables are removed before process start.
+Buckettie exposes typed Git operations only. It does not accept shell commands, executable paths, or arbitrary Git arguments. Repository LocalRoot and HTTPS Bitbucket Remote URL are validated before every operation, and configured operands are separated from options with `--` or embedded below the fixed `refs/remotes/` namespace. Repository status uses only local remote-tracking refs and performs no implicit network access. Inherited Git override variables are removed before process start.
 
 The command-boundary design is recorded in [ADR 0002](docs/adr/0002-fixed-git-command-gateway.md).
 

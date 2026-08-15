@@ -24,12 +24,42 @@ public sealed class GitGatewayTests
             .Returns(GitCommandResult.Success("abc123\n"));
         _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success());
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("def456\n"));
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", "main", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("fed987\n"));
+        _git.GetAheadBehindAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("2\t3\n"));
 
         GitGatewayResult result = await gateway.GetStatusAsync(
             "buckettie",
             TestContext.Current.CancellationToken);
 
-        result.Status.Should().Be(new GitRepositoryStatus("buckettie", "develop", "abc123", true));
+        result.Status.Should().Be(new GitRepositoryStatus(
+            "buckettie", "develop", "abc123", "def456", "fed987", 2, 3, true));
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_WhenDivergenceOutputIsInvalid_ReturnsGitFailed()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("develop"));
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("abc123"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("def456"));
+        _git.GetAheadBehindAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("invalid"));
+
+        GitGatewayResult result = await gateway.GetStatusAsync(
+            "buckettie",
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.GitFailed);
     }
 
     [Fact]
