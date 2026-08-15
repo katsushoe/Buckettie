@@ -51,6 +51,144 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
             : Task.FromResult(BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.RepositoryNotAllowed));
     }
 
+    /// <inheritdoc />
+    public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
+        string repository,
+        BitbucketPullRequestState? state,
+        CancellationToken cancellationToken = default)
+    {
+        if (state is not null && !Enum.IsDefined(state.Value))
+        {
+            return Task.FromResult(BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Failure(
+                BitbucketError.InvalidPullRequest));
+        }
+
+        return TryGet(repository, out RepositoryOptions? options)
+            ? _client.ListPullRequestsAsync(repository, options!.Workspace, options.Slug, state, cancellationToken)
+            : Task.FromResult(BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Failure(
+                BitbucketError.RepositoryNotAllowed));
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
+        string repository,
+        int pullRequestId,
+        CancellationToken cancellationToken = default) =>
+        TryGetPullRequest(repository, pullRequestId, out RepositoryOptions? options)
+            ? _client.GetPullRequestAsync(
+                repository,
+                options!.Workspace,
+                options.Slug,
+                pullRequestId,
+                cancellationToken)
+            : Task.FromResult(BitbucketResult<BitbucketPullRequestInfo>.Failure(
+                pullRequestId > 0 ? BitbucketError.RepositoryNotAllowed : BitbucketError.InvalidPullRequest));
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<string>> GetPullRequestDiffAsync(
+        string repository,
+        int pullRequestId,
+        CancellationToken cancellationToken = default) =>
+        TryGetPullRequest(repository, pullRequestId, out RepositoryOptions? options)
+            ? _client.GetPullRequestDiffAsync(
+                repository,
+                options!.Workspace,
+                options.Slug,
+                pullRequestId,
+                cancellationToken)
+            : Task.FromResult(BitbucketResult<string>.Failure(
+                pullRequestId > 0 ? BitbucketError.RepositoryNotAllowed : BitbucketError.InvalidPullRequest));
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
+        string repository,
+        BitbucketPullRequestCreate input,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (string.IsNullOrWhiteSpace(input.Title) || input.Title.Length > 255 || input.Title.Any(char.IsControl)
+            || input.Description is null
+            || input.Description.Length > 32_768
+            || input.Description.Any(character => character == '\0'))
+        {
+            return Task.FromResult(BitbucketResult<BitbucketPullRequestInfo>.Failure(
+                BitbucketError.InvalidPullRequest));
+        }
+
+        return TryGet(repository, out RepositoryOptions? options)
+            ? _client.CreatePullRequestAsync(
+                repository,
+                options!.Workspace,
+                options.Slug,
+                options.DevelopBranch,
+                options.MainBranch,
+                input,
+                cancellationToken)
+            : Task.FromResult(BitbucketResult<BitbucketPullRequestInfo>.Failure(
+                BitbucketError.RepositoryNotAllowed));
+    }
+
+    /// <inheritdoc />
+    public async Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
+        string repository,
+        int pullRequestId,
+        BitbucketPullRequestMerge input,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (!Enum.IsDefined(input.Strategy))
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.InvalidPullRequest);
+        }
+
+        if (!TryGetPullRequest(repository, pullRequestId, out RepositoryOptions? options) || options is null)
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(
+                pullRequestId > 0 ? BitbucketError.RepositoryNotAllowed : BitbucketError.InvalidPullRequest);
+        }
+
+        if (input.Message is { Length: > 32_768 } || input.Message?.Contains('\0', StringComparison.Ordinal) == true)
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.InvalidPullRequest);
+        }
+
+        BitbucketResult<BitbucketPullRequestInfo> current = await _client.GetPullRequestAsync(
+            repository,
+            options.Workspace,
+            options.Slug,
+            pullRequestId,
+            cancellationToken).ConfigureAwait(false);
+        if (!current.IsSuccess || current.Value is null)
+        {
+            return current;
+        }
+
+        if (!string.Equals(current.Value.State, "OPEN", StringComparison.Ordinal))
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.PullRequestNotOpen);
+        }
+
+        if (!string.Equals(current.Value.SourceBranch, options.DevelopBranch, StringComparison.Ordinal)
+            || !string.Equals(current.Value.DestinationBranch, options.MainBranch, StringComparison.Ordinal))
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.PullRequestRouteNotAllowed);
+        }
+
+        return await _client.MergePullRequestAsync(
+            repository,
+            options.Workspace,
+            options.Slug,
+            pullRequestId,
+            input,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private bool TryGetPullRequest(string repository, int pullRequestId, out RepositoryOptions? options)
+    {
+        options = null;
+        return pullRequestId > 0 && TryGet(repository, out options);
+    }
+
     private bool TryGet(string repository, out RepositoryOptions? options)
     {
         options = null;
