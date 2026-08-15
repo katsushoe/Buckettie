@@ -48,7 +48,7 @@ public static class BuckettieCompositionRoot
         services.AddSingleton<IGitCommandClient>(_ => new GitCommandClient(
             gitCommandTimeout,
             askPassExecutable,
-            options.AtlassianEmail));
+            options.BitbucketUsername));
         services.AddSingleton<IGitGateway, GitGateway>();
 
         ServiceProvider provider = services.BuildServiceProvider(

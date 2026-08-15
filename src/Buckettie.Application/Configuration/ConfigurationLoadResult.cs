@@ -7,6 +7,7 @@ public enum ConfigurationErrorCode
 {
     InvalidJson,
     InvalidAtlassianEmail,
+    InvalidBitbucketUsername,
     DuplicateRepositoryId,
     InvalidRepositoryId,
     RequiredValueMissing,

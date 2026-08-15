@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Buckettie.Application.Credentials;
 using Buckettie.Application.Repositories;
@@ -83,7 +83,10 @@ public sealed class WindowsCredentialManagerTokenStore : IApiTokenStore
 
         try
         {
-            return ApiTokenStoreResult.Success(Encoding.UTF8.GetString(result.Secret));
+            string token = IsUtf16LittleEndian(result.Secret)
+                ? Encoding.Unicode.GetString(result.Secret)
+                : Encoding.UTF8.GetString(result.Secret);
+            return ApiTokenStoreResult.Success(token);
         }
         finally
         {
@@ -117,6 +120,24 @@ public sealed class WindowsCredentialManagerTokenStore : IApiTokenStore
     }
 
     private static string CreateTarget(string repositoryId) => $"{TargetPrefix}{repositoryId}";
+
+    private static bool IsUtf16LittleEndian(byte[] secret)
+    {
+        if (secret.Length < 2 || secret.Length % 2 != 0)
+        {
+            return false;
+        }
+
+        for (int index = 1; index < secret.Length; index += 2)
+        {
+            if (secret[index] != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static ApiTokenStoreResult MapProviderResult(CredentialApiResult result)
     {

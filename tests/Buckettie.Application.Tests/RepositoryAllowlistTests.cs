@@ -14,6 +14,7 @@ public sealed class RepositoryAllowlistTests
         BuckettieOptions options = new()
         {
             AtlassianEmail = "developer@example.com",
+            BitbucketUsername = "developer",
             Repositories = new Dictionary<string, RepositoryOptions> { ["buckettie"] = repository },
         };
         RepositoryAllowlist allowlist = new(options);
@@ -30,6 +31,7 @@ public sealed class RepositoryAllowlistTests
         BuckettieOptions options = new()
         {
             AtlassianEmail = "developer@example.com",
+            BitbucketUsername = "developer",
             Repositories = new Dictionary<string, RepositoryOptions>(),
         };
         RepositoryAllowlist allowlist = new(options);

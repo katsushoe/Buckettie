@@ -61,6 +61,19 @@ public sealed class WindowsCredentialManagerTokenStoreTests
     }
 
     [Fact]
+    public void Read_WhenTokenWasSavedByWindowsUi_ReturnsUtf16Token()
+    {
+        byte[] providerSecret = Encoding.Unicode.GetBytes("secret-token");
+        _api.ReadResult = CredentialApiResult.Success(providerSecret);
+        WindowsCredentialManagerTokenStore store = new(_api);
+
+        ApiTokenStoreResult result = store.Read("buckettie");
+
+        result.Token.Should().Be("secret-token");
+        providerSecret.Should().OnlyContain(value => value == 0);
+    }
+
+    [Fact]
     public void Read_WhenTokenDoesNotExist_ReturnsNotFound()
     {
         _api.ReadResult = CredentialApiResult.Failure(1168);
