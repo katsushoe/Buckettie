@@ -7,6 +7,7 @@ Buckettie reads UTF-8 JSON through `IBuckettieOptionsLoader`. The executable hos
 The JSON contract is strict:
 
 - Property names use `snake_case` and are case-sensitive.
+- `atlassian_email` is the non-secret username supplied to Git and Bitbucket REST authentication.
 - Unknown properties and JSON comments are rejected.
 - Repository IDs are case-sensitive and must be unique.
 - Repository IDs use only ASCII letters, numbers, `.`, `_`, and `-`, with a maximum length of 128.
@@ -20,6 +21,7 @@ The JSON contract is strict:
 | Code | Meaning |
 | --- | --- |
 | `InvalidJson` | JSON syntax or the strict JSON contract is invalid. |
+| `InvalidAtlassianEmail` | `atlassian_email` is not a single valid email address. |
 | `DuplicateRepositoryId` | The `repositories` object contains the same ID more than once. |
 | `InvalidRepositoryId` | A Repository ID contains unsupported characters or is too long. |
 | `RequiredValueMissing` | A required property is absent, null, empty, or whitespace. |

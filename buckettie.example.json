@@ -1,4 +1,5 @@
 {
+  "atlassian_email": "developer@example.com",
   "repositories": {
     "example": {
       "workspace": "example-workspace",

@@ -73,6 +73,8 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
     private static ConfigurationError? ValidateStructure(JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("atlassian_email", out JsonElement email)
+            || email.ValueKind != JsonValueKind.String
             || !root.TryGetProperty("repositories", out JsonElement repositories)
             || repositories.ValueKind != JsonValueKind.Object)
         {
@@ -122,6 +124,11 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
 
     private static ConfigurationError? ValidateValues(BuckettieOptions options)
     {
+        if (!AtlassianEmail.IsValid(options.AtlassianEmail))
+        {
+            return new(ConfigurationErrorCode.InvalidAtlassianEmail, "atlassian_email");
+        }
+
         foreach ((string id, RepositoryOptions repository) in options.Repositories)
         {
             string prefix = $"repositories.{id}";
