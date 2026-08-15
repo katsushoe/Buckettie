@@ -30,7 +30,7 @@ public sealed class JsonBuckettieOptionsLoaderTests
     [Fact]
     public async Task LoadAsync_WhenSnakeCaseJsonIsValid_ReturnsOptions()
     {
-        string json = "{\"repositories\":{\"buckettie\":" + ValidRepositoryJson + "}}";
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson);
         await using MemoryStream stream = CreateStream(json);
 
         ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
@@ -42,8 +42,8 @@ public sealed class JsonBuckettieOptionsLoaderTests
     [Fact]
     public async Task LoadAsync_WhenRepositoryIdIsDuplicated_ReturnsDuplicateError()
     {
-        string json = "{\"repositories\":{\"buckettie\":" + ValidRepositoryJson
-            + ",\"buckettie\":" + ValidRepositoryJson + "}}";
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson
+            + ",\"buckettie\":" + ValidRepositoryJson);
         await using MemoryStream stream = CreateStream(json);
 
         ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
@@ -55,7 +55,7 @@ public sealed class JsonBuckettieOptionsLoaderTests
     [Fact]
     public async Task LoadAsync_WhenRepositoryIdIsInvalid_ReturnsRepositoryIdError()
     {
-        string json = "{\"repositories\":{\"../repository\":" + ValidRepositoryJson + "}}";
+        string json = CreateRootJson("\"../repository\":" + ValidRepositoryJson);
         await using MemoryStream stream = CreateStream(json);
 
         ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
@@ -65,13 +65,26 @@ public sealed class JsonBuckettieOptionsLoaderTests
     }
 
     [Fact]
+    public async Task LoadAsync_WhenAtlassianEmailIsInvalid_ReturnsEmailError()
+    {
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson)
+            .Replace("developer@example.com", "not-an-email", StringComparison.Ordinal);
+        await using MemoryStream stream = CreateStream(json);
+
+        ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
+
+        result.Errors.Should().ContainSingle()
+            .Which.Code.Should().Be(ConfigurationErrorCode.InvalidAtlassianEmail);
+    }
+
+    [Fact]
     public async Task LoadAsync_WhenRequiredPropertyIsMissing_ReturnsRequiredError()
     {
         string repositoryJson = ValidRepositoryJson.Replace(
             "\"slug\": \"buckettie\",",
             string.Empty,
             StringComparison.Ordinal);
-        string json = "{\"repositories\":{\"buckettie\":" + repositoryJson + "}}";
+        string json = CreateRootJson("\"buckettie\":" + repositoryJson);
         await using MemoryStream stream = CreateStream(json);
 
         ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
@@ -89,7 +102,7 @@ public sealed class JsonBuckettieOptionsLoaderTests
             "^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+.*$",
             "[",
             StringComparison.Ordinal);
-        string json = "{\"repositories\":{\"buckettie\":" + repositoryJson + "}}";
+        string json = CreateRootJson("\"buckettie\":" + repositoryJson);
         await using MemoryStream stream = CreateStream(json);
 
         ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
@@ -100,7 +113,7 @@ public sealed class JsonBuckettieOptionsLoaderTests
 
     [Theory]
     [InlineData("not-json")]
-    [InlineData("{\"repositories\":{},\"unknown_property\":true}")]
+    [InlineData("{\"atlassian_email\":\"developer@example.com\",\"repositories\":{},\"unknown_property\":true}")]
     public async Task LoadAsync_WhenJsonContractIsInvalid_ReturnsInvalidJson(string json)
     {
         await using MemoryStream stream = CreateStream(json);
@@ -112,4 +125,7 @@ public sealed class JsonBuckettieOptionsLoaderTests
     }
 
     private static MemoryStream CreateStream(string json) => new(Encoding.UTF8.GetBytes(json));
+
+    private static string CreateRootJson(string repositories) =>
+        "{\"atlassian_email\":\"developer@example.com\",\"repositories\":{" + repositories + "}}";
 }

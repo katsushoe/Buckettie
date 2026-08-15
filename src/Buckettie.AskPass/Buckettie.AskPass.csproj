@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Buckettie.Application/Buckettie.Application.csproj" />
+    <ProjectReference Include="../Buckettie.Infrastructure/Buckettie.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

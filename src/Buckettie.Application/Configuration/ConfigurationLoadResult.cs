@@ -6,6 +6,7 @@
 public enum ConfigurationErrorCode
 {
     InvalidJson,
+    InvalidAtlassianEmail,
     DuplicateRepositoryId,
     InvalidRepositoryId,
     RequiredValueMissing,
