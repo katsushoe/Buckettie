@@ -2,5 +2,6 @@ bin/
 obj/
 .vs/
 TestResults/
+.local/
 *.user
 *.suo
