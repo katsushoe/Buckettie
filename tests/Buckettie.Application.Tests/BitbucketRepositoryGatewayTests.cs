@@ -133,6 +133,52 @@ public sealed class BitbucketRepositoryGatewayTests
     }
 
     [Fact]
+    public async Task ListPullRequestsAsync_WhenBranchesAreSpecified_FiltersExactRoute()
+    {
+        IReadOnlyList<BitbucketPullRequestInfo> pullRequests =
+        [
+            CreatePullRequest("OPEN", "develop", "main"),
+            CreatePullRequest("OPEN", "release", "main"),
+            CreatePullRequest("OPEN", "develop", "preview"),
+        ];
+        _client.ListPullRequestsAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            BitbucketPullRequestState.Open,
+            Arg.Any<CancellationToken>()).Returns(
+                BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>.Success(pullRequests));
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>> result = await gateway.ListPullRequestsAsync(
+            "allowed",
+            BitbucketPullRequestState.Open,
+            "develop",
+            "main",
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().ContainSingle().Which.Should().Match<BitbucketPullRequestInfo>(pullRequest =>
+            pullRequest.SourceBranch == "develop" && pullRequest.DestinationBranch == "main");
+    }
+
+    [Fact]
+    public async Task ListPullRequestsAsync_WhenFilterContainsControlCharacter_DoesNotCallApi()
+    {
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>> result = await gateway.ListPullRequestsAsync(
+            "allowed",
+            null,
+            "develop\nmain",
+            null,
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.InvalidBranch);
+        await _client.DidNotReceiveWithAnyArgs().ListPullRequestsAsync(
+            default!, default!, default!, default, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task MergePullRequestAsync_WhenRouteIsNotAllowed_DoesNotMerge()
     {
         _client.GetPullRequestAsync(

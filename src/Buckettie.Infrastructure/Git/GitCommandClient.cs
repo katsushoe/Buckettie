@@ -51,6 +51,28 @@ public sealed class GitCommandClient : IGitCommandClient
         ExecuteAsync(repositoryRoot, ["rev-parse", "HEAD"], cancellationToken);
 
     /// <inheritdoc />
+    public Task<GitCommandResult> GetRemoteHeadAsync(
+        string repositoryRoot,
+        string remote,
+        string branch,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            repositoryRoot,
+            ["rev-parse", "--verify", "--end-of-options", RemoteReference(remote, branch)],
+            cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> GetAheadBehindAsync(
+        string repositoryRoot,
+        string remote,
+        string branch,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            repositoryRoot,
+            ["rev-list", "--left-right", "--count", $"HEAD...{RemoteReference(remote, branch)}"],
+            cancellationToken);
+
+    /// <inheritdoc />
     public Task<GitCommandResult> GetStatusAsync(string repositoryRoot, CancellationToken cancellationToken) =>
         ExecuteAsync(repositoryRoot, ["status", "--porcelain=v1"], cancellationToken);
 
@@ -111,6 +133,8 @@ public sealed class GitCommandClient : IGitCommandClient
             _atlassianEmail);
         return ExecuteAsync(repositoryRoot, arguments, cancellationToken, environment);
     }
+
+    private static string RemoteReference(string remote, string branch) => $"refs/remotes/{remote}/{branch}";
 
     private async Task<GitCommandResult> ExecuteAsync(
         string repositoryRoot,

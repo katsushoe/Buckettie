@@ -8,7 +8,7 @@ Buckettie must support repository status, fetch, fast-forward-only pull, and pol
 
 ## Decision
 
-Expose one typed method per allowed Git operation. Resolve repositories only by configured Repository ID, validate LocalRoot and Remote URL before every operation, and construct arguments internally with `ProcessStartInfo.ArgumentList`. Use `--` before configured Remote and branch operands. Disable terminal prompts and force stable English Git diagnostics. Command timeout is supplied to the infrastructure constructor by the future executable host.
+Expose one typed method per allowed Git operation. Resolve repositories only by configured Repository ID, validate LocalRoot and Remote URL before every operation, and construct arguments internally with `ProcessStartInfo.ArgumentList`. Use `--` before configured Remote and branch operands. Repository status reads configured remote-tracking refs with fixed `rev-parse` arguments and calculates local HEAD divergence from configured develop with fixed `rev-list --left-right --count`; it performs no implicit network fetch. Disable terminal prompts and force stable English Git diagnostics. Command timeout is supplied to the infrastructure constructor by the executable host.
 
 ## Alternatives
 
@@ -18,7 +18,7 @@ Expose one typed method per allowed Git operation. Resolve repositories only by 
 
 ## Impact
 
-Adding a Git operation requires a new typed interface method and explicit implementation. Commands cannot prompt interactively. Network operations remain unusable for protected credentials until the temporary credential helper is connected.
+Adding a Git operation requires a new typed interface method and explicit implementation. Commands cannot prompt interactively. Status remote HEAD and ahead/behind values reflect the most recent local remote-tracking refs and therefore become current after fetch, pull, or push.
 
 ## Security conditions
 
