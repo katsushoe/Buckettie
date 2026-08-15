@@ -12,6 +12,8 @@ public enum ConfigurationErrorCode
     InvalidRepositoryId,
     RequiredValueMissing,
     InvalidTagPattern,
+    InvalidMcpPort,
+    InvalidMcpPath,
 }
 
 /// <summary>
