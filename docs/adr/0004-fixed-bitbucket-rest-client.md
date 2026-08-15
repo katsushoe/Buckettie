@@ -8,7 +8,7 @@ Buckettie must read Bitbucket Cloud repository and branch information without ex
 
 ## Decision
 
-Expose typed repository and branch methods behind an Application Gateway. Resolve workspace and repository slug from the Repository Allowlist, use the fixed `https://api.bitbucket.org/2.0/` base address, and build endpoint paths internally. Authenticate each request with the configured Atlassian email and the repository-scoped API Token read from Windows Credential Manager. Limit branch-list pagination to 100 pages and reject malformed successful responses.
+Expose typed repository, branch, and Pull Request methods behind an Application Gateway. Resolve workspace and repository slug from the Repository Allowlist, use the fixed `https://api.bitbucket.org/2.0/` base address, and build endpoint paths internally. Authenticate each request with the configured Atlassian email and the repository-scoped API Token read from Windows Credential Manager. Limit collection pagination to 100 pages and reject malformed successful responses. Create Pull Requests only from configured develop to main, and fetch and validate the current Pull Request state and route immediately before merge.
 
 ## Alternatives
 
@@ -19,13 +19,15 @@ Expose typed repository and branch methods behind an Application Gateway. Resolv
 
 ## Impact
 
-Every supported REST operation requires a typed interface method, fixed path construction, response model, and error mapping. Repository and branch reads require `read:repository:bitbucket`. Collections larger than 10,000 entries fail as an invalid response instead of paging without a bound.
+Every supported REST operation requires a typed interface method, fixed path construction, response model, and error mapping. Repository and branch reads require `read:repository:bitbucket`; Pull Request reads and writes require their corresponding read/write scopes. Collections larger than 10,000 entries fail as an invalid response instead of paging without a bound. Diff content is limited to 5,000,000 characters.
 
 ## Security conditions
 
 - Accept only Repository ID and operation-specific values from the caller.
 - Never accept an arbitrary URL, HTTP method, header, or request body.
 - URL-encode configured path components and branch names.
+- Disable automatic redirects and follow Pull Request diff redirects only when the HTTPS destination remains under the configured Bitbucket API repository diff path.
+- Reject merge unless the Pull Request is OPEN and follows the configured develop-to-main route.
 - Never return, log, or persist the API Token or Authorization header.
 - Map authentication, permission, rate-limit, network, timeout, and malformed-response failures to structured errors.
 

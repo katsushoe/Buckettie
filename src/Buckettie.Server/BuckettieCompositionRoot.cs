@@ -56,6 +56,9 @@ public static class BuckettieCompositionRoot
         {
             client.BaseAddress = new Uri("https://api.bitbucket.org/2.0/", UriKind.Absolute);
             client.Timeout = TimeSpan.FromSeconds(30);
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
         });
         services.AddSingleton<IBitbucketApiClient>(provider => new BitbucketApiClient(
             provider.GetRequiredService<IHttpClientFactory>().CreateClient("Bitbucket"),

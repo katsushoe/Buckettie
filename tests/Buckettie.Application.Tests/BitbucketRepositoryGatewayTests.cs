@@ -65,6 +65,89 @@ public sealed class BitbucketRepositoryGatewayTests
             TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task CreatePullRequestAsync_WhenInputIsValid_UsesConfiguredDevelopToMainRoute()
+    {
+        BitbucketPullRequestCreate input = new("Release", "Description", false);
+        BitbucketPullRequestInfo expected = CreatePullRequest("OPEN", "develop", "main");
+        _client.CreatePullRequestAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            "develop",
+            "main",
+            input,
+            Arg.Any<CancellationToken>()).Returns(BitbucketResult<BitbucketPullRequestInfo>.Success(expected));
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await gateway.CreatePullRequestAsync(
+            "allowed",
+            input,
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task MergePullRequestAsync_WhenRouteIsNotAllowed_DoesNotMerge()
+    {
+        _client.GetPullRequestAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            7,
+            Arg.Any<CancellationToken>()).Returns(BitbucketResult<BitbucketPullRequestInfo>.Success(
+                CreatePullRequest("OPEN", "main", "develop")));
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await gateway.MergePullRequestAsync(
+            "allowed",
+            7,
+            new BitbucketPullRequestMerge(BitbucketMergeStrategy.RepositoryDefault, null),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.PullRequestRouteNotAllowed);
+        await _client.DidNotReceiveWithAnyArgs().MergePullRequestAsync(
+            default!, default!, default!, default, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task MergePullRequestAsync_WhenPullRequestIsNotOpen_DoesNotMerge()
+    {
+        _client.GetPullRequestAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            7,
+            Arg.Any<CancellationToken>()).Returns(BitbucketResult<BitbucketPullRequestInfo>.Success(
+                CreatePullRequest("MERGED", "develop", "main")));
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await gateway.MergePullRequestAsync(
+            "allowed",
+            7,
+            new BitbucketPullRequestMerge(BitbucketMergeStrategy.RepositoryDefault, null),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.PullRequestNotOpen);
+    }
+
+    private static BitbucketPullRequestInfo CreatePullRequest(
+        string state,
+        string source,
+        string destination) => new(
+        7,
+        "Release",
+        "Description",
+        state,
+        source,
+        destination,
+        false,
+        "https://bitbucket.org/workspace/repository/pull-requests/7",
+        DateTimeOffset.Parse("2026-08-16T00:00:00Z"),
+        DateTimeOffset.Parse("2026-08-16T01:00:00Z"),
+        null);
+
     private BitbucketRepositoryGateway CreateGateway()
     {
         BuckettieOptions options = new()
