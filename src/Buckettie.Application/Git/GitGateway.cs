@@ -1,4 +1,4 @@
-using Buckettie.Application.Configuration;
+﻿using Buckettie.Application.Configuration;
 using Buckettie.Application.Repositories;
 using Buckettie.Domain;
 
@@ -94,6 +94,7 @@ public sealed class GitGateway : IGitGateway
         GitCommandResult result = await _git.FetchAsync(
             boundary.Repository.LocalRoot,
             boundary.Repository.Remote,
+            repository,
             cancellationToken).ConfigureAwait(false);
         return MapCommandFailure(operation, repository, result)
             ?? GitGatewayResult.Success(operation, repository);
@@ -130,6 +131,7 @@ public sealed class GitGateway : IGitGateway
             boundary.Repository.LocalRoot,
             boundary.Repository.Remote,
             branch,
+            repository,
             cancellationToken).ConfigureAwait(false);
         return MapCommandFailure(operation, repository, result, branch)
             ?? GitGatewayResult.Success(operation, repository, branch);
@@ -177,6 +179,7 @@ public sealed class GitGateway : IGitGateway
             boundary.Repository.LocalRoot,
             boundary.Repository.Remote,
             branch,
+            repository,
             cancellationToken).ConfigureAwait(false);
         return MapCommandFailure(operation, repository, result, branch)
             ?? GitGatewayResult.Success(operation, repository, branch);
