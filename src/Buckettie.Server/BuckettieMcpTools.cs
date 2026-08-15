@@ -25,153 +25,169 @@ public sealed class BuckettieMcpTools
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Returns the configured repository's local branch, HEAD, and working-tree status.")]
-    public Task<GitGatewayResult> RepositoryStatusAsync(
+    public Task<BuckettieToolResult<BuckettieGitData>> RepositoryStatusAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        _git.GetStatusAsync(repository, cancellationToken);
+        BuckettieToolResultMapper.MapGitAsync(_git.GetStatusAsync(repository, cancellationToken));
 
     /// <summary>設定済みRemoteからfetchします。</summary>
     [McpServerTool(Name = "bitbucket_fetch", Destructive = false, Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Fetches refs from the repository's configured Bitbucket remote.")]
-    public Task<GitGatewayResult> FetchAsync(
+    public Task<BuckettieToolResult<BuckettieGitData>> FetchAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        _git.FetchAsync(repository, cancellationToken);
+        BuckettieToolResultMapper.MapGitAsync(_git.FetchAsync(repository, cancellationToken));
 
     /// <summary>現在Branchをfast-forward限定でpullします。</summary>
     [McpServerTool(Name = "bitbucket_pull", Destructive = false, Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Pulls the current allowed branch using fast-forward only.")]
-    public Task<GitGatewayResult> PullAsync(
+    public Task<BuckettieToolResult<BuckettieGitData>> PullAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        _git.PullAsync(repository, cancellationToken);
+        BuckettieToolResultMapper.MapGitAsync(_git.PullAsync(repository, cancellationToken));
 
     /// <summary>現在の許可Branchをpushします。</summary>
     [McpServerTool(Name = "bitbucket_push", Destructive = true, Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Pushes the current branch after applying repository and protected-branch policies.")]
-    public Task<GitGatewayResult> PushAsync(
+    public Task<BuckettieToolResult<BuckettieGitData>> PushAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        _git.PushAsync(repository, cancellationToken);
+        BuckettieToolResultMapper.MapGitAsync(_git.PushAsync(repository, cancellationToken));
 
     /// <summary>Remote Branch一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_branch_list", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Lists Bitbucket branches for an allowed repository.")]
-    public Task<BitbucketResult<IReadOnlyList<BitbucketBranchInfo>>> ListBranchesAsync(
+    public Task<BuckettieToolResult<IReadOnlyList<BitbucketBranchInfo>>> ListBranchesAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.ListBranchesAsync(repository, cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.ListBranchesAsync(repository, cancellationToken), "branch_list", repository);
 
     /// <summary>Remote Branch詳細を取得します。</summary>
     [McpServerTool(Name = "bitbucket_branch_get", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Gets a Bitbucket branch and its target commit hash.")]
-    public Task<BitbucketResult<BitbucketBranchInfo>> GetBranchAsync(
+    public Task<BuckettieToolResult<BitbucketBranchInfo>> GetBranchAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Branch name.")] string branch,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.GetBranchAsync(repository, branch, cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.GetBranchAsync(repository, branch, cancellationToken), "branch_get", repository);
 
     /// <summary>Pull Request一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_list", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Lists Bitbucket pull requests, optionally filtered by state.")]
-    public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
+    public Task<BuckettieToolResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Optional pull-request state.")] BitbucketPullRequestState? state = null,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.ListPullRequestsAsync(repository, state, cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.ListPullRequestsAsync(repository, state, cancellationToken), "pr_list", repository);
 
     /// <summary>Pull Request詳細を取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_get", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Gets a Bitbucket pull request by ID.")]
-    public Task<BitbucketResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
+    public Task<BuckettieToolResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request ID.")] int pullRequestId,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.GetPullRequestAsync(repository, pullRequestId, cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.GetPullRequestAsync(repository, pullRequestId, cancellationToken), "pr_get", repository);
 
     /// <summary>Pull Request diffを取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_diff", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Gets the bounded unified diff for a Bitbucket pull request.")]
-    public Task<BitbucketResult<string>> GetPullRequestDiffAsync(
+    public Task<BuckettieToolResult<string>> GetPullRequestDiffAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request ID.")] int pullRequestId,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.GetPullRequestDiffAsync(repository, pullRequestId, cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.GetPullRequestDiffAsync(repository, pullRequestId, cancellationToken), "pr_diff", repository);
 
     /// <summary>設定済みdevelopからmainへのPull Requestを作成します。</summary>
     [McpServerTool(Name = "bitbucket_pr_create", Destructive = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Creates a pull request using the repository's configured develop-to-main route.")]
-    public Task<BitbucketResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
+    public Task<BuckettieToolResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request title.")] string title,
         [Description("Pull-request description.")] string description,
         [Description("Whether to create the pull request as a draft.")] bool draft = false,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.CreatePullRequestAsync(
-            repository,
-            new BitbucketPullRequestCreate(title, description, draft),
-            cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.CreatePullRequestAsync(
+                repository,
+                new BitbucketPullRequestCreate(title, description, draft),
+                cancellationToken),
+            "pr_create",
+            repository);
 
     /// <summary>Policy検証後にPull Requestをmergeします。</summary>
     [McpServerTool(Name = "bitbucket_pr_merge", Destructive = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Merges an OPEN pull request only when it follows the configured develop-to-main route.")]
-    public Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
+    public Task<BuckettieToolResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request ID.")] int pullRequestId,
         [Description("Merge strategy; RepositoryDefault uses the repository setting.")]
         BitbucketMergeStrategy strategy = BitbucketMergeStrategy.RepositoryDefault,
         [Description("Optional merge commit message.")] string? message = null,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.MergePullRequestAsync(
-            repository,
-            pullRequestId,
-            new BitbucketPullRequestMerge(strategy, message),
-            cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.MergePullRequestAsync(
+                repository,
+                pullRequestId,
+                new BitbucketPullRequestMerge(strategy, message),
+                cancellationToken),
+            "pr_merge",
+            repository);
 
     /// <summary>Tag一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_tag_list", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Lists Bitbucket tags for an allowed repository.")]
-    public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
+    public Task<BuckettieToolResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.ListTagsAsync(repository, cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.ListTagsAsync(repository, cancellationToken), "tag_list", repository);
 
     /// <summary>Tag詳細を取得します。</summary>
     [McpServerTool(Name = "bitbucket_tag_get", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Gets a Bitbucket tag and its target commit hash.")]
-    public Task<BitbucketResult<BitbucketTagInfo>> GetTagAsync(
+    public Task<BuckettieToolResult<BitbucketTagInfo>> GetTagAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Tag name.")] string tag,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.GetTagAsync(repository, tag, cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.GetTagAsync(repository, tag, cancellationToken), "tag_get", repository);
 
     /// <summary>設定済み対象BranchのHEADへTagを作成します。</summary>
     [McpServerTool(Name = "bitbucket_tag_create", Destructive = true, OpenWorld = true,
         UseStructuredContent = true)]
     [Description("Creates a policy-compliant tag at the configured target branch's current HEAD.")]
-    public Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(
+    public Task<BuckettieToolResult<BitbucketTagInfo>> CreateTagAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Policy-compliant tag name.")] string tag,
         [Description("Optional annotated-tag message.")] string? message = null,
         CancellationToken cancellationToken = default) =>
-        _bitbucket.CreateTagAsync(repository, new BitbucketTagCreate(tag, message), cancellationToken);
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.CreateTagAsync(repository, new BitbucketTagCreate(tag, message), cancellationToken),
+            "tag_create",
+            repository);
 }

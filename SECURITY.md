@@ -32,3 +32,5 @@ The REST trust-boundary design is recorded in [ADR 0004](docs/adr/0004-fixed-bit
 Buckettie listens only on IPv4 and IPv6 loopback. MCP requests with an `Origin` header are accepted only from HTTP loopback on the configured port. The server exposes exactly the typed Phase 1 tools and never accepts arbitrary shell, Git argument, REST destination, repository coordinates, or Tag target hashes.
 
 The MCP transport boundary is recorded in [ADR 0005](docs/adr/0005-local-streamable-http-mcp-server.md).
+
+MCP Tool failures use fixed error codes and messages. Git stderr, HTTP response bodies, exceptions, local paths, URLs, and credential values are not included. The common error contract is recorded in [ADR 0006](docs/adr/0006-common-mcp-tool-result.md).

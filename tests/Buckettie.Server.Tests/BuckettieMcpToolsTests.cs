@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Buckettie.Application.Bitbucket;
+using Buckettie.Application.Git;
 using ModelContextProtocol.Server;
 using Xunit;
 
@@ -65,5 +67,47 @@ public sealed class BuckettieMcpToolsTests
             "bitbucket_pr_create",
             "bitbucket_pr_merge",
             "bitbucket_tag_create");
+    }
+
+    [Fact]
+    public void ToolMethods_WhenInspected_ReturnCommonStructuredResult()
+    {
+        Type[] returnTypes = typeof(BuckettieMcpTools)
+            .GetMethods()
+            .Where(method => method.GetCustomAttributes(typeof(McpServerToolAttribute), inherit: false).Length == 1)
+            .Select(method => method.ReturnType.GenericTypeArguments.Single())
+            .ToArray();
+
+        returnTypes.Should().OnlyContain(type =>
+            type.IsGenericType && type.GetGenericTypeDefinition() == typeof(BuckettieToolResult<>));
+    }
+
+    [Fact]
+    public async Task MapGitAsync_WhenGatewayFails_ReturnsCommonErrorShape()
+    {
+        GitGatewayResult gatewayResult = GitGatewayResult.Failure(
+            "push", "example", GitGatewayError.ProtectedBranch, "main");
+
+        BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
+            Task.FromResult(gatewayResult));
+
+        result.Should().Be(new BuckettieToolResult<BuckettieGitData>(
+            false,
+            "push",
+            "example",
+            null,
+            new BuckettieToolError("protected_branch", "Direct push to the protected branch is not allowed.")));
+    }
+
+    [Theory]
+    [InlineData("pr_get", "pull_request_not_found")]
+    [InlineData("pr_diff", "pull_request_not_found")]
+    [InlineData("pr_merge", "pull_request_not_found")]
+    [InlineData("tag_get", "tag_not_found")]
+    [InlineData("branch_get", "branch_not_found")]
+    [InlineData("branch_list", "repository_not_found")]
+    public void BitbucketCode_WhenApiReturnsNotFound_UsesOperationContext(string operation, string expected)
+    {
+        BuckettieToolResultMapper.BitbucketCode(BitbucketError.NotFound, operation).Should().Be(expected);
     }
 }
