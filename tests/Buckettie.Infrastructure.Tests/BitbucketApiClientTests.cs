@@ -72,6 +72,68 @@ public sealed class BitbucketApiClientTests
     }
 
     [Fact]
+    public async Task ListTagsAsync_WhenResponseIsPaged_MapsTags()
+    {
+        RecordingHandler handler = new(
+            "{\"values\":[{\"name\":\"v1.0.0\",\"target\":{\"hash\":\"abc\"}}],\"next\":\"next\"}",
+            "{\"values\":[{\"name\":\"v1.1.0\",\"target\":{\"hash\":\"def\"}}]}");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<IReadOnlyList<BitbucketTagInfo>> result = await client.ListTagsAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().Equal(
+            new BitbucketTagInfo("v1.0.0", "abc", null, null, null),
+            new BitbucketTagInfo("v1.1.0", "def", null, null, null));
+        handler.Paths.Should().Equal(
+            "repositories/workspace/repository/refs/tags?pagelen=100&page=1",
+            "repositories/workspace/repository/refs/tags?pagelen=100&page=2");
+    }
+
+    [Fact]
+    public async Task GetTagAsync_WhenNameContainsSlash_EncodesTagName()
+    {
+        RecordingHandler handler = new("{\"name\":\"release/1\",\"target\":{\"hash\":\"abc\"}}");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketTagInfo> result = await client.GetTagAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            "release/1",
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(new BitbucketTagInfo("release/1", "abc", null, null, null));
+        handler.Paths.Should().Equal("repositories/workspace/repository/refs/tags/release%2F1");
+    }
+
+    [Fact]
+    public async Task CreateTagAsync_WhenCalled_SendsNameTargetAndMessage()
+    {
+        RecordingHandler handler = new(
+            "{\"name\":\"v1.2.3\",\"target\":{\"hash\":\"abcdef\"},\"message\":\"Release\"}");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketTagInfo> result = await client.CreateTagAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            "abcdef",
+            new BitbucketTagCreate("v1.2.3", "Release"),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        handler.Methods.Should().Equal(HttpMethod.Post);
+        handler.Paths.Should().Equal("repositories/workspace/repository/refs/tags");
+        handler.Bodies.Should().ContainSingle().Which.Should().Contain("\"name\":\"v1.2.3\"")
+            .And.Contain("\"target\":{\"hash\":\"abcdef\"}")
+            .And.Contain("\"message\":\"Release\"");
+    }
+
+    [Fact]
     public async Task GetRepositoryAsync_WhenTokenIsUnavailable_DoesNotSendRequest()
     {
         RecordingHandler handler = new("{}");

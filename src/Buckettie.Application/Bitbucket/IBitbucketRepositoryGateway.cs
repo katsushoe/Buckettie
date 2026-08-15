@@ -19,6 +19,23 @@ public interface IBitbucketRepositoryGateway
         string branch,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Tag一覧を取得します。</summary>
+    public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
+        string repository,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Tag詳細を取得します。</summary>
+    public Task<BitbucketResult<BitbucketTagInfo>> GetTagAsync(
+        string repository,
+        string tag,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>設定済み対象BranchのHEADへTagを作成します。</summary>
+    public Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(
+        string repository,
+        BitbucketTagCreate input,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Pull Request一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repository,

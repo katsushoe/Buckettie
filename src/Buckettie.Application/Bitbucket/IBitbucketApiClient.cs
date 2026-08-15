@@ -25,6 +25,30 @@ public interface IBitbucketApiClient
         string branch,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Tag一覧を取得します。</summary>
+    public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Tag詳細を取得します。</summary>
+    public Task<BitbucketResult<BitbucketTagInfo>> GetTagAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        string tag,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>指定CommitへTagを作成します。</summary>
+    public Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        string targetHash,
+        BitbucketTagCreate input,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Pull Request一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repositoryId,

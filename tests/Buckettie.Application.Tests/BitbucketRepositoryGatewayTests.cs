@@ -66,6 +66,50 @@ public sealed class BitbucketRepositoryGatewayTests
     }
 
     [Fact]
+    public async Task CreateTagAsync_WhenInputIsValid_TargetsConfiguredBranchHead()
+    {
+        BitbucketTagCreate input = new("v1.2.3", "Release");
+        BitbucketTagInfo expected = new("v1.2.3", "abcdef", "Release", null, null);
+        _client.GetBranchAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            "main",
+            Arg.Any<CancellationToken>()).Returns(BitbucketResult<BitbucketBranchInfo>.Success(
+                new BitbucketBranchInfo("main", "abcdef")));
+        _client.CreateTagAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            "abcdef",
+            input,
+            Arg.Any<CancellationToken>()).Returns(BitbucketResult<BitbucketTagInfo>.Success(expected));
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<BitbucketTagInfo> result = await gateway.CreateTagAsync(
+            "allowed",
+            input,
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task CreateTagAsync_WhenNameViolatesPattern_DoesNotCallApi()
+    {
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<BitbucketTagInfo> result = await gateway.CreateTagAsync(
+            "allowed",
+            new BitbucketTagCreate("release-1", null),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.InvalidTag);
+        await _client.DidNotReceiveWithAnyArgs().CreateTagAsync(
+            default!, default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task CreatePullRequestAsync_WhenInputIsValid_UsesConfiguredDevelopToMainRoute()
     {
         BitbucketPullRequestCreate input = new("Release", "Description", false);
