@@ -1,5 +1,6 @@
 {
   "atlassian_email": "developer@example.com",
+  "bitbucket_username": "developer",
   "repositories": {
     "example": {
       "workspace": "example-workspace",

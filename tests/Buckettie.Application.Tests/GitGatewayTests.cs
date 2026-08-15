@@ -131,6 +131,7 @@ public sealed class GitGatewayTests
         BuckettieOptions options = new()
         {
             AtlassianEmail = "developer@example.com",
+            BitbucketUsername = "developer",
             Repositories = new Dictionary<string, RepositoryOptions>
             {
                 ["buckettie"] = CreateRepository(),

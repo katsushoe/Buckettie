@@ -39,9 +39,9 @@ public static class GitAskPassProtocol
             throw new ArgumentException("Invalid repository ID.", nameof(repositoryId));
         }
 
-        if (!AtlassianEmail.IsValid(username))
+        if (!BitbucketUsername.IsValid(username))
         {
-            throw new ArgumentException("Invalid Atlassian email.", nameof(username));
+            throw new ArgumentException("Invalid Bitbucket username.", nameof(username));
         }
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {

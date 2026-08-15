@@ -75,6 +75,8 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
         if (root.ValueKind != JsonValueKind.Object
             || !root.TryGetProperty("atlassian_email", out JsonElement email)
             || email.ValueKind != JsonValueKind.String
+            || !root.TryGetProperty("bitbucket_username", out JsonElement username)
+            || username.ValueKind != JsonValueKind.String
             || !root.TryGetProperty("repositories", out JsonElement repositories)
             || repositories.ValueKind != JsonValueKind.Object)
         {
@@ -127,6 +129,11 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
         if (!AtlassianEmail.IsValid(options.AtlassianEmail))
         {
             return new(ConfigurationErrorCode.InvalidAtlassianEmail, "atlassian_email");
+        }
+
+        if (!BitbucketUsername.IsValid(options.BitbucketUsername))
+        {
+            return new(ConfigurationErrorCode.InvalidBitbucketUsername, "bitbucket_username");
         }
 
         foreach ((string id, RepositoryOptions repository) in options.Repositories)

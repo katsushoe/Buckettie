@@ -55,6 +55,7 @@ public sealed class BuckettieCompositionRootTests
         const string json = """
             {
               "atlassian_email": "developer@example.com",
+              "bitbucket_username": "developer",
               "repositories": {
                 "example": {
                   "workspace": "example-workspace",

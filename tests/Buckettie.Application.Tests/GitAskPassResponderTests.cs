@@ -11,16 +11,16 @@ public sealed class GitAskPassResponderTests
     private readonly IApiTokenStore _tokenStore = Substitute.For<IApiTokenStore>();
 
     [Fact]
-    public void Respond_WhenUsernameIsRequested_ReturnsConfiguredEmail()
+    public void Respond_WhenUsernameIsRequested_ReturnsConfiguredUsername()
     {
         GitAskPassResponder responder = new(_tokenStore);
 
         GitAskPassResponse result = responder.Respond(
             "buckettie",
-            "developer@example.com",
+            "developer",
             "Username for 'https://bitbucket.org':");
 
-        result.Value.Should().Be("developer@example.com");
+        result.Value.Should().Be("developer");
         _tokenStore.DidNotReceiveWithAnyArgs().Read(default!);
     }
 
@@ -32,7 +32,7 @@ public sealed class GitAskPassResponderTests
 
         GitAskPassResponse result = responder.Respond(
             "buckettie",
-            "developer@example.com",
+            "developer",
             "Password for 'https://developer@bitbucket.org':");
 
         result.Value.Should().Be("secret-token");
@@ -46,7 +46,7 @@ public sealed class GitAskPassResponderTests
 
         GitAskPassResponse result = responder.Respond(
             "buckettie",
-            "developer@example.com",
+            "developer",
             "Password for 'https://developer@bitbucket.org':");
 
         result.Error.Should().Be(GitAskPassError.TokenUnavailable);
@@ -57,7 +57,7 @@ public sealed class GitAskPassResponderTests
     {
         GitAskPassResponder responder = new(_tokenStore);
 
-        GitAskPassResponse result = responder.Respond("buckettie", "developer@example.com", "PIN:");
+        GitAskPassResponse result = responder.Respond("buckettie", "developer", "PIN:");
 
         result.Error.Should().Be(GitAskPassError.UnsupportedPrompt);
     }
@@ -68,15 +68,15 @@ public sealed class GitAskPassResponderTests
         IReadOnlyDictionary<string, string> environment = GitAskPassProtocol.CreateEnvironment(
             Path.GetFullPath("askpass.exe"),
             "buckettie",
-            "developer@example.com");
+            "developer");
 
         environment.Should().ContainKey("GIT_ASKPASS").WhoseValue.Should().Be(Path.GetFullPath("askpass.exe"));
         environment.Should().NotContainValue("secret-token");
     }
 
     [Theory]
-    [InlineData("relative-askpass.exe", "developer@example.com")]
-    [InlineData("C:\\AskPass.exe", "developer@example.com\r\nsecret")]
+    [InlineData("relative-askpass.exe", "developer")]
+    [InlineData("C:\\AskPass.exe", "developer\r\nsecret")]
     public void CreateEnvironment_WhenInputIsUnsafe_Throws(string executable, string username)
     {
         Action action = () => GitAskPassProtocol.CreateEnvironment(executable, "buckettie", username);

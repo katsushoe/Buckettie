@@ -8,7 +8,7 @@ internal static class Program
     {
         string configurationPath = args.Length > 0
             ? Path.GetFullPath(args[0])
-            : Path.Combine(AppContext.BaseDirectory, "buckettie.json");
+            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "config", "buckettie.json"));
         string askPassExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.AskPass.exe");
 
         await using FileStream configuration = File.OpenRead(configurationPath);
