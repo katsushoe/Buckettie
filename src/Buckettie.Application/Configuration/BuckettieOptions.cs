@@ -6,6 +6,11 @@
 public sealed record BuckettieOptions
 {
     /// <summary>
+    /// Bitbucket API Tokenと組み合わせるAtlassian emailです。
+    /// </summary>
+    public required string AtlassianEmail { get; init; }
+
+    /// <summary>
     /// Repository IDをキーとする許可済みRepository設定です。
     /// </summary>
     public required IReadOnlyDictionary<string, RepositoryOptions> Repositories { get; init; }

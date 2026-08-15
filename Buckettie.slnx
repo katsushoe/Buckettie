@@ -2,6 +2,7 @@
   <Project Path="src/Buckettie.Domain/Buckettie.Domain.csproj" />
   <Project Path="src/Buckettie.Application/Buckettie.Application.csproj" />
   <Project Path="src/Buckettie.Infrastructure/Buckettie.Infrastructure.csproj" />
+  <Project Path="src/Buckettie.AskPass/Buckettie.AskPass.csproj" />
   <Project Path="tests/Buckettie.Domain.Tests/Buckettie.Domain.Tests.csproj" />
   <Project Path="tests/Buckettie.Application.Tests/Buckettie.Application.Tests.csproj" />
   <Project Path="tests/Buckettie.Infrastructure.Tests/Buckettie.Infrastructure.Tests.csproj" />

@@ -16,3 +16,7 @@ The design rationale and alternatives are recorded in [ADR 0001](docs/adr/0001-w
 Buckettie exposes typed Git operations only. It does not accept shell commands, executable paths, or arbitrary Git arguments. Repository LocalRoot and Bitbucket Remote URL are validated before every operation, and configured operands are separated from options with `--`.
 
 The command-boundary design is recorded in [ADR 0002](docs/adr/0002-fixed-git-command-gateway.md).
+
+## Git AskPass
+
+`Buckettie.AskPass` receives only Repository ID and Atlassian email through environment variables. It reads the API Token directly from Windows Credential Manager and returns it only through the Git AskPass protocol. The Token must never be copied into an environment variable or temporary script.
