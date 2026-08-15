@@ -1,4 +1,6 @@
 {
+  "mcp_port": 45450,
+  "mcp_path": "/mcp",
   "atlassian_email": "developer@example.com",
   "bitbucket_username": "developer",
   "repositories": {

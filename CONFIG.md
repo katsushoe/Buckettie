@@ -9,6 +9,8 @@ The JSON contract is strict:
 - Property names use `snake_case` and are case-sensitive.
 - `atlassian_email` is the non-secret username reserved for Bitbucket REST authentication.
 - `bitbucket_username` is the case-sensitive Bitbucket Cloud username supplied to Git HTTPS authentication.
+- `mcp_port` is the localhost-only Streamable HTTP port and defaults to `45450`.
+- `mcp_path` is the endpoint path and defaults to `/mcp`.
 - Unknown properties and JSON comments are rejected.
 - Repository IDs are case-sensitive and must be unique.
 - Repository IDs use only ASCII letters, numbers, `.`, `_`, and `-`, with a maximum length of 128.
@@ -28,5 +30,7 @@ The JSON contract is strict:
 | `InvalidRepositoryId` | A Repository ID contains unsupported characters or is too long. |
 | `RequiredValueMissing` | A required property is absent, null, empty, or whitespace. |
 | `InvalidTagPattern` | `tag_pattern` is not a valid regular expression. |
+| `InvalidMcpPort` | `mcp_port` is outside `1` through `65535`. |
+| `InvalidMcpPath` | `mcp_path` is not a safe absolute HTTP path. |
 
 Filesystem existence, `.git`, symlink/junction, and Git Remote checks are separate repository-boundary validations performed after loading.

@@ -126,6 +126,21 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
 
     private static ConfigurationError? ValidateValues(BuckettieOptions options)
     {
+        if (options.McpPort is < 1 or > 65_535)
+        {
+            return new(ConfigurationErrorCode.InvalidMcpPort, "mcp_port");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.McpPath)
+            || options.McpPath[0] != '/'
+            || options.McpPath.Length > 128
+            || options.McpPath.Any(char.IsControl)
+            || options.McpPath.Contains('?', StringComparison.Ordinal)
+            || options.McpPath.Contains('#', StringComparison.Ordinal))
+        {
+            return new(ConfigurationErrorCode.InvalidMcpPath, "mcp_path");
+        }
+
         if (!AtlassianEmail.IsValid(options.AtlassianEmail))
         {
             return new(ConfigurationErrorCode.InvalidAtlassianEmail, "atlassian_email");

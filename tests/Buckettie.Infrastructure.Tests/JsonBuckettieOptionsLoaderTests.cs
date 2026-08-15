@@ -37,6 +37,32 @@ public sealed class JsonBuckettieOptionsLoaderTests
 
         result.IsValid.Should().BeTrue();
         result.Options!.Repositories["buckettie"].RequireCleanWorkingTree.Should().BeTrue();
+        result.Options.McpPort.Should().Be(45450);
+        result.Options.McpPath.Should().Be("/mcp");
+    }
+
+    [Theory]
+    [InlineData("\"mcp_port\":0,")]
+    [InlineData("\"mcp_port\":65536,")]
+    public async Task LoadAsync_WhenMcpPortIsInvalid_ReturnsPortError(string property)
+    {
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson, property);
+        await using MemoryStream stream = CreateStream(json);
+
+        ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
+
+        result.Errors.Should().ContainSingle().Which.Code.Should().Be(ConfigurationErrorCode.InvalidMcpPort);
+    }
+
+    [Fact]
+    public async Task LoadAsync_WhenMcpPathIsInvalid_ReturnsPathError()
+    {
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson, "\"mcp_path\":\"external\",");
+        await using MemoryStream stream = CreateStream(json);
+
+        ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
+
+        result.Errors.Should().ContainSingle().Which.Code.Should().Be(ConfigurationErrorCode.InvalidMcpPath);
     }
 
     [Fact]
@@ -139,6 +165,8 @@ public sealed class JsonBuckettieOptionsLoaderTests
 
     private static MemoryStream CreateStream(string json) => new(Encoding.UTF8.GetBytes(json));
 
-    private static string CreateRootJson(string repositories) =>
-        "{\"atlassian_email\":\"developer@example.com\",\"bitbucket_username\":\"developer\",\"repositories\":{" + repositories + "}}";
+    private static string CreateRootJson(string repositories, string additionalProperty = "") =>
+        "{" + additionalProperty
+        + "\"atlassian_email\":\"developer@example.com\",\"bitbucket_username\":\"developer\",\"repositories\":{"
+        + repositories + "}}";
 }

@@ -5,6 +5,12 @@
 /// </summary>
 public sealed record BuckettieOptions
 {
+    /// <summary>MCP ServerがlocalhostでListenするTCP portです。</summary>
+    public int McpPort { get; init; } = 45450;
+
+    /// <summary>MCP Endpoint pathです。</summary>
+    public string McpPath { get; init; } = "/mcp";
+
     /// <summary>
     /// Bitbucket API Tokenと組み合わせるAtlassian emailです。
     /// </summary>

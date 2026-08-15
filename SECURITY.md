@@ -26,3 +26,9 @@ The command-boundary design is recorded in [ADR 0002](docs/adr/0002-fixed-git-co
 Buckettie resolves workspace and repository slug only from the Repository Allowlist. The REST client uses the fixed `https://api.bitbucket.org/2.0/` base address and typed operations; it does not accept an arbitrary URL, HTTP method, or request body from an MCP client. Basic authentication is generated in memory from the configured Atlassian email and the repository-scoped Credential Manager Token. Pull Request creation and merge are restricted to the configured develop-to-main route. Automatic redirects are disabled; diff redirects are followed only inside the matching Bitbucket API repository path.
 
 The REST trust-boundary design is recorded in [ADR 0004](docs/adr/0004-fixed-bitbucket-rest-client.md).
+
+## MCP Streamable HTTP
+
+Buckettie listens only on IPv4 and IPv6 loopback. MCP requests with an `Origin` header are accepted only from HTTP loopback on the configured port. The server exposes exactly the typed Phase 1 tools and never accepts arbitrary shell, Git argument, REST destination, repository coordinates, or Tag target hashes.
+
+The MCP transport boundary is recorded in [ADR 0005](docs/adr/0005-local-streamable-http-mcp-server.md).

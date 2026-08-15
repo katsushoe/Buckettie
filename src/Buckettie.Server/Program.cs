@@ -1,4 +1,13 @@
-﻿namespace Buckettie.Server;
+using Buckettie.Application.Bitbucket;
+using Buckettie.Application.Configuration;
+using Buckettie.Application.Git;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+namespace Buckettie.Server;
 
 internal static class Program
 {
@@ -18,14 +27,46 @@ internal static class Program
             GitCommandTimeout).ConfigureAwait(false);
         if (result.IsSuccess)
         {
+            await RunServerAsync(result.Services!, CancellationToken.None).ConfigureAwait(false);
             return 0;
         }
 
-        foreach (Buckettie.Application.Configuration.ConfigurationError error in result.Errors)
+        foreach (ConfigurationError error in result.Errors)
         {
             Console.Error.WriteLine($"{error.Code}: {error.Path}");
         }
 
         return 2;
+    }
+
+    private static async Task RunServerAsync(
+        IServiceProvider buckettieServices,
+        CancellationToken cancellationToken)
+    {
+        BuckettieOptions options = buckettieServices.GetRequiredService<BuckettieOptions>();
+        WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.ConfigureKestrel(server => server.ListenLocalhost(options.McpPort));
+        builder.Services.AddSingleton(buckettieServices.GetRequiredService<IGitGateway>());
+        builder.Services.AddSingleton(buckettieServices.GetRequiredService<IBitbucketRepositoryGateway>());
+
+        builder.Services.AddMcpServer()
+            .WithHttpTransport(transport => transport.Stateless = true)
+            .WithTools<BuckettieMcpTools>(BuckettieMcpJson.CreateOptions());
+
+        await using WebApplication app = builder.Build();
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments(options.McpPath)
+                && !McpOriginValidator.IsAllowed(context.Request.Headers.Origin, options.McpPort))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
+            await next(context).ConfigureAwait(false);
+        });
+        app.MapMcp(options.McpPath);
+        await app.StartAsync(cancellationToken).ConfigureAwait(false);
+        await app.WaitForShutdownAsync(cancellationToken).ConfigureAwait(false);
     }
 }
