@@ -1,4 +1,4 @@
-namespace Buckettie.Infrastructure.Git;
+﻿namespace Buckettie.Infrastructure.Git;
 
 internal interface IProcessExecutor
 {
@@ -11,6 +11,7 @@ internal sealed record ProcessRequest(
     string FileName,
     string WorkingDirectory,
     IReadOnlyList<string> Arguments,
+    IReadOnlyDictionary<string, string> Environment,
     TimeSpan Timeout);
 
 internal sealed record ProcessExecutionResult(

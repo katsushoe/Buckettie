@@ -18,7 +18,7 @@ Use a dedicated `Buckettie.AskPass` executable. The Git parent process supplies 
 
 ## Impact
 
-Deployment must keep the AskPass executable beside the host or provide its trusted absolute path. Git command integration must set `GIT_ASKPASS_REQUIRE=force` and disable terminal prompts.
+Deployment must keep the AskPass executable beside the host or provide its trusted absolute path. Git command integration must set `GIT_ASKPASS_REQUIRE=force`, disable terminal prompts, clear inherited Git override variables, and use HTTPS Remotes only.
 
 ## Security conditions
 

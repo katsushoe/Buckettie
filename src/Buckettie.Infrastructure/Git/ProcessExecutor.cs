@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Buckettie.Infrastructure.Git;
@@ -77,9 +77,15 @@ internal sealed class ProcessExecutor : IProcessExecutor
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
+        GitEnvironmentSanitizer.Sanitize(startInfo.Environment);
         foreach (string argument in request.Arguments)
         {
             startInfo.ArgumentList.Add(argument);
+        }
+
+        foreach ((string name, string value) in request.Environment)
+        {
+            startInfo.Environment[name] = value;
         }
 
         startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";

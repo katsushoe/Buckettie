@@ -1,4 +1,4 @@
-namespace Buckettie.Application.Git;
+﻿namespace Buckettie.Application.Git;
 
 /// <summary>
 /// Buckettieが許可する固定Gitコマンドだけを公開します。
@@ -24,6 +24,7 @@ public interface IGitCommandClient
     public Task<GitCommandResult> FetchAsync(
         string repositoryRoot,
         string remote,
+        string repositoryId,
         CancellationToken cancellationToken);
 
     /// <summary>設定済みRemoteからfast-forward限定でpullします。</summary>
@@ -31,6 +32,7 @@ public interface IGitCommandClient
         string repositoryRoot,
         string remote,
         string branch,
+        string repositoryId,
         CancellationToken cancellationToken);
 
     /// <summary>現在branchを設定済みRemoteへpushします。</summary>
@@ -38,5 +40,6 @@ public interface IGitCommandClient
         string repositoryRoot,
         string remote,
         string branch,
+        string repositoryId,
         CancellationToken cancellationToken);
 }

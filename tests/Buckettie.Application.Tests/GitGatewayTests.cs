@@ -60,6 +60,7 @@ public sealed class GitGatewayTests
         await _git.DidNotReceiveWithAnyArgs().FetchAsync(
             default!,
             default!,
+            default!,
             TestContext.Current.CancellationToken);
     }
 
@@ -70,7 +71,12 @@ public sealed class GitGatewayTests
         ConfigureBoundary();
         _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success("develop"));
-        _git.PullFastForwardOnlyAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>())
+        _git.PullFastForwardOnlyAsync(
+                RepositoryRoot,
+                "origin",
+                "develop",
+                "buckettie",
+                Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success());
 
         GitGatewayResult result = await gateway.PullAsync(
@@ -96,6 +102,7 @@ public sealed class GitGatewayTests
 
         result.Error.Should().Be(GitGatewayError.ProtectedBranch);
         await _git.DidNotReceiveWithAnyArgs().PushAsync(
+            default!,
             default!,
             default!,
             default!,
