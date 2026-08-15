@@ -26,6 +26,7 @@
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | 文書正本配置一覧。 |
 | `CONFIG.md` | `CONFIG.md` | Yes | JSON設定仕様。 |
 | `SECURITY.md` | `SECURITY.md` | Yes | セキュリティ境界と秘密情報管理。 |
+| `COMMANDS.md` | `COMMANDS.md` | Yes | Management CLIのCommandと終了コード。 |
 | ADR | `docs/adr/` | Yes | 設計判断と代替案。 |
 | `PROGRESS.md` | `.local/PROGRESS.md` | No | 機能別進捗率、完了内容、残作業の正本。 |
 | `progress-chart.svg` | `.local/progress/progress-chart.svg` | No | 最新進捗率の可視化。 |
