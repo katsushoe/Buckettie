@@ -1,5 +1,6 @@
 ﻿using Buckettie.Application.Configuration;
 using Buckettie.Application.Repositories;
+using Buckettie.Domain;
 
 namespace Buckettie.Application.Bitbucket;
 
@@ -49,6 +50,80 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
         return TryGet(repository, out RepositoryOptions? options)
             ? _client.GetBranchAsync(repository, options!.Workspace, options.Slug, branch, cancellationToken)
             : Task.FromResult(BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.RepositoryNotAllowed));
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
+        string repository,
+        CancellationToken cancellationToken = default) =>
+        TryGet(repository, out RepositoryOptions? options)
+            ? _client.ListTagsAsync(repository, options!.Workspace, options.Slug, cancellationToken)
+            : Task.FromResult(BitbucketResult<IReadOnlyList<BitbucketTagInfo>>.Failure(
+                BitbucketError.RepositoryNotAllowed));
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketTagInfo>> GetTagAsync(
+        string repository,
+        string tag,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsValidTagInput(tag))
+        {
+            return Task.FromResult(BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.InvalidTag));
+        }
+
+        return TryGet(repository, out RepositoryOptions? options)
+            ? _client.GetTagAsync(repository, options!.Workspace, options.Slug, tag, cancellationToken)
+            : Task.FromResult(BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.RepositoryNotAllowed));
+    }
+
+    /// <inheritdoc />
+    public async Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(
+        string repository,
+        BitbucketTagCreate input,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (!IsValidTagInput(input.Name)
+            || input.Message is { Length: > 32_768 }
+            || input.Message?.Contains('\0', StringComparison.Ordinal) == true)
+        {
+            return BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.InvalidTag);
+        }
+
+        if (!TryGet(repository, out RepositoryOptions? options) || options is null)
+        {
+            return BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.RepositoryNotAllowed);
+        }
+
+        RepositoryPolicy policy = CreatePolicy(repository, options);
+        PolicyResult policyResult = policy.ValidateTag(input.Name, options.TagTargetBranch);
+        if (!policyResult.IsAllowed)
+        {
+            return BitbucketResult<BitbucketTagInfo>.Failure(
+                policyResult.ErrorCode == PolicyErrorCode.TagTargetNotAllowed
+                    ? BitbucketError.TagTargetNotAllowed
+                    : BitbucketError.InvalidTag);
+        }
+
+        BitbucketResult<BitbucketBranchInfo> branch = await _client.GetBranchAsync(
+            repository,
+            options.Workspace,
+            options.Slug,
+            options.TagTargetBranch,
+            cancellationToken).ConfigureAwait(false);
+        if (!branch.IsSuccess || branch.Value is null)
+        {
+            return BitbucketResult<BitbucketTagInfo>.Failure(branch.Error ?? BitbucketError.InvalidResponse);
+        }
+
+        return await _client.CreateTagAsync(
+            repository,
+            options.Workspace,
+            options.Slug,
+            branch.Value.TargetHash,
+            input,
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -194,4 +269,19 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
         options = null;
         return RepositoryId.IsValid(repository) && _allowlist.TryGet(repository, out options);
     }
+
+    private static bool IsValidTagInput(string tag) =>
+        !string.IsNullOrWhiteSpace(tag) && tag.Length <= 255 && !tag.Any(char.IsControl);
+
+    private static RepositoryPolicy CreatePolicy(string repository, RepositoryOptions options) => new(
+        repository,
+        options.DevelopBranch,
+        options.MainBranch,
+        options.DirectPushBranches,
+        options.PullBranches,
+        new HashSet<PullRequestRoute> { new(options.DevelopBranch, options.MainBranch) },
+        options.ProtectedBranches,
+        options.TagTargetBranch,
+        options.TagPattern,
+        options.RequireCleanWorkingTree);
 }

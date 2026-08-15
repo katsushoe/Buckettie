@@ -11,6 +11,17 @@ public sealed record BitbucketRepositoryInfo(
 /// <summary>Bitbucket Branch情報です。</summary>
 public sealed record BitbucketBranchInfo(string Name, string TargetHash);
 
+/// <summary>Bitbucket Tag情報です。</summary>
+public sealed record BitbucketTagInfo(
+    string Name,
+    string TargetHash,
+    string? Message,
+    DateTimeOffset? Date,
+    string? Tagger);
+
+/// <summary>Tag作成入力です。</summary>
+public sealed record BitbucketTagCreate(string Name, string? Message);
+
 /// <summary>Pull Requestの状態です。</summary>
 public enum BitbucketPullRequestState
 {

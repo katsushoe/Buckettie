@@ -99,6 +99,79 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
             cancellationToken);
 
     /// <inheritdoc />
+    public async Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        CancellationToken cancellationToken = default)
+    {
+        List<BitbucketTagInfo> tags = [];
+        string basePath = $"{RepositoryPath(workspace, slug)}/refs/tags";
+        for (int page = 1; page <= MaximumPages; page++)
+        {
+            BitbucketResult<TagPageResponse> result = await GetResponseAsync<TagPageResponse>(
+                repositoryId,
+                $"{basePath}?pagelen={PageLength}&page={page}",
+                cancellationToken).ConfigureAwait(false);
+            if (!result.IsSuccess || result.Value?.Values is null)
+            {
+                return BitbucketResult<IReadOnlyList<BitbucketTagInfo>>.Failure(
+                    result.Error ?? BitbucketError.InvalidResponse);
+            }
+
+            if (result.Value.Values.Any(tag => !IsValidTag(tag)))
+            {
+                return BitbucketResult<IReadOnlyList<BitbucketTagInfo>>.Failure(BitbucketError.InvalidResponse);
+            }
+
+            tags.AddRange(result.Value.Values.Select(MapTag));
+            if (string.IsNullOrEmpty(result.Value.Next))
+            {
+                return BitbucketResult<IReadOnlyList<BitbucketTagInfo>>.Success(tags);
+            }
+        }
+
+        return BitbucketResult<IReadOnlyList<BitbucketTagInfo>>.Failure(BitbucketError.InvalidResponse);
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketTagInfo>> GetTagAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        string tag,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<TagResponse, BitbucketTagInfo>(
+            repositoryId,
+            $"{RepositoryPath(workspace, slug)}/refs/tags/{Uri.EscapeDataString(tag)}",
+            IsValidTag,
+            MapTag,
+            cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        string targetHash,
+        BitbucketTagCreate input,
+        CancellationToken cancellationToken = default)
+    {
+        TagCreateRequest request = new(input.Name, new(targetHash), input.Message);
+        BitbucketResult<BitbucketTagInfo> result = await SendJsonAsync<TagCreateRequest, TagResponse, BitbucketTagInfo>(
+            repositoryId,
+            HttpMethod.Post,
+            $"{RepositoryPath(workspace, slug)}/refs/tags",
+            request,
+            IsValidTag,
+            MapTag,
+            cancellationToken).ConfigureAwait(false);
+        return result.Error == BitbucketError.PullRequestMergeConflict
+            ? BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.TagAlreadyExists)
+            : result;
+    }
+
+    /// <inheritdoc />
     public async Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repositoryId,
         string workspace,
@@ -443,6 +516,17 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
         !string.IsNullOrWhiteSpace(branch.Name)
         && !string.IsNullOrWhiteSpace(branch.Target?.Hash);
 
+    private static BitbucketTagInfo MapTag(TagResponse tag) => new(
+        tag.Name!,
+        tag.Target!.Hash!,
+        tag.Message,
+        tag.Date,
+        tag.Tagger?.DisplayName);
+
+    private static bool IsValidTag(TagResponse tag) =>
+        !string.IsNullOrWhiteSpace(tag.Name)
+        && !string.IsNullOrWhiteSpace(tag.Target?.Hash);
+
     private static BitbucketPullRequestInfo MapPullRequest(PullRequestResponse pullRequest) => new(
         pullRequest.Id,
         pullRequest.Title!,
@@ -507,6 +591,20 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
     private sealed record BranchResponse(string? Name, TargetResponse? Target);
 
     private sealed record TargetResponse(string? Hash);
+
+    private sealed record TagPageResponse(IReadOnlyList<TagResponse>? Values, string? Next);
+
+    private sealed record TagResponse(
+        string? Name,
+        TargetResponse? Target,
+        string? Message,
+        DateTimeOffset? Date,
+        TaggerResponse? Tagger);
+
+    private sealed record TaggerResponse(
+        [property: JsonPropertyName("display_name")] string? DisplayName);
+
+    private sealed record TagCreateRequest(string Name, TargetResponse Target, string? Message);
 
     private sealed record PullRequestPageResponse(IReadOnlyList<PullRequestResponse>? Values, string? Next);
 
