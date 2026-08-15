@@ -1,9 +1,11 @@
 ﻿using Buckettie.Application.Configuration;
 using Buckettie.Application.Credentials;
+using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Git;
 using Buckettie.Application.Repositories;
 using Buckettie.Infrastructure.Configuration;
 using Buckettie.Infrastructure.Credentials;
+using Buckettie.Infrastructure.Bitbucket;
 using Buckettie.Infrastructure.Git;
 using Buckettie.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,6 +52,16 @@ public static class BuckettieCompositionRoot
             askPassExecutable,
             options.BitbucketUsername));
         services.AddSingleton<IGitGateway, GitGateway>();
+        services.AddHttpClient("Bitbucket", client =>
+        {
+            client.BaseAddress = new Uri("https://api.bitbucket.org/2.0/", UriKind.Absolute);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddSingleton<IBitbucketApiClient>(provider => new BitbucketApiClient(
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient("Bitbucket"),
+            provider.GetRequiredService<IApiTokenStore>(),
+            options.AtlassianEmail));
+        services.AddSingleton<IBitbucketRepositoryGateway, BitbucketRepositoryGateway>();
 
         ServiceProvider provider = services.BuildServiceProvider(
             new ServiceProviderOptions
