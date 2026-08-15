@@ -71,13 +71,8 @@ public sealed class BitbucketRemoteUrlValidator
             return false;
         }
 
-        if (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            return string.IsNullOrEmpty(uri.UserInfo) && uri.IsDefaultPort;
-        }
-
-        return string.Equals(uri.Scheme, "ssh", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(uri.UserInfo, "git", StringComparison.Ordinal)
+        return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrEmpty(uri.UserInfo)
             && uri.IsDefaultPort;
     }
 
