@@ -103,8 +103,106 @@ public sealed class BitbucketApiClientTests
         result.Error.Should().Be(BitbucketError.InvalidResponse);
     }
 
+    [Fact]
+    public async Task ListPullRequestsAsync_WhenStateIsSpecified_MapsPullRequests()
+    {
+        RecordingHandler handler = new(PullRequestPageJson());
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>> result = await client.ListPullRequestsAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            BitbucketPullRequestState.Open,
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().ContainSingle().Which.Should().Match<BitbucketPullRequestInfo>(pullRequest =>
+            pullRequest.Id == 7
+            && pullRequest.SourceBranch == "develop"
+            && pullRequest.DestinationBranch == "main");
+        handler.Paths.Should().Equal(
+            "repositories/workspace/repository/pullrequests?pagelen=100&page=1&state=OPEN");
+    }
+
+    [Fact]
+    public async Task CreatePullRequestAsync_WhenCalled_SendsConfiguredRouteAndBody()
+    {
+        RecordingHandler handler = new(PullRequestJson());
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await client.CreatePullRequestAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            "develop",
+            "main",
+            new BitbucketPullRequestCreate("Release", "Description", true),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        handler.Methods.Should().Equal(HttpMethod.Post);
+        handler.Paths.Should().Equal("repositories/workspace/repository/pullrequests");
+        handler.Bodies.Should().ContainSingle().Which.Should().Contain("\"title\":\"Release\"")
+            .And.Contain("\"source\":{\"branch\":{\"name\":\"develop\"}}")
+            .And.Contain("\"destination\":{\"branch\":{\"name\":\"main\"}}")
+            .And.Contain("\"draft\":true");
+    }
+
+    [Fact]
+    public async Task MergePullRequestAsync_WhenConflict_ReturnsMergeConflict()
+    {
+        RecordingHandler handler = new(HttpStatusCode.Conflict);
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await client.MergePullRequestAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            7,
+            new BitbucketPullRequestMerge(BitbucketMergeStrategy.Squash, "Merge release"),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.PullRequestMergeConflict);
+    }
+
+    [Fact]
+    public async Task GetPullRequestDiffAsync_WhenRedirectIsAllowed_ReturnsDiff()
+    {
+        RedirectHandler handler = new(
+            new Uri("https://api.bitbucket.org/2.0/repositories/workspace/repository/diff/abc..def"),
+            "diff --git a/file b/file");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<string> result = await client.GetPullRequestDiffAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be("diff --git a/file b/file");
+        handler.RequestCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetPullRequestDiffAsync_WhenRedirectLeavesApiBoundary_RejectsRedirect()
+    {
+        RedirectHandler handler = new(new Uri("https://example.com/secret"), "not-used");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<string> result = await client.GetPullRequestDiffAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.InvalidResponse);
+        handler.RequestCount.Should().Be(1);
+    }
+
     private static BitbucketApiClient CreateClient(
-        RecordingHandler handler,
+        HttpMessageHandler handler,
         IApiTokenStore? tokenStore = null)
     {
         HttpClient httpClient = new(handler) { BaseAddress = new Uri("https://api.bitbucket.org/2.0/") };
@@ -113,6 +211,12 @@ public sealed class BitbucketApiClientTests
             tokenStore ?? new StubTokenStore(ApiTokenStoreResult.Success("secret-token")),
             "developer@example.com");
     }
+
+    private static string PullRequestPageJson() => $"{{\"values\":[{PullRequestJson()}]}}";
+
+    private static string PullRequestJson() => """
+        {"id":7,"title":"Release","description":"Description","state":"OPEN","source":{"branch":{"name":"develop"}},"destination":{"branch":{"name":"main"}},"draft":false,"links":{"html":{"href":"https://bitbucket.org/workspace/repository/pull-requests/7"}},"created_on":"2026-08-16T00:00:00Z","updated_on":"2026-08-16T01:00:00Z","merge_commit":null}
+        """;
 
     private sealed class StubTokenStore(ApiTokenStoreResult result) : IApiTokenStore
     {
@@ -140,15 +244,23 @@ public sealed class BitbucketApiClientTests
 
         internal List<string> Paths { get; } = [];
 
+        internal List<HttpMethod> Methods { get; } = [];
+
+        internal List<string> Bodies { get; } = [];
+
         internal string? AuthenticationScheme { get; private set; }
 
         internal string? AuthenticationParameter { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             Paths.Add(request.RequestUri!.PathAndQuery.TrimStart('/').Replace("2.0/", string.Empty, StringComparison.Ordinal));
+            Methods.Add(request.Method);
+            Bodies.Add(request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken));
             AuthenticationScheme = request.Headers.Authorization?.Scheme;
             AuthenticationParameter = request.Headers.Authorization?.Parameter;
             (HttpStatusCode status, string content) = _responses.Dequeue();
@@ -156,7 +268,30 @@ public sealed class BitbucketApiClientTests
             {
                 Content = new StringContent(content, Encoding.UTF8, "application/json"),
             };
-            return Task.FromResult(response);
+            return response;
+        }
+    }
+
+    private sealed class RedirectHandler(Uri location, string diff) : HttpMessageHandler
+    {
+        internal int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            if (RequestCount == 1)
+            {
+                HttpResponseMessage redirect = new(HttpStatusCode.Redirect);
+                redirect.Headers.Location = location;
+                return Task.FromResult(redirect);
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(diff, Encoding.UTF8, "text/plain"),
+            });
         }
     }
 }

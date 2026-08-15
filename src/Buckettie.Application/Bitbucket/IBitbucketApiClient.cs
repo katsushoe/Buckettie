@@ -24,4 +24,47 @@ public interface IBitbucketApiClient
         string slug,
         string branch,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Request一覧を取得します。</summary>
+    public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        BitbucketPullRequestState? state,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Request詳細を取得します。</summary>
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        int pullRequestId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Request diffを取得します。</summary>
+    public Task<BitbucketResult<string>> GetPullRequestDiffAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        int pullRequestId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Requestを作成します。</summary>
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        string sourceBranch,
+        string destinationBranch,
+        BitbucketPullRequestCreate input,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Requestをmergeします。</summary>
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        int pullRequestId,
+        BitbucketPullRequestMerge input,
+        CancellationToken cancellationToken = default);
 }

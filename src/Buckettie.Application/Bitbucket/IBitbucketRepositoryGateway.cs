@@ -18,4 +18,35 @@ public interface IBitbucketRepositoryGateway
         string repository,
         string branch,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Request一覧を取得します。</summary>
+    public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
+        string repository,
+        BitbucketPullRequestState? state,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Request詳細を取得します。</summary>
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
+        string repository,
+        int pullRequestId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Pull Request diffを取得します。</summary>
+    public Task<BitbucketResult<string>> GetPullRequestDiffAsync(
+        string repository,
+        int pullRequestId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>設定済み経路でPull Requestを作成します。</summary>
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
+        string repository,
+        BitbucketPullRequestCreate input,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Policy検証後にPull Requestをmergeします。</summary>
+    public Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
+        string repository,
+        int pullRequestId,
+        BitbucketPullRequestMerge input,
+        CancellationToken cancellationToken = default);
 }
