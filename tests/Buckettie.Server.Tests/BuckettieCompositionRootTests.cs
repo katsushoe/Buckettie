@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using Buckettie.Application.Configuration;
+using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Credentials;
 using Buckettie.Application.Git;
 using Buckettie.Infrastructure.Configuration;
@@ -31,6 +32,8 @@ public sealed class BuckettieCompositionRootTests
         result.Services.GetRequiredService<IApiTokenStore>()
             .Should().BeOfType<WindowsCredentialManagerTokenStore>();
         result.Services.GetRequiredService<IGitGateway>()
+            .Should().NotBeNull();
+        result.Services.GetRequiredService<IBitbucketRepositoryGateway>()
             .Should().NotBeNull();
     }
 

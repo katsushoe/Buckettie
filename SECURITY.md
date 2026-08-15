@@ -19,4 +19,10 @@ The command-boundary design is recorded in [ADR 0002](docs/adr/0002-fixed-git-co
 
 ## Git AskPass
 
-`Buckettie.AskPass` receives only Repository ID and Atlassian email through environment variables. It reads the API Token directly from Windows Credential Manager and returns it only through the Git AskPass protocol. The Token must never be copied into an environment variable or temporary script.
+`Buckettie.AskPass` receives only Repository ID and the case-sensitive Bitbucket username through environment variables. It reads the API Token directly from Windows Credential Manager and returns it only through the Git AskPass protocol. The Token must never be copied into an environment variable or temporary script.
+
+## Bitbucket REST API
+
+Buckettie resolves workspace and repository slug only from the Repository Allowlist. The REST client uses the fixed `https://api.bitbucket.org/2.0/` base address and typed operations; it does not accept an arbitrary URL, HTTP method, or request body from an MCP client. Basic authentication is generated in memory from the configured Atlassian email and the repository-scoped Credential Manager Token.
+
+The REST trust-boundary design is recorded in [ADR 0004](docs/adr/0004-fixed-bitbucket-rest-client.md).
