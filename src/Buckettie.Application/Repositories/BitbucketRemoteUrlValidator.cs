@@ -8,7 +8,7 @@ public sealed class BitbucketRemoteUrlValidator
     private const string BitbucketHost = "bitbucket.org";
 
     /// <summary>
-    /// HTTPSまたはSSH形式のRemote URLを検証します。
+    /// HTTPS形式のRemote URLを検証します。
     /// </summary>
     public RepositoryValidationResult Validate(string workspace, string slug, string remoteUrl)
     {
