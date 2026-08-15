@@ -7,6 +7,7 @@ public enum ConfigurationErrorCode
 {
     InvalidJson,
     DuplicateRepositoryId,
+    InvalidRepositoryId,
     RequiredValueMissing,
     InvalidTagPattern,
 }
