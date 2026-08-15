@@ -35,13 +35,13 @@ public sealed record RepositoryOptions
     public required string MainBranch { get; init; }
 
     /// <summary>直接Pushを許可するブランチです。</summary>
-    public required IReadOnlySet<string> DirectPushBranches { get; init; }
+    public required HashSet<string> DirectPushBranches { get; init; }
 
     /// <summary>Pullを許可するブランチです。</summary>
-    public required IReadOnlySet<string> PullBranches { get; init; }
+    public required HashSet<string> PullBranches { get; init; }
 
     /// <summary>保護対象のブランチです。</summary>
-    public required IReadOnlySet<string> ProtectedBranches { get; init; }
+    public required HashSet<string> ProtectedBranches { get; init; }
 
     /// <summary>Release Tagの対象ブランチです。</summary>
     public required string TagTargetBranch { get; init; }
