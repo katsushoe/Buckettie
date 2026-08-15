@@ -10,3 +10,9 @@ Buckettie stores API Tokens as Windows Generic Credentials named `Buckettie/Bitb
 - Credential Manager provider error codes may be reported, but credential content must never be reported.
 
 The design rationale and alternatives are recorded in [ADR 0001](docs/adr/0001-windows-credential-manager.md).
+
+## Git execution
+
+Buckettie exposes typed Git operations only. It does not accept shell commands, executable paths, or arbitrary Git arguments. Repository LocalRoot and Bitbucket Remote URL are validated before every operation, and configured operands are separated from options with `--`.
+
+The command-boundary design is recorded in [ADR 0002](docs/adr/0002-fixed-git-command-gateway.md).
