@@ -1,6 +1,7 @@
 ﻿using Buckettie.Application.Configuration;
 using Buckettie.Application.Repositories;
 using Buckettie.Domain;
+using System.Globalization;
 
 namespace Buckettie.Application.Git;
 
@@ -70,11 +71,53 @@ public sealed class GitGateway : IGitGateway
             return statusError;
         }
 
+        GitCommandResult developHead = await _git.GetRemoteHeadAsync(
+            boundary.Repository.LocalRoot,
+            boundary.Repository.Remote,
+            boundary.Repository.DevelopBranch,
+            cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? developHeadError = MapCommandFailure(operation, repository, developHead);
+        if (developHeadError is not null)
+        {
+            return developHeadError;
+        }
+
+        GitCommandResult mainHead = await _git.GetRemoteHeadAsync(
+            boundary.Repository.LocalRoot,
+            boundary.Repository.Remote,
+            boundary.Repository.MainBranch,
+            cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? mainHeadError = MapCommandFailure(operation, repository, mainHead);
+        if (mainHeadError is not null)
+        {
+            return mainHeadError;
+        }
+
+        GitCommandResult divergence = await _git.GetAheadBehindAsync(
+            boundary.Repository.LocalRoot,
+            boundary.Repository.Remote,
+            boundary.Repository.DevelopBranch,
+            cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? divergenceError = MapCommandFailure(operation, repository, divergence);
+        if (divergenceError is not null)
+        {
+            return divergenceError;
+        }
+
+        if (!TryParseAheadBehind(divergence.StandardOutput, out int ahead, out int behind))
+        {
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.GitFailed);
+        }
+
         string branchName = branch.StandardOutput.Trim();
         GitRepositoryStatus repositoryStatus = new(
             repository,
             branchName,
             head.StandardOutput.Trim(),
+            developHead.StandardOutput.Trim(),
+            mainHead.StandardOutput.Trim(),
+            ahead,
+            behind,
             string.IsNullOrWhiteSpace(status.StandardOutput));
         return GitGatewayResult.Success(operation, repository, branchName, repositoryStatus);
     }
@@ -298,6 +341,18 @@ public sealed class GitGateway : IGitGateway
         PolicyErrorCode.ProtectedBranch => GitGatewayError.ProtectedBranch,
         _ => GitGatewayError.BranchNotAllowed,
     };
+
+    private static bool TryParseAheadBehind(string value, out int ahead, out int behind)
+    {
+        ahead = 0;
+        behind = 0;
+        string[] counts = value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return counts.Length == 2
+            && int.TryParse(counts[0], NumberStyles.None, CultureInfo.InvariantCulture, out ahead)
+            && int.TryParse(counts[1], NumberStyles.None, CultureInfo.InvariantCulture, out behind)
+            && ahead >= 0
+            && behind >= 0;
+    }
 
     private sealed record BoundaryResult(
         bool IsValid,

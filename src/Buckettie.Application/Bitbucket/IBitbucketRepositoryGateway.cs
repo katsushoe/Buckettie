@@ -40,6 +40,8 @@ public interface IBitbucketRepositoryGateway
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repository,
         BitbucketPullRequestState? state,
+        string? source,
+        string? destination,
         CancellationToken cancellationToken = default);
 
     /// <summary>Pull Request詳細を取得します。</summary>

@@ -11,6 +11,20 @@ public interface IGitCommandClient
     /// <summary>現在のHEAD hashを取得します。</summary>
     public Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken);
 
+    /// <summary>設定済みRemote追跡BranchのHEAD hashを取得します。</summary>
+    public Task<GitCommandResult> GetRemoteHeadAsync(
+        string repositoryRoot,
+        string remote,
+        string branch,
+        CancellationToken cancellationToken);
+
+    /// <summary>local HEADのRemote追跡Branchに対するahead/behind件数を取得します。</summary>
+    public Task<GitCommandResult> GetAheadBehindAsync(
+        string repositoryRoot,
+        string remote,
+        string branch,
+        CancellationToken cancellationToken);
+
     /// <summary>作業ツリー状態を取得します。</summary>
     public Task<GitCommandResult> GetStatusAsync(string repositoryRoot, CancellationToken cancellationToken);
 

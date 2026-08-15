@@ -88,9 +88,13 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Optional pull-request state.")] BitbucketPullRequestState? state = null,
+        [Description("Optional exact source branch filter.")] string? source = null,
+        [Description("Optional exact destination branch filter.")] string? destination = null,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.ListPullRequestsAsync(repository, state, cancellationToken), "pr_list", repository);
+            _bitbucket.ListPullRequestsAsync(repository, state, source, destination, cancellationToken),
+            "pr_list",
+            repository);
 
     /// <summary>Pull Request詳細を取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_get", ReadOnly = true, Destructive = false,
