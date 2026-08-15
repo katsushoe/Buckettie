@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Buckettie.Server;
 
@@ -45,9 +46,16 @@ internal static class Program
     {
         BuckettieOptions options = buckettieServices.GetRequiredService<BuckettieOptions>();
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
+        string logDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "logs"));
+        builder.Logging.AddProvider(new DailyFileLoggerProvider(logDirectory));
         builder.WebHost.ConfigureKestrel(server => server.ListenLocalhost(options.McpPort));
-        builder.Services.AddSingleton(buckettieServices.GetRequiredService<IGitGateway>());
-        builder.Services.AddSingleton(buckettieServices.GetRequiredService<IBitbucketRepositoryGateway>());
+        builder.Services.AddSingleton<IBuckettieAuditLogger, BuckettieAuditLogger>();
+        builder.Services.AddSingleton<IGitGateway>(provider => new AuditedGitGateway(
+            buckettieServices.GetRequiredService<IGitGateway>(),
+            provider.GetRequiredService<IBuckettieAuditLogger>()));
+        builder.Services.AddSingleton<IBitbucketRepositoryGateway>(provider => new AuditedBitbucketRepositoryGateway(
+            buckettieServices.GetRequiredService<IBitbucketRepositoryGateway>(),
+            provider.GetRequiredService<IBuckettieAuditLogger>()));
 
         builder.Services.AddMcpServer()
             .WithHttpTransport(transport => transport.Stateless = true)
