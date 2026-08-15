@@ -2,6 +2,7 @@
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Buckettie.Application.Configuration;
+using Buckettie.Application.Repositories;
 
 namespace Buckettie.Infrastructure.Configuration;
 
@@ -81,6 +82,11 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
         HashSet<string> ids = new(StringComparer.Ordinal);
         foreach (JsonProperty repository in repositories.EnumerateObject())
         {
+            if (!RepositoryId.IsValid(repository.Name))
+            {
+                return new(ConfigurationErrorCode.InvalidRepositoryId, $"repositories.{repository.Name}");
+            }
+
             if (!ids.Add(repository.Name))
             {
                 return new(ConfigurationErrorCode.DuplicateRepositoryId, $"repositories.{repository.Name}");
