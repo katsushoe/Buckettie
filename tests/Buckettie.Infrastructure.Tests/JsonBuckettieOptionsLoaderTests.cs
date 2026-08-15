@@ -78,6 +78,19 @@ public sealed class JsonBuckettieOptionsLoaderTests
     }
 
     [Fact]
+    public async Task LoadAsync_WhenBitbucketUsernameIsInvalid_ReturnsUsernameError()
+    {
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson)
+            .Replace("developer\",", "invalid username\",", StringComparison.Ordinal);
+        await using MemoryStream stream = CreateStream(json);
+
+        ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
+
+        result.Errors.Should().ContainSingle()
+            .Which.Code.Should().Be(ConfigurationErrorCode.InvalidBitbucketUsername);
+    }
+
+    [Fact]
     public async Task LoadAsync_WhenRequiredPropertyIsMissing_ReturnsRequiredError()
     {
         string repositoryJson = ValidRepositoryJson.Replace(
@@ -113,7 +126,7 @@ public sealed class JsonBuckettieOptionsLoaderTests
 
     [Theory]
     [InlineData("not-json")]
-    [InlineData("{\"atlassian_email\":\"developer@example.com\",\"repositories\":{},\"unknown_property\":true}")]
+    [InlineData("{\"atlassian_email\":\"developer@example.com\",\"bitbucket_username\":\"developer\",\"repositories\":{},\"unknown_property\":true}")]
     public async Task LoadAsync_WhenJsonContractIsInvalid_ReturnsInvalidJson(string json)
     {
         await using MemoryStream stream = CreateStream(json);
@@ -127,5 +140,5 @@ public sealed class JsonBuckettieOptionsLoaderTests
     private static MemoryStream CreateStream(string json) => new(Encoding.UTF8.GetBytes(json));
 
     private static string CreateRootJson(string repositories) =>
-        "{\"atlassian_email\":\"developer@example.com\",\"repositories\":{" + repositories + "}}";
+        "{\"atlassian_email\":\"developer@example.com\",\"bitbucket_username\":\"developer\",\"repositories\":{" + repositories + "}}";
 }

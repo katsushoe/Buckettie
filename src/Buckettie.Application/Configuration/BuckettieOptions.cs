@@ -11,6 +11,11 @@ public sealed record BuckettieOptions
     public required string AtlassianEmail { get; init; }
 
     /// <summary>
+    /// Git HTTPS認証に使用するBitbucket Cloud usernameです。
+    /// </summary>
+    public required string BitbucketUsername { get; init; }
+
+    /// <summary>
     /// Repository IDをキーとする許可済みRepository設定です。
     /// </summary>
     public required IReadOnlyDictionary<string, RepositoryOptions> Repositories { get; init; }

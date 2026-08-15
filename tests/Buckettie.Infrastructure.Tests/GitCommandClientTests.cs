@@ -103,7 +103,7 @@ public sealed class GitCommandClientTests
         _executor,
         TimeSpan.FromSeconds(10),
         AskPassPath,
-        "developer@example.com");
+        "developer");
 
     private sealed class FakeProcessExecutor : IProcessExecutor
     {

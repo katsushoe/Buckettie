@@ -6,7 +6,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../Buckettie.Application/Buckettie.Application.csproj" />
     <ProjectReference Include="../Buckettie.Infrastructure/Buckettie.Infrastructure.csproj" />
-    <ProjectReference Include="../Buckettie.AskPass/Buckettie.AskPass.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Buckettie.AskPass/Buckettie.AskPass.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Buckettie.Server.Tests" />
