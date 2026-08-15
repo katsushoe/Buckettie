@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Buckettie.Application/Buckettie.Application.csproj" />
+  </ItemGroup>
+</Project>
