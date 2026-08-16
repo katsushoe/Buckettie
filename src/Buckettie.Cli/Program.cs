@@ -12,7 +12,21 @@ namespace Buckettie.Cli;
 
 internal static class Program
 {
-    private static Task<int> Main(string[] args) => CliApplication.RunAsync(args, Console.Out, Console.Error);
+    private static Task<int> Main(string[] args) => CliApplication.RunAsync(
+        args, Console.Out, Console.Error, secretReader: ReadSecret);
+
+    private static string? ReadSecret()
+    {
+        StringBuilder value = new();
+        while (true)
+        {
+            ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Enter) { Console.Error.WriteLine(); return value.ToString(); }
+            if (key.Key == ConsoleKey.Escape) return null;
+            if (key.Key == ConsoleKey.Backspace && value.Length > 0) value.Length--;
+            else if (!char.IsControl(key.KeyChar)) value.Append(key.KeyChar);
+        }
+    }
 }
 
 internal static class CliApplication
@@ -21,7 +35,8 @@ internal static class CliApplication
 
     internal static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error,
         CancellationToken cancellationToken = default,
-        IServiceCommandExecutor? serviceExecutor = null)
+        IServiceCommandExecutor? serviceExecutor = null,
+        Func<string?>? secretReader = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         string configPath = GetConfigPath(args);
@@ -85,6 +100,8 @@ internal static class CliApplication
                 ["repo", "list"] => ListRepositories(services, output),
                 ["repo", "status", var repository] => await RepositoryStatusAsync(services, repository, output, cancellationToken).ConfigureAwait(false),
                 ["auth", "test"] => TestAuthentication(services, output),
+                ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader),
+                ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output),
                 ["mcp", "status"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "test"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "tools"] => await TestMcpAsync(services, output, true, cancellationToken).ConfigureAwait(false),
@@ -128,6 +145,30 @@ internal static class CliApplication
             failures += Check(output, $"API Token: {repository}", result.IsSuccess, result.Error?.ToString());
         }
         return failures == 0 ? 0 : 1;
+    }
+
+    private static int SetAuthentication(IServiceProvider services, string repository, TextWriter output,
+        TextWriter error, Func<string?>? secretReader)
+    {
+        if (!services.GetRequiredService<BuckettieOptions>().Repositories.ContainsKey(repository))
+        {
+            output.WriteLine($"[NG] API Token: {repository} (RepositoryNotAllowed)");
+            return 1;
+        }
+        error.Write("Token: ");
+        string? token = secretReader?.Invoke();
+        ApiTokenStoreResult result = token is null
+            ? ApiTokenStoreResult.Failure(ApiTokenStoreError.InvalidToken)
+            : services.GetRequiredService<IApiTokenStore>().Save(repository, token);
+        output.WriteLine($"[{(result.IsSuccess ? "OK" : "NG")}] API Token: {repository}{(result.Error is null ? string.Empty : $" ({result.Error})")}");
+        return result.IsSuccess ? 0 : 1;
+    }
+
+    private static int DeleteAuthentication(IServiceProvider services, string repository, TextWriter output)
+    {
+        ApiTokenStoreResult result = services.GetRequiredService<IApiTokenStore>().Delete(repository);
+        output.WriteLine($"[{(result.IsSuccess ? "OK" : "NG")}] API Token deleted: {repository}");
+        return result.IsSuccess ? 0 : 1;
     }
 
     private static async Task<int> RepositoryStatusAsync(IServiceProvider services, string repository,
@@ -247,6 +288,7 @@ internal static class CliApplication
         buckettie config check|show
         buckettie repo list|status <repository>
         buckettie auth test
+        buckettie auth set|delete <repository>
         buckettie mcp status|tools|test
         buckettie logs
         buckettie version

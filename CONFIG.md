@@ -19,6 +19,8 @@ The JSON contract is strict:
 - `tag_pattern` must be a valid .NET regular expression.
 - API tokens and other secrets must not be stored in this file.
 
+API Tokens are stored separately as DPAPI LocalMachine-encrypted files in `..\secrets` relative to the binary directory. Use `buckettie auth set <repository-id>` from an elevated terminal; never edit or copy the encrypted file manually.
+
 ## Validation errors
 
 | Code | Meaning |

@@ -18,11 +18,11 @@ Service mutation commands require an elevated terminal. Interactive execution re
 
 ## Security
 
-No arbitrary executable, service name, or extra server argument is accepted. Native stdout and stderr are never relayed to callers. The configuration path is not secret and the Token remains in the service account's Credential Manager.
+No arbitrary executable, service name, or extra server argument is accepted. Native stdout and stderr are never relayed to callers. The configuration path is not secret and the Token remains DPAPI-encrypted at rest.
 
 ## Operational considerations
 
-The service must run under the Windows account that owns the configured credentials. `service install` creates the registration without accepting an account password; the operator configures **Log On** through Windows service properties before the first start. Installation checks that both fixed release files exist. Service Control Manager exit failures produce a stable nonzero CLI result.
+The service runs as LocalSystem without an Account password and reads DPAPI LocalMachine-protected Tokens through its explicit directory ACL. Installation checks that both fixed release files exist. Service Control Manager exit failures produce a stable nonzero CLI result.
 
 ## Implementation
 
