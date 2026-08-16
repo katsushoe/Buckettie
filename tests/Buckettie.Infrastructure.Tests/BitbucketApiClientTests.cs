@@ -183,7 +183,7 @@ public sealed class BitbucketApiClientTests
             && pullRequest.SourceBranch == "develop"
             && pullRequest.DestinationBranch == "main");
         handler.Paths.Should().Equal(
-            "repositories/workspace/repository/pullrequests?pagelen=100&page=1&state=OPEN");
+            "repositories/workspace/repository/pullrequests?pagelen=50&page=1&state=OPEN");
     }
 
     [Fact]
