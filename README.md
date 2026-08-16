@@ -4,6 +4,10 @@ Buckettieは、許可したローカルGit RepositoryとBitbucket CloudをMCP経
 
 Current release: `1.0.0`
 
+## 開発の動機
+
+Claude CodeやCodexからBitbucket Repositoryへ直接pushする場合、外部Siteへの通信や認証情報の利用として、AI ClientのSecurity機構による確認または停止が発生することがあります。Buckettieは、Bitbucketとの通信と認証をlocalhost上の固定Gatewayへ集約し、AI ClientにはAllowlistで制限したMCP Toolだけを公開します。これによりSecurity境界を維持しながら、AI Clientによる直接の外部通信、秘密情報の保持、繰り返し発生する確認を減らすことを目的に開発しました。
+
 ## 動作要件
 
 - Windows 10/11またはWindows Server
