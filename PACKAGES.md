@@ -1,5 +1,7 @@
 # Package contract
 
+Version 1.1以降のWindows標準成果物は `Buckettie-<version>-win-x64.msi` とSHA-256 Fileです。自己完結型ZIPはPortable／手動導入用の補助成果物として併記できます。
+
 Version 1 Release Packageは `Buckettie-1.0.0-win-x64.zip` とし、次の構成を正本とします。
 
 | Package内Path | 内容 |
@@ -20,3 +22,5 @@ Version 1 Release Packageは `Buckettie-1.0.0-win-x64.zip` とし、次の構成
 - Symbolや中間Build生成物（Release用途で別途必要な場合を除く）
 
 Version 1はWindows x64向け自己完結型Packageとして発行します。配布時はSHA-256 Hashを記録し、展開後に `buckettie version`、`config check`、`doctor`を実行します。
+
+MSIは`%ProgramFiles%\Buckettie`への配置、Directory作成、Windows Service登録、Major Upgrade、Uninstallを管理します。実環境の`buckettie.json`、DPAPI Token、監査LogはMSIへ含めず、Upgrade／Uninstallでも保持します。
