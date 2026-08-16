@@ -28,6 +28,7 @@
 | `OPERATIONS.md` | `OPERATIONS.md` | Yes | 日常運用、Token更新、Upgrade手順。 |
 | `TROUBLESHOOTING.md` | `TROUBLESHOOTING.md` | Yes | 障害切り分けと復旧手順。 |
 | `PACKAGES.md` | `PACKAGES.md` | Yes | Release Package構成と除外対象。 |
+| `RELEASE.md` | `RELEASE.md` | Yes | Version 1の内容、Artifact、Release手順。 |
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | 文書正本配置一覧。 |
 | `CONFIG.md` | `CONFIG.md` | Yes | JSON設定仕様。 |
 | `SECURITY.md` | `SECURITY.md` | Yes | セキュリティ境界と秘密情報管理。 |
