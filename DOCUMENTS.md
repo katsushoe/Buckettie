@@ -24,6 +24,8 @@
 | 文書名 | 正本パス | Git管理 | 用途 |
 | :--- | :--- | :--- | :--- |
 | `README.md` | `README.md` | Yes | 製品概要、Quick Start、文書入口。 |
+| `MCP_SETUP.md` | `MCP_SETUP.md` | Yes | MCP Server導入とClient登録の英語正本。 |
+| `MCP_SETUP.ja.md` | `MCP_SETUP.ja.md` | Yes | MCP Server導入とClient登録の日本語版。 |
 | `INSTALLATION.md` | `INSTALLATION.md` | Yes | 配置、設定、Token登録、Service導入手順。 |
 | `OPERATIONS.md` | `OPERATIONS.md` | Yes | 日常運用、Token更新、Upgrade手順。 |
 | `TROUBLESHOOTING.md` | `TROUBLESHOOTING.md` | Yes | 障害切り分けと復旧手順。 |
