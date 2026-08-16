@@ -1,0 +1,53 @@
+param(
+    [string]$DisplayVersion = '1.1.0.0',
+    [string]$RuntimeIdentifier = 'win-x64'
+)
+
+$ErrorActionPreference = 'Stop'
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$releaseWorkDirectory = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.local\release'))
+$stagingDirectory = Join-Path $releaseWorkDirectory 'staging'
+$outputDirectory = Join-Path $releaseWorkDirectory 'output'
+
+foreach ($directory in @($stagingDirectory, $outputDirectory)) {
+    $resolvedDirectory = [IO.Path]::GetFullPath($directory)
+    if (-not $resolvedDirectory.StartsWith("$releaseWorkDirectory\", [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove a directory outside the release work directory: $resolvedDirectory"
+    }
+}
+
+if (Test-Path -LiteralPath $stagingDirectory) { Remove-Item -LiteralPath $stagingDirectory -Recurse -Force }
+if (Test-Path -LiteralPath $outputDirectory) { Remove-Item -LiteralPath $outputDirectory -Recurse -Force }
+
+$binDirectory = Join-Path $stagingDirectory 'bin'
+$configDirectory = Join-Path $stagingDirectory 'config'
+$docsDirectory = Join-Path $stagingDirectory 'docs'
+New-Item -ItemType Directory -Path $binDirectory, $configDirectory, $docsDirectory, $outputDirectory -Force | Out-Null
+
+dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo
+if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
+
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'buckettie.example.json') -Destination $configDirectory
+$documents = @(
+    'README.md',
+    'INSTALLATION.md',
+    'OPERATIONS.md',
+    'TROUBLESHOOTING.md',
+    'CONFIG.md',
+    'COMMANDS.md',
+    'SECURITY.md',
+    'PACKAGES.md',
+    'LICENSE'
+)
+foreach ($document in $documents) {
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot $document) -Destination $docsDirectory
+}
+
+$zipPath = Join-Path $outputDirectory "Buckettie-$DisplayVersion-win-x64.zip"
+Compress-Archive -Path (Join-Path $stagingDirectory '*') -DestinationPath $zipPath -CompressionLevel Optimal
+$hash = Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath
+$hashLine = "$($hash.Hash)  $([IO.Path]::GetFileName($zipPath))"
+[IO.File]::WriteAllText("$zipPath.sha256", "$hashLine`r`n", [Text.Encoding]::ASCII)
+
+Write-Output $zipPath
+Write-Output $hashLine
