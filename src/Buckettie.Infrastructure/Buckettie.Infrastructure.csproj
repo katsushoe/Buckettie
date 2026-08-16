@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.8" />
+    <ProjectReference Include="../Buckettie.Application/Buckettie.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Buckettie.Infrastructure.Tests" />
+  </ItemGroup>
+</Project>

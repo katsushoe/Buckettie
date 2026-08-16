@@ -1,0 +1,29 @@
+{
+  "mcp_port": 45450,
+  "mcp_path": "/mcp",
+  "atlassian_email": "developer@example.com",
+  "bitbucket_username": "developer",
+  "repositories": {
+    "example": {
+      "workspace": "example-workspace",
+      "slug": "example-repository",
+      "local_root": "D:\\Projects\\ExampleRepository",
+      "remote": "origin",
+      "develop_branch": "develop",
+      "main_branch": "main",
+      "direct_push_branches": [
+        "develop"
+      ],
+      "pull_branches": [
+        "develop",
+        "main"
+      ],
+      "protected_branches": [
+        "main"
+      ],
+      "tag_target_branch": "main",
+      "tag_pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+.*$",
+      "require_clean_working_tree": true
+    }
+  }
+}

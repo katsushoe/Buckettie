@@ -1,0 +1,38 @@
+# Buckettie configuration
+
+## Configuration file
+
+Buckettie reads UTF-8 JSON through `IBuckettieOptionsLoader`. The executable host will supply the file location; the library does not contain a fixed path.
+
+The JSON contract is strict:
+
+- Property names use `snake_case` and are case-sensitive.
+- `atlassian_email` is the non-secret username reserved for Bitbucket REST authentication.
+- `bitbucket_username` is the case-sensitive Bitbucket Cloud username supplied to Git HTTPS authentication.
+- `mcp_port` is the localhost-only Streamable HTTP port and defaults to `45450`.
+- `mcp_path` is the endpoint path and defaults to `/mcp`.
+- Unknown properties and JSON comments are rejected.
+- Repository IDs are case-sensitive and must be unique.
+- Repository IDs use only ASCII letters, numbers, `.`, `_`, and `-`, with a maximum length of 128.
+- Each repository requires every field shown in `buckettie.example.json` except `require_clean_working_tree`.
+- `require_clean_working_tree` defaults to `true`.
+- `tag_pattern` must be a valid .NET regular expression.
+- API tokens and other secrets must not be stored in this file.
+
+API Tokens are stored separately as DPAPI LocalMachine-encrypted files in `..\secrets` relative to the binary directory. Use `buckettie auth set <repository-id>` from an elevated terminal; never edit or copy the encrypted file manually.
+
+## Validation errors
+
+| Code | Meaning |
+| --- | --- |
+| `InvalidJson` | JSON syntax or the strict JSON contract is invalid. |
+| `InvalidAtlassianEmail` | `atlassian_email` is not a single valid email address. |
+| `InvalidBitbucketUsername` | `bitbucket_username` is not a valid Bitbucket Cloud username. |
+| `DuplicateRepositoryId` | The `repositories` object contains the same ID more than once. |
+| `InvalidRepositoryId` | A Repository ID contains unsupported characters or is too long. |
+| `RequiredValueMissing` | A required property is absent, null, empty, or whitespace. |
+| `InvalidTagPattern` | `tag_pattern` is not a valid regular expression. |
+| `InvalidMcpPort` | `mcp_port` is outside `1` through `65535`. |
+| `InvalidMcpPath` | `mcp_path` is not a safe absolute HTTP path. |
+
+Filesystem existence, `.git`, symlink/junction, and Git Remote checks are separate repository-boundary validations performed after loading.
