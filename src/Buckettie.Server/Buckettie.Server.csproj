@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.8" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../Buckettie.Application/Buckettie.Application.csproj" />
     <ProjectReference Include="../Buckettie.Infrastructure/Buckettie.Infrastructure.csproj" />

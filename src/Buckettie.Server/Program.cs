@@ -48,6 +48,7 @@ internal static class Program
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
         string logDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "logs"));
         builder.Logging.AddProvider(new DailyFileLoggerProvider(logDirectory));
+        builder.Services.AddWindowsService(service => service.ServiceName = "Buckettie");
         builder.WebHost.ConfigureKestrel(server => server.ListenLocalhost(options.McpPort));
         builder.Services.AddSingleton<IBuckettieAuditLogger, BuckettieAuditLogger>();
         builder.Services.AddSingleton<IGitGateway>(provider => new AuditedGitGateway(

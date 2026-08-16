@@ -38,6 +38,30 @@ public sealed class CliApplicationTests : IDisposable
         error.ToString().Should().Contain("InvalidJson").And.NotContain("secret-token");
     }
 
+    [Fact]
+    public async Task ServiceStatus_WhenServiceIsRunning_ReturnsStableStatus()
+    {
+        FakeServiceCommandExecutor executor = new(new(0, "STATE : 4 RUNNING"));
+        StringWriter output = new();
+        int exitCode = await CliApplication.RunAsync(["service", "status"], output, new StringWriter(),
+            TestContext.Current.CancellationToken, executor);
+        exitCode.Should().Be(0);
+        output.ToString().Should().Contain("[OK] Service: Running");
+        executor.Arguments.Should().Equal("query", "Buckettie");
+    }
+
+    [Fact]
+    public async Task Start_WhenServiceControlFails_DoesNotExposeNativeOutput()
+    {
+        FakeServiceCommandExecutor executor = new(new(5, "sensitive native diagnostic"));
+        StringWriter output = new();
+        int exitCode = await CliApplication.RunAsync(["start"], output, new StringWriter(),
+            TestContext.Current.CancellationToken, executor);
+        exitCode.Should().Be(1);
+        output.ToString().Should().Contain("[NG] Service").And.NotContain("sensitive");
+        executor.Arguments.Should().Equal("start", "Buckettie");
+    }
+
     private string WriteConfiguration()
     {
         Directory.CreateDirectory(_directory);
@@ -63,5 +87,16 @@ public sealed class CliApplicationTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+    }
+
+    private sealed class FakeServiceCommandExecutor(ServiceCommandResult result) : IServiceCommandExecutor
+    {
+        public IReadOnlyList<string> Arguments { get; private set; } = [];
+
+        public Task<ServiceCommandResult> ExecuteAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+        {
+            Arguments = arguments;
+            return Task.FromResult(result);
+        }
     }
 }

@@ -20,7 +20,8 @@ internal static class CliApplication
     private static readonly TimeSpan GitTimeout = TimeSpan.FromSeconds(30);
 
     internal static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IServiceCommandExecutor? serviceExecutor = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         string configPath = GetConfigPath(args);
@@ -42,6 +43,12 @@ internal static class CliApplication
             output.WriteLine(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "logs")));
             return 0;
         }
+
+        WindowsServiceManager serviceManager = new(
+            serviceExecutor ?? new ScServiceCommandExecutor(),
+            AppContext.BaseDirectory);
+        int serviceExitCode = await serviceManager.ExecuteAsync(command, output, cancellationToken).ConfigureAwait(false);
+        if (serviceExitCode >= 0) return serviceExitCode;
 
         BuckettieCompositionResult composition;
         try
@@ -235,6 +242,8 @@ internal static class CliApplication
 
     private static void WriteHelp(TextWriter output) => output.WriteLine("""
         buckettie doctor
+        buckettie start|stop|restart|status
+        buckettie service install|uninstall|status
         buckettie config check|show
         buckettie repo list|status <repository>
         buckettie auth test
