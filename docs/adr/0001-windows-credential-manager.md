@@ -1,6 +1,6 @@
 # ADR 0001: Windows Credential Manager for API tokens
 
-- Status: Accepted
+- Status: Superseded by ADR 0010
 
 ## Context
 

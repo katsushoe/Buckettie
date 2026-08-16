@@ -30,7 +30,7 @@ public sealed class BuckettieCompositionRootTests
         result.Services!.GetRequiredService<IBuckettieOptionsLoader>()
             .Should().BeOfType<JsonBuckettieOptionsLoader>();
         result.Services.GetRequiredService<IApiTokenStore>()
-            .Should().BeOfType<WindowsCredentialManagerTokenStore>();
+            .Should().BeOfType<DpapiFileTokenStore>();
         result.Services.GetRequiredService<IGitGateway>()
             .Should().NotBeNull();
         result.Services.GetRequiredService<IBitbucketRepositoryGateway>()

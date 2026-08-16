@@ -25,7 +25,7 @@ public sealed class GitAskPassResponderTests
     }
 
     [Fact]
-    public void Respond_WhenPasswordIsRequested_ReturnsCredentialManagerToken()
+    public void Respond_WhenPasswordIsRequested_ReturnsTokenStoreValue()
     {
         _tokenStore.Read("buckettie").Returns(ApiTokenStoreResult.Success("secret-token"));
         GitAskPassResponder responder = new(_tokenStore);
