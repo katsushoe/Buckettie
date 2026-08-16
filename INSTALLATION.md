@@ -1,59 +1,53 @@
 # Installation
 
-## MSI（推奨）
+## MSI (Recommended)
 
-`Buckettie-<version>-win-x64.msi`を管理者権限で実行します。既定では`%ProgramFiles%\Buckettie`へ自己完結型Binary、設定Template、文書を配置し、`Buckettie` Windows Serviceを登録します。初回設定とToken登録が終わるまでServiceは起動しません。別のRootへ配置する場合は`INSTALLROOT`を指定します。
+Run `Buckettie-<version>-win-x64.msi` as an administrator. It installs the self-contained binaries, configuration template, and documentation below `%ProgramFiles%\Buckettie` by default and registers the `Buckettie` Windows Service. The service remains stopped until configuration and token registration are complete. Set `INSTALLROOT` for another root.
 
 ```powershell
 msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="F:\Buckettie"
 ```
 
-既存の手動配置版から移行する場合は、先に旧Serviceを停止・登録解除してください。実環境の設定、Token、監査LogはBackupしてから移行します。
+Before migrating a manual installation, stop and unregister its service, then back up configuration, tokens, and audit logs.
 
-Install後は`config\buckettie.example.json`を`config\buckettie.json`へコピーして編集し、管理者権限のTerminalでToken登録、Service起動、診断を行います。
+## Binary Archive Layout
 
-## 1. 配置
-
-以下はZIP版の手動配置手順です。
-
-配布Packageを任意の `<install-root>` に展開します。Service登録後も移動しないPathを選んでください。
+Extract the archive to a permanent `<install-root>`:
 
 ```text
 <install-root>\
-  bin\       実行BinaryとRuntime依存File
+  bin\       executables and runtime dependencies
   config\    buckettie.json
-  logs\      監査Log（実行時に作成）
-  data\      Application固有Data
-    secrets\ DPAPI暗号化Token（登録時に作成）
+  logs\      audit logs created at runtime
+  data\      application data
+    secrets\ DPAPI-encrypted tokens
 ```
 
-## 2. 設定
+## Configuration
 
-`buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、[設定仕様](CONFIG.md)に従って編集します。`repositories`のKeyがCommandで使うRepository IDです。`slug`にはBitbucket URLの最後のRepository名を設定します。
+Copy `buckettie.example.json` to `<install-root>\config\buckettie.json` and edit it according to [Configuration](CONFIG.md). The `repositories` key is the Repository ID used by commands. `slug` is the repository name at the end of its Bitbucket URL.
 
 ```powershell
 <install-root>\bin\buckettie.exe config check
 <install-root>\bin\buckettie.exe config show
 ```
 
-標準外の配置では、各Commandへ `--config <path>` を指定します。
+Use `--config <path>` for a nonstandard location.
 
-## 3. Token登録
+## Token Registration
 
-Repositoryごとに、管理者権限のTerminalで次を実行します。Token入力は画面に表示されません。
+Run from an elevated terminal for each repository. Input is hidden.
 
 ```powershell
 <install-root>\bin\buckettie.exe auth set <repository-id>
 <install-root>\bin\buckettie.exe auth test
 ```
 
-TokenはDPAPI LocalMachineで暗号化され、`<install-root>\data\secrets\<repository-id>.token`へ保存されます。設定Fileや環境変数には保存しません。
+The token is DPAPI LocalMachine-encrypted at `<install-root>\data\secrets\<repository-id>.token`; it is never stored in configuration or environment variables. When migrating from version 1.1 or earlier, stop the service, preserve ACLs while moving `<install-root>\secrets` to `<install-root>\data\secrets`, and run `doctor`.
 
-Version 1.1以前の配置から移行する場合は、Serviceを停止してから`<install-root>\secrets`を`<install-root>\data\secrets`へ移動します。元DirectoryのACLを維持し、移行後に`doctor`でTokenとBitbucket APIを確認します。
+## Service Registration and Verification
 
-## 4. Service登録と確認
-
-管理者権限のTerminalで実行します。
+For an MSI deployment, omit `service install` because the MSI registers the service.
 
 ```powershell
 <install-root>\bin\buckettie.exe service install
@@ -62,7 +56,7 @@ Version 1.1以前の配置から移行する場合は、Serviceを停止して�
 <install-root>\bin\buckettie.exe doctor
 ```
 
-Service名は `Buckettie`、実行AccountはLocalSystem、起動種類は自動です。既定MCP Endpointは `http://127.0.0.1:45450/mcp` です。
+The service name is `Buckettie`, its account is LocalSystem, and its startup type is automatic. The default MCP endpoint is `http://127.0.0.1:45450/mcp`.
 
 ## Uninstall
 
@@ -71,4 +65,4 @@ Service名は `Buckettie`、実行AccountはLocalSystem、起動種類は自動�
 <install-root>\bin\buckettie.exe service uninstall
 ```
 
-Service登録だけが削除されます。設定、監査Log、Token Fileは必要性を確認して個別に管理してください。
+This removes only service registration. Manage configuration, audit logs, and token files separately after confirming whether they are still needed.

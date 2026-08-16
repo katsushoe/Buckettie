@@ -37,6 +37,6 @@ MCP Tool failures use fixed error codes and messages. Git stderr, HTTP response 
 
 ## Audit log
 
-Every MCP-backed gateway operation records its tool name, repository ID, applicable ref or Pull Request ID, result, duration, and fixed error code in the daily structured audit log. The release layout writes these files under `F:\Buckettie\logs`. Tokens, authorization headers, passwords, request/response bodies, PR descriptions, messages, diffs, local paths, URLs, and exception details are excluded by the audit event schema.
+Every MCP-backed gateway operation records its tool name, repository ID, applicable ref or Pull Request ID, result, duration, and fixed error code in the daily structured audit log. The standard layout writes these files below `<install-root>\logs`. Tokens, authorization headers, passwords, request/response bodies, PR descriptions, messages, diffs, local paths, URLs, and exception details are excluded by the audit event schema.
 
 The audit boundary and data-minimization decision are recorded in [ADR 0007](docs/adr/0007-structured-audit-log.md).

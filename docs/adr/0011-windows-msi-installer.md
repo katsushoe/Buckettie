@@ -6,36 +6,36 @@ Accepted
 
 ## Context
 
-ZIP配布ではBinary配置、Directory作成、Windows Service登録を利用者が個別に実行する必要がある。Windows製品として標準的なInstall、Upgrade、Uninstall経路が必要である。
+The ZIP distribution requires users to place binaries, create directories, and register the Windows Service separately. A Windows product needs standard installation, upgrade, and uninstall paths.
 
 ## Decision
 
-WiX Toolset 6でWindows x64・per-machine MSIを生成する。既定配置はWindowsの`ProgramFiles64Folder`配下の`Buckettie`とし、公開Directory Property `INSTALLROOT`で別Rootを指定できる。MSIは自己完結型Binary、設定Template、利用者文書、`logs`・`data` Directory、LocalSystemの`Buckettie` Service登録を管理する。初回設定とDPAPI Token登録が完了するまでServiceは起動しない。
+Generate a per-machine Windows x64 MSI with WiX Toolset 6. The default root is `Buckettie` below `ProgramFiles64Folder`; public directory property `INSTALLROOT` selects another root. The MSI manages self-contained binaries, the configuration template, user documents, `logs` and `data` directories, and LocalSystem registration of the `Buckettie` service. It does not start the service before initial configuration and DPAPI token registration are complete.
 
-設定、Token、監査LogはUpgradeおよびUninstallで保持する。秘密値はMSIへ含めない。
+Preserve configuration, tokens, and audit logs during upgrades and uninstall. Never include secrets in the MSI.
 
 ## Alternatives
 
-- ZIPのみ: 単純だが、配置とService登録の手作業を解消できないため不採用。
-- MSIX: Windows Serviceと既存のper-machine運用に追加制約があるため不採用。
-- 独自Setup EXE: 保守対象とSecurity境界が増えるため不採用。
+- ZIP only: rejected because it does not remove manual layout and service-registration work.
+- MSIX: rejected because it adds constraints to the Windows Service and existing per-machine operation.
+- Custom setup executable: rejected because it expands maintenance and the security boundary.
 
 ## Impact
 
-- MSI BuildにWiX Toolset SDKのNuGet復元が必要になる。
-- Windows InstallerのProductVersionは3-part、製品表示Versionは4-partで管理する。
-- 既存の手動配置環境へ導入する場合は、Service名の競合を避けるため旧Serviceを先に解除する。
+- Building the MSI requires NuGet restore of the WiX Toolset SDK.
+- Windows Installer uses a three-part ProductVersion while the displayed product version uses four parts.
+- Before installing over a manual deployment, unregister the old service to avoid a service-name conflict.
 
 ## Security conditions
 
-- API Token、実環境設定、監査LogをMSIへ含めない。
-- ServiceはLocalSystemで登録し、MCPは既存どおりlocalhost限定とする。
-- `data/secrets`の最終ACLは`auth set`が設定する。
+- Do not include API tokens, effective configuration, or audit logs in the MSI.
+- Register the service as LocalSystem and keep MCP restricted to localhost.
+- `auth set` applies the final ACL to `data/secrets`.
 
 ## Operations
 
-Build Scriptは自己完結型publish、MSI生成、SHA-256生成を一括実行する。MSIのInstall・Repair・Uninstallは管理者権限を要求する。
+The build script runs self-contained publish, MSI generation, and SHA-256 generation together. MSI installation, repair, and uninstall require administrator privileges.
 
 ## Implementation and verification
 
-MSI Source、Build Script、Package文書、Install文書を同一変更で管理する。Build、Test、MSI Database検査、管理InstallによるPayload展開を検証する。
+Maintain MSI source, the build script, package documentation, and installation documentation in the same change. Verify build, tests, MSI database inspection, and payload extraction through an administrative installation.
