@@ -24,7 +24,7 @@ Release date: 2026-08-16
 
 - Release Build: 警告0、エラー0
 - 自動Test: 110件合格
-- MSI: WiX Database解析、Windows Installer管理Install、必須File、Version、SHA-256を確認
+- MSI: WiX Database解析、Windows Installer管理Install、通常Install、Service起動、Doctor、Uninstall、Data保持、必須File、Version、SHA-256を確認
 - ZIP: 展開、必須File、Version、README、SHA-256を確認
 
-通常Install／Upgrade／Uninstallは既存のBuckettie Serviceとの競合を避けるため未実施です。実環境の設定、Token、監査LogはArtifactへ含めません。
+旧VersionにはMSIが存在しないため、MSI間のUpgradeだけは未実施です。通常Install／Uninstall後に元のBuckettie Service、設定、Token、監査Logを復元し、Doctor全項目の合格を確認しました。実環境DataはArtifactへ含めません。
