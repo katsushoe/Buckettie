@@ -1,31 +1,31 @@
-# Release 1.2.0.0
+# Release 1.2.0.1
 
 Release date: 2026-08-17
 
 ## Highlights
 
-- Windows標準構成として `bin`、`config`、`logs`、`data` をInstall Root直下へ分離
-- DPAPI Token保存先を `data/secrets` に統一
-- CLI、Server、AskPass、Service管理で共通のPath解決を使用
-- MSIのInstall先を `INSTALLROOT` Propertyで指定可能に変更
-- MSI／Portable ZIPの双方を標準構成へ対応
+- Added the public `MCP_SETUP.md` guide for connecting Codex and Claude Code
+- Added the synchronized Japanese guide `MCP_SETUP.ja.md`
+- Documented complete Streamable HTTP client configurations, authentication boundaries, multi-workspace use, connection verification, and troubleshooting
+- Included both MCP setup guides in the MSI and portable ZIP documentation
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.2.0.0-win-x64.msi` | `42E93A19EB46468398B86B6FA2B0F410A02A913BB05496417F90E50A9C7FD876` |
-| `Buckettie-1.2.0.0-win-x64.zip` | `D7AF188B2DE6DDA47F3987E15C3F048A0BBCC2734D1A4BFC40440B5C6D6E43D7` |
+| `Buckettie-1.2.0.1-win-x64.msi` | `F540A0CE51A8B6F05F27FA2FAEEEBB9586F6327D95D606FE349526C2383DE7F9` |
+| `Buckettie-1.2.0.1-win-x64.zip` | `1D57C8C77E0D8F414817F549A876A7ECA318A92B36D991F5502DA6AC0CAB465B` |
 
-- Runtime: Windows x64、自己完結型
-- Tag: `v1.2.0.0`
+- Runtime: Windows x64, self-contained
+- Display version: `1.2.0.1`
+- Windows Installer product version: `1.2.1`
+- Tag: `v1.2.0.1`
 
 ## Validation
 
-- Release Build: 警告0、エラー0
-- 自動Test: 112件合格
-- MSI: WiX Database解析、Windows Installer管理Install、必須Directory、Version、SHA-256を確認
-- ZIP: 展開、標準Directory構成、必須File、Version、README、SHA-256を確認
-- 実Install: `F:\Buckettie` へ標準構成でInstallし、Service起動およびDoctor全項目の合格を確認
+- Automated tests: 112 passed
+- Markdown, JSON, TOML, and local-link parsing: passed
+- MSI release build: 0 warnings, 0 errors
+- MSI and ZIP: version, SHA-256, standard directory layout, and both MCP setup guides verified
 
-設定、DPAPI Token、監査LogはArtifactへ含めません。1.1.0.0以前から移行する場合は、既存TokenをInstall Root直下の `secrets` から `data/secrets` へ移動してください。
+Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.
