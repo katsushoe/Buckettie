@@ -1,6 +1,16 @@
 # Installation
 
+## MSI（推奨）
+
+`Buckettie-<version>-win-x64.msi`を管理者権限で実行します。既定では`%ProgramFiles%\Buckettie`へ自己完結型Binary、設定Template、文書を配置し、`Buckettie` Windows Serviceを登録します。初回設定とToken登録が終わるまでServiceは起動しません。
+
+既存の手動配置版から移行する場合は、先に旧Serviceを停止・登録解除してください。実環境の設定、Token、監査LogはBackupしてから移行します。
+
+Install後は`config\buckettie.example.json`を`config\buckettie.json`へコピーして編集し、管理者権限のTerminalでToken登録、Service起動、診断を行います。
+
 ## 1. 配置
+
+以下はZIP版の手動配置手順です。
 
 配布Packageを任意の `<install-root>` に展開します。Service登録後も移動しないPathを選んでください。
 
@@ -55,4 +65,3 @@ Service名は `Buckettie`、実行AccountはLocalSystem、起動種類は自動�
 ```
 
 Service登録だけが削除されます。設定、監査Log、Token Fileは必要性を確認して個別に管理してください。
-
