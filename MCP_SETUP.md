@@ -2,52 +2,106 @@
 
 [English](MCP_SETUP.md) | [日本語](MCP_SETUP.ja.md)
 
-This guide connects Codex or Claude Code to the Buckettie Streamable HTTP MCP server. For Buckettie installation and repository configuration, see [INSTALLATION.md](INSTALLATION.md) and [CONFIG.md](CONFIG.md).
+This guide separates values you enter, files a client generates, and results you verify. Follow one recommended path for each client. Alternative project-scoped configuration is in a separate section.
 
 ## Prerequisites
 
-- Windows 10/11 or Windows Server
-- An installed and configured Buckettie instance
-- A running `Buckettie` Windows Service
-- Codex or Claude Code on the same Windows machine as Buckettie
-- At least one Repository ID configured in `buckettie.json`
+- Buckettie is installed and configured on the same Windows machine as the MCP client.
+- The `Buckettie` Windows Service is registered.
+- At least one repository is present in `buckettie.json`.
+- Codex or Claude Code is installed.
 
-Run the following commands from an elevated terminal before registering a client:
+Installation and repository configuration are documented in [INSTALLATION.md](INSTALLATION.md) and [CONFIG.md](CONFIG.md).
 
-```powershell
-<install-root>\bin\buckettie.exe config check
-<install-root>\bin\buckettie.exe auth test
-<install-root>\bin\buckettie.exe start
-<install-root>\bin\buckettie.exe doctor
-```
+### Values you enter
+
+You enter only the following two machine-specific values in the preparation commands:
+
+| Variable | What to enter | Example |
+| --- | --- | --- |
+| `$BuckettieRoot` | The installation directory selected by the MSI or ZIP deployment | `F:\Buckettie` |
+| `$RepositoryId` | One case-sensitive ID printed by `repo list` | `my-project` |
+
+The MCP server name and default URL are fixed in the client examples:
+
+| Setting | Value | Change only when |
+| --- | --- | --- |
+| Server name | `buckettie` | You intentionally need a different client display name. |
+| Transport | Streamable HTTP (`http`) | Do not change it. Buckettie does not expose stdio or SSE. |
+| URL | `http://127.0.0.1:45450/mcp` | `mcp_port` or `mcp_path` differs in `buckettie.json`. |
+| MCP authentication | None | Do not add a token or authorization header. |
+
+`<install-root>`, `<project-root>`, and `<repository-id>` are notation only. Do not paste angle-bracket placeholders into a terminal or configuration file.
 
 ## Authentication and Environment
 
-Buckettie does not require MCP client credentials, authorization headers, or environment variables. The MCP endpoint is bound to loopback, and requests with an `Origin` header are accepted only when the origin uses loopback and the configured MCP port.
+Buckettie does not require MCP client credentials, authorization headers, or environment variables. It accepts MCP traffic only on loopback and restricts an `Origin` header to loopback on the configured port.
 
-Bitbucket credentials are separate from MCP client authentication. Register each repository token with `buckettie auth set <repository-id>`. Buckettie encrypts it with DPAPI LocalMachine and stores it under `<install-root>\data\secrets`; never put a Bitbucket token in a Codex or Claude Code MCP configuration.
-
-The default endpoint is `http://127.0.0.1:45450/mcp`. If `mcp_port` or `mcp_path` changes in `buckettie.json`, update every client URL to the same value. Do not replace `127.0.0.1` with a LAN address or expose the endpoint through a public proxy.
+Bitbucket authentication is separate. `auth set` encrypts the Bitbucket token with DPAPI LocalMachine and writes it below `$BuckettieRoot\data\secrets`. Never put that token in Codex or Claude Code MCP settings.
 
 ## Start the Server
 
-The MSI registers the fixed `Buckettie` Windows Service. Start and verify it from an elevated terminal:
+### Step 1: enter your installation directory
+
+Run this in an elevated PowerShell terminal. Change only the quoted path:
 
 ```powershell
-<install-root>\bin\buckettie.exe start
-<install-root>\bin\buckettie.exe status
-<install-root>\bin\buckettie.exe mcp test
+$BuckettieRoot = 'F:\Buckettie'
 ```
 
-For a ZIP installation, run `buckettie.exe service install` once before `start`. Service commands and exit codes are defined in [COMMANDS.md](COMMANDS.md).
+### Step 2: verify the configuration and find a Repository ID
+
+```powershell
+& "$BuckettieRoot\bin\buckettie.exe" config check
+& "$BuckettieRoot\bin\buckettie.exe" repo list
+```
+
+Expected results:
+
+- `config check` exits with code `0` and reports no configuration error.
+- `repo list` prints one case-sensitive Repository ID per line.
+
+### Step 3: enter one printed Repository ID and verify it
+
+Change only the quoted ID:
+
+```powershell
+$RepositoryId = 'my-project'
+& "$BuckettieRoot\bin\buckettie.exe" repo status $RepositoryId
+& "$BuckettieRoot\bin\buckettie.exe" auth test
+```
+
+Expected results:
+
+- `repo status` prints the branch, HEAD, and working-tree status.
+- `auth test` reports that the configured repository credential is readable without printing the token.
+
+If the token is not registered, run `& "$BuckettieRoot\bin\buckettie.exe" auth set $RepositoryId` first. The token entered at the hidden prompt is stored by Buckettie; it is not copied into an MCP client setting.
+
+### Step 4: start and test the service
+
+```powershell
+& "$BuckettieRoot\bin\buckettie.exe" start
+& "$BuckettieRoot\bin\buckettie.exe" status
+& "$BuckettieRoot\bin\buckettie.exe" mcp test
+```
+
+Expected results:
+
+- `status` reports the `Buckettie` service as running.
+- `mcp test` prints `[OK] MCP Endpoint (200)`.
+
+For a ZIP deployment, run `& "$BuckettieRoot\bin\buckettie.exe" service install` once before `start`. The MSI registers the service automatically.
 
 ## Register Clients
 
-Use the server name `buckettie`, the Streamable HTTP transport, and the configured loopback URL. No authentication fields or credential environment variables are present because the MCP boundary does not use client authentication.
+### Codex — recommended manual user configuration
 
-### Codex
+This procedure does not run a generator. You add one TOML table yourself.
 
-Codex reads the user configuration from `~/.codex/config.toml`. A trusted project may instead use `<project-root>/.codex/config.toml`. Add this complete server entry:
+1. Open `%USERPROFILE%\.codex\config.toml`.
+2. Preserve all existing content.
+3. Add the following table once. If `[mcp_servers.buckettie]` already exists, replace only that table.
 
 ```toml
 [mcp_servers.buckettie]
@@ -57,17 +111,28 @@ required = true
 default_tools_approval_mode = "writes"
 ```
 
-- `buckettie` is the server name shown by Codex.
-- `url` must match Buckettie's `mcp_port` and `mcp_path`.
-- No `bearer_token_env_var`, `http_headers`, or `env_http_headers` is configured because Buckettie accepts unauthenticated loopback MCP traffic only.
-- `required = true` makes client startup report an unavailable Buckettie endpoint.
-- `default_tools_approval_mode = "writes"` prompts for tools not marked read-only while allowing read-only discovery according to Codex policy.
+What is generated automatically: nothing. Saving `config.toml` is the configuration change.
 
-Save the file, then restart the ChatGPT desktop app, Codex CLI, or IDE extension. These local Codex clients share the same host configuration. In Codex, use `/mcp` to confirm that `buckettie` is connected.
+What each value means:
 
-### Claude Code
+- `buckettie`: client-visible server name.
+- `url`: must equal Buckettie's configured loopback endpoint.
+- `enabled = true`: enables the server.
+- `required = true`: reports an unavailable endpoint as a client startup problem.
+- `default_tools_approval_mode = "writes"`: prompts according to Codex policy for tools not marked read-only.
+- No bearer-token or header setting is present because MCP authentication is `None`.
 
-For a project-shared configuration, create `<project-root>/.mcp.json` with this complete entry:
+Restart the ChatGPT desktop app, Codex CLI, or IDE extension after saving. These local Codex clients share the host configuration.
+
+### Claude Code — recommended automatic user registration
+
+Run exactly this command in PowerShell. There are no placeholders to replace when Buckettie uses the default URL:
+
+```powershell
+claude mcp add --transport http --scope user buckettie http://127.0.0.1:45450/mcp
+```
+
+The command automatically updates Claude Code's user configuration at `~/.claude.json`. It adds the logical server entry below while preserving other settings:
 
 ```json
 {
@@ -80,47 +145,74 @@ For a project-shared configuration, create `<project-root>/.mcp.json` with this 
 }
 ```
 
-- `buckettie` is the server name shown by Claude Code.
-- `type` must be `http`; `streamable-http` is also accepted by Claude Code.
-- `url` must match Buckettie's `mcp_port` and `mcp_path`.
-- No `headers` or environment variables are configured because Buckettie does not use MCP client credentials.
+Do not paste this JSON after running the command. It shows what the command registers so that you can verify the result. Restart or reload Claude Code after registration.
 
-Claude Code requires approval before using a project-scoped `.mcp.json` server. Start Claude Code in the project and approve the trusted server when prompted. As a private user-scoped alternative, this command writes the equivalent HTTP registration to Claude Code's user configuration:
+### Alternative: project-scoped configuration
 
-```powershell
-claude mcp add --transport http --scope user buckettie http://127.0.0.1:45450/mcp
-```
+Use this alternative only when the MCP registration should apply to one project rather than all local projects.
 
-Restart or reload Claude Code after changing the configuration. Run `claude mcp get buckettie`, `claude mcp list`, or `/mcp` to inspect the connection.
+- Codex: put the same TOML table in `<project-root>\.codex\config.toml` instead of the user file.
+- Claude Code: create `<project-root>\.mcp.json` containing the JSON example above. Do not also run the user-scope command unless both scopes are intentionally required.
+
+`<project-root>` means the root directory of the source repository in which the client runs. Project-scoped Claude Code configuration requires interactive workspace trust and MCP server approval.
 
 ## Multiple Workspaces
 
-One Buckettie instance can serve multiple Bitbucket workspaces and repositories. Add every allowed repository under `repositories` in the same `buckettie.json`, using a unique Repository ID for each entry. Clients keep one `buckettie` MCP server registration and pass the intended Repository ID to each tool.
+One Buckettie service can expose multiple allowed Bitbucket workspaces and repositories. Add them to `repositories` in `buckettie.json` with unique Repository IDs. Keep one client registration and pass the intended Repository ID to each Buckettie tool.
 
-Use a user-scoped Codex or Claude Code registration when all local projects may access the same Buckettie allowlist. Use project-scoped configuration when access should be visible only from selected projects. Project scope does not override Buckettie's repository allowlist or branch policies.
+Client scope controls where the client can see the server registration. It does not change Buckettie's repository allowlist, branch policy, or credentials.
 
 ## Verify the Connection
 
-Verify the server before the clients:
+Perform these checks in order. Stop at the first failure.
+
+### Check 1: Buckettie endpoint
 
 ```powershell
-<install-root>\bin\buckettie.exe mcp status
-<install-root>\bin\buckettie.exe mcp tools
-<install-root>\bin\buckettie.exe doctor
+& "$BuckettieRoot\bin\buckettie.exe" mcp status
 ```
 
-The tool list must include `bitbucket_repository_status`. In Codex or Claude Code, confirm `buckettie` is connected, then call `bitbucket_repository_status` with a configured Repository ID. A successful result returns the local branch, HEAD, and working-tree status. Tool inputs and policy errors are defined in [COMMANDS.md](COMMANDS.md) and [SECURITY.md](SECURITY.md).
+Pass condition: `[OK] MCP Endpoint (200)`.
+
+### Check 2: Buckettie tool discovery
+
+```powershell
+& "$BuckettieRoot\bin\buckettie.exe" mcp tools
+```
+
+Pass conditions: `[OK] MCP Tools (200)` and the response contains `bitbucket_repository_status`.
+
+### Check 3: client registration
+
+- Codex: open `/mcp` and confirm that `buckettie` is enabled and connected.
+- Claude Code: run `claude mcp get buckettie`, then `claude mcp list`; confirm a connected status.
+
+### Check 4: read-only tool call
+
+In the client, call `bitbucket_repository_status` with the exact value stored in `$RepositoryId`.
+
+Pass condition: the result contains the configured repository's branch, HEAD, and working-tree status. This confirms client registration, MCP transport, Repository ID selection, and Buckettie policy resolution without modifying the repository.
+
+### Check 5: complete diagnosis
+
+```powershell
+& "$BuckettieRoot\bin\buckettie.exe" doctor
+```
+
+Pass condition: configuration, Git, API token, repository, Bitbucket API, and MCP checks are all `OK`.
 
 ## Troubleshooting
 
-- If the client reports connection refused, run `buckettie status`, `buckettie mcp test`, and `buckettie doctor`.
-- If the client reports an HTTP or initialization error, confirm that its URL exactly matches `mcp_port` and `mcp_path`.
-- If an `Origin` request receives HTTP 403, use `http://127.0.0.1:<mcp_port>` or `http://localhost:<mcp_port>` as the client origin and endpoint host.
-- If Claude Code shows a project server as pending, trust the workspace and approve `.mcp.json` interactively.
-- If a tool returns a repository error, confirm the exact case-sensitive Repository ID with `buckettie repo list` and run `buckettie repo status <repository-id>`.
-- If Bitbucket authentication fails, run `buckettie auth test`; do not add the Bitbucket token to the MCP client configuration.
-- After any client configuration change, restart or reload that client.
+- Command contains `<...>`: replace the placeholder; never paste angle brackets literally.
+- `repo status` fails: use the exact case-sensitive ID printed by `repo list`.
+- Connection refused: confirm the service is running, then repeat Checks 1 and 2.
+- HTTP 404 or initialization failure: make the client URL match `mcp_port` and `mcp_path`.
+- HTTP 403 with `Origin`: use `127.0.0.1` or `localhost` with the configured port.
+- Codex has no `buckettie` entry: confirm the table is in `%USERPROFILE%\.codex\config.toml` and restart the client.
+- Claude Code has no `buckettie` entry: rerun `claude mcp add`, then inspect it with `claude mcp get buckettie`.
+- Claude Code shows pending approval: trust the project and approve its project-scoped `.mcp.json` entry.
+- Bitbucket authentication fails: run `auth test` or `auth set`; do not add the token to MCP client settings.
 
-For additional recovery steps, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+For command details and recovery procedures, see [COMMANDS.md](COMMANDS.md) and [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-Client configuration references: [OpenAI Codex MCP documentation](https://developers.openai.com/codex/mcp) and [Claude Code MCP documentation](https://docs.anthropic.com/en/docs/claude-code/mcp).
+Client references: [OpenAI Codex MCP documentation](https://developers.openai.com/codex/mcp) and [Claude Code MCP documentation](https://docs.anthropic.com/en/docs/claude-code/mcp).
