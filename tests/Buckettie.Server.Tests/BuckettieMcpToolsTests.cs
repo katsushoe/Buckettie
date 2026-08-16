@@ -10,6 +10,7 @@ public sealed class BuckettieMcpToolsTests
 {
     private static readonly string[] ExpectedToolNames =
     [
+        "get_version",
         "bitbucket_repository_status",
         "bitbucket_fetch",
         "bitbucket_pull",
@@ -109,5 +110,81 @@ public sealed class BuckettieMcpToolsTests
     public void BitbucketCode_WhenApiReturnsNotFound_UsesOperationContext(string operation, string expected)
     {
         BuckettieToolResultMapper.BitbucketCode(BitbucketError.NotFound, operation).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task GetVersionAsync_WhenCalled_ReturnsRunningAssemblyVersion()
+    {
+        BuckettieMcpTools tools = new(new UnusedGitGateway(), new UnusedBitbucketRepositoryGateway());
+        string expectedVersion = typeof(BuckettieMcpTools).Assembly.GetName().Version!.ToString();
+
+        BuckettieToolResult<BuckettieVersionData> result = await tools.GetVersionAsync();
+
+        result.Should().Be(new BuckettieToolResult<BuckettieVersionData>(
+            true, "get_version", string.Empty, new BuckettieVersionData(expectedVersion), null));
+    }
+
+    private sealed class UnusedGitGateway : IGitGateway
+    {
+        public Task<GitGatewayResult> GetStatusAsync(string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> FetchAsync(string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> PullAsync(string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> PushAsync(string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class UnusedBitbucketRepositoryGateway : IBitbucketRepositoryGateway
+    {
+        public Task<BitbucketResult<BitbucketRepositoryInfo>> GetRepositoryAsync(
+            string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<IReadOnlyList<BitbucketBranchInfo>>> ListBranchesAsync(
+            string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketBranchInfo>> GetBranchAsync(
+            string repository, string branch, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
+            string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketTagInfo>> GetTagAsync(
+            string repository, string tag, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(
+            string repository, BitbucketTagCreate input, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
+            string repository, BitbucketPullRequestState? state, string? source, string? destination,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
+            string repository, int pullRequestId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<string>> GetPullRequestDiffAsync(
+            string repository, int pullRequestId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
+            string repository, BitbucketPullRequestCreate input, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
+            string repository, int pullRequestId, BitbucketPullRequestMerge input,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }
