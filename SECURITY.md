@@ -2,11 +2,11 @@
 
 ## Bitbucket API Token
 
-Buckettie stores API Tokens as DPAPI LocalMachine-encrypted files named `secrets/<repository-id>.token`.
+Buckettie stores API Tokens as DPAPI LocalMachine-encrypted files named `data/secrets/<repository-id>.token`.
 
 - Do not put tokens in `buckettie.json`, Git Remote URLs, source files, command-line arguments, or logs.
 - Treat `TokenNotFound` as an unconfigured credential, not as an authentication failure.
-- The `secrets` directory disables inherited ACLs and grants access only to LocalSystem, Administrators, and the creating operator.
+- The `data/secrets` directory disables inherited ACLs and grants access only to LocalSystem, Administrators, and the creating operator.
 - Token files are machine-bound and must not be copied to another computer as backups.
 
 The current design is recorded in [ADR 0010](docs/adr/0010-dpapi-machine-token-store.md). ADR 0001 records the superseded Credential Manager design.

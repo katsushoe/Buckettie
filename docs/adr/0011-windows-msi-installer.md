@@ -10,7 +10,7 @@ ZIP配布ではBinary配置、Directory作成、Windows Service登録を利用�
 
 ## Decision
 
-WiX Toolset 6でWindows x64・per-machine MSIを生成する。既定配置はWindowsの`ProgramFiles64Folder`配下の`Buckettie`とし、固定Drive Letterは使用しない。MSIは自己完結型Binary、設定Template、利用者文書、`logs`・`secrets` Directory、LocalSystemの`Buckettie` Service登録を管理する。初回設定とDPAPI Token登録が完了するまでServiceは起動しない。
+WiX Toolset 6でWindows x64・per-machine MSIを生成する。既定配置はWindowsの`ProgramFiles64Folder`配下の`Buckettie`とし、公開Directory Property `INSTALLROOT`で別Rootを指定できる。MSIは自己完結型Binary、設定Template、利用者文書、`logs`・`data` Directory、LocalSystemの`Buckettie` Service登録を管理する。初回設定とDPAPI Token登録が完了するまでServiceは起動しない。
 
 設定、Token、監査LogはUpgradeおよびUninstallで保持する。秘密値はMSIへ含めない。
 
@@ -30,7 +30,7 @@ WiX Toolset 6でWindows x64・per-machine MSIを生成する。既定配置はWi
 
 - API Token、実環境設定、監査LogをMSIへ含めない。
 - ServiceはLocalSystemで登録し、MCPは既存どおりlocalhost限定とする。
-- `secrets`の最終ACLは`auth set`が設定する。
+- `data/secrets`の最終ACLは`auth set`が設定する。
 
 ## Operations
 

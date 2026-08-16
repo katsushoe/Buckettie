@@ -2,7 +2,7 @@
 
 Buckettieは、許可したローカルGit RepositoryとBitbucket CloudをMCP経由で安全に操作するWindows向けGatewayです。RepositoryごとのAllowlist、Branch保護、監査ログ、DPAPIで保護したAPI Tokenを組み合わせ、AI Clientへ必要最小限の操作だけを公開します。
 
-Current release: `1.1.0.0`
+Current release: `1.2.0.0`
 
 ## 開発の動機
 
@@ -23,6 +23,12 @@ Claude CodeやCodexからBitbucket Repositoryへ直接pushする場合、外部S
 Releaseの`Buckettie-<version>-win-x64.msi`とSHA-256 Fileを取得し、
 Hashを照合してからMSIを管理者権限で実行します。自己完結型Binaryは既定で
 `%ProgramFiles%\Buckettie`へ配置され、Windows Serviceも登録されます。
+別のRootへ配置する場合は、管理者Terminalから`INSTALLROOT`を指定します。
+
+```powershell
+msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="F:\Buckettie"
+```
+
 設定とToken登録が終わるまでServiceは起動しません。
 
 ### バイナリ配布
@@ -48,6 +54,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Msi.ps1
 [Package構成](PACKAGES.md)を参照してください。
 
 ### 初期設定（全配布方式共通）
+
+標準構成は`<install-root>\bin`、`config`、`logs`、`data`です。DPAPIで
+暗号化したTokenは`<install-root>\data\secrets`へ保存されます。
 
 1. `buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、Repositoryを設定します。
 2. 管理者権限のTerminalでTokenを登録し、Serviceを起動します。

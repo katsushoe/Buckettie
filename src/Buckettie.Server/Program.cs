@@ -16,9 +16,10 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        BuckettiePathLayout paths = BuckettiePathLayout.FromBinaryDirectory(AppContext.BaseDirectory);
         string configurationPath = args.Length > 0
             ? Path.GetFullPath(args[0])
-            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "config", "buckettie.json"));
+            : Path.Combine(paths.ConfigurationDirectory, "buckettie.json");
         string askPassExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.AskPass.exe");
 
         await using FileStream configuration = File.OpenRead(configurationPath);
@@ -28,7 +29,7 @@ internal static class Program
             GitCommandTimeout).ConfigureAwait(false);
         if (result.IsSuccess)
         {
-            await RunServerAsync(result.Services!, CancellationToken.None).ConfigureAwait(false);
+            await RunServerAsync(result.Services!, paths, CancellationToken.None).ConfigureAwait(false);
             return 0;
         }
 
@@ -42,12 +43,12 @@ internal static class Program
 
     private static async Task RunServerAsync(
         IServiceProvider buckettieServices,
+        BuckettiePathLayout paths,
         CancellationToken cancellationToken)
     {
         BuckettieOptions options = buckettieServices.GetRequiredService<BuckettieOptions>();
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
-        string logDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "logs"));
-        builder.Logging.AddProvider(new DailyFileLoggerProvider(logDirectory));
+        builder.Logging.AddProvider(new DailyFileLoggerProvider(paths.LogDirectory));
         builder.Services.AddWindowsService(service => service.ServiceName = "Buckettie");
         builder.WebHost.ConfigureKestrel(server => server.ListenLocalhost(options.McpPort));
         builder.Services.AddSingleton<IBuckettieAuditLogger, BuckettieAuditLogger>();
