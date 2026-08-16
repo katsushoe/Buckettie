@@ -2,7 +2,11 @@
 
 ## MSI（推奨）
 
-`Buckettie-<version>-win-x64.msi`を管理者権限で実行します。既定では`%ProgramFiles%\Buckettie`へ自己完結型Binary、設定Template、文書を配置し、`Buckettie` Windows Serviceを登録します。初回設定とToken登録が終わるまでServiceは起動しません。
+`Buckettie-<version>-win-x64.msi`を管理者権限で実行します。既定では`%ProgramFiles%\Buckettie`へ自己完結型Binary、設定Template、文書を配置し、`Buckettie` Windows Serviceを登録します。初回設定とToken登録が終わるまでServiceは起動しません。別のRootへ配置する場合は`INSTALLROOT`を指定します。
+
+```powershell
+msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="F:\Buckettie"
+```
 
 既存の手動配置版から移行する場合は、先に旧Serviceを停止・登録解除してください。実環境の設定、Token、監査LogはBackupしてから移行します。
 
@@ -19,7 +23,8 @@ Install後は`config\buckettie.example.json`を`config\buckettie.json`へコピ�
   bin\       実行BinaryとRuntime依存File
   config\    buckettie.json
   logs\      監査Log（実行時に作成）
-  secrets\   DPAPI暗号化Token（登録時に作成）
+  data\      Application固有Data
+    secrets\ DPAPI暗号化Token（登録時に作成）
 ```
 
 ## 2. 設定
@@ -42,7 +47,9 @@ Repositoryごとに、管理者権限のTerminalで次を実行します。Token
 <install-root>\bin\buckettie.exe auth test
 ```
 
-TokenはDPAPI LocalMachineで暗号化され、`<install-root>\secrets\<repository-id>.token`へ保存されます。設定Fileや環境変数には保存しません。
+TokenはDPAPI LocalMachineで暗号化され、`<install-root>\data\secrets\<repository-id>.token`へ保存されます。設定Fileや環境変数には保存しません。
+
+Version 1.1以前の配置から移行する場合は、Serviceを停止してから`<install-root>\secrets`を`<install-root>\data\secrets`へ移動します。元DirectoryのACLを維持し、移行後に`doctor`でTokenとBitbucket APIを確認します。
 
 ## 4. Service登録と確認
 

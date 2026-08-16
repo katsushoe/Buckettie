@@ -40,9 +40,8 @@
 ## Upgrade
 
 1. `stop`でServiceを停止します。
-2. `config`、`logs`、`secrets`を保持し、`bin`の配布Fileを更新します。
+2. `config`、`logs`、`data`を保持し、`bin`の配布Fileを更新します。
 3. 必要に応じて `service install` を再実行します。
 4. `start`、`doctor`の順に確認します。
 
 DPAPI Token Fileは作成Machineに束縛されるため、別MachineへCopyしても利用できません。移行先でTokenを再登録してください。
-

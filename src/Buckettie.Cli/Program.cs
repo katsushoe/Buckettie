@@ -55,7 +55,8 @@ internal static class CliApplication
 
         if (command[0] == "logs")
         {
-            output.WriteLine(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "logs")));
+            BuckettiePathLayout paths = BuckettiePathLayout.FromBinaryDirectory(AppContext.BaseDirectory);
+            output.WriteLine(paths.LogDirectory);
             return 0;
         }
 
@@ -272,7 +273,9 @@ internal static class CliApplication
         int index = Array.IndexOf(args, "--config");
         return index >= 0 && index + 1 < args.Length
             ? Path.GetFullPath(args[index + 1])
-            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "config", "buckettie.json"));
+            : Path.Combine(
+                BuckettiePathLayout.FromBinaryDirectory(AppContext.BaseDirectory).ConfigurationDirectory,
+                "buckettie.json");
     }
 
     private static string[] RemoveConfigOption(string[] args)

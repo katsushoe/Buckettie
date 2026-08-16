@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Buckettie.Application.Configuration;
 
 namespace Buckettie.Cli;
 
@@ -55,8 +56,9 @@ internal sealed class WindowsServiceManager(IServiceCommandExecutor executor, st
 
     private async Task<int> InstallAsync(TextWriter output, CancellationToken cancellationToken)
     {
-        string server = Path.GetFullPath(Path.Combine(binaryDirectory, "Buckettie.Server.exe"));
-        string configuration = Path.GetFullPath(Path.Combine(binaryDirectory, "..", "config", "buckettie.json"));
+        BuckettiePathLayout paths = BuckettiePathLayout.FromBinaryDirectory(binaryDirectory);
+        string server = Path.Combine(paths.BinaryDirectory, "Buckettie.Server.exe");
+        string configuration = Path.Combine(paths.ConfigurationDirectory, "buckettie.json");
         if (!File.Exists(server) || !File.Exists(configuration))
         {
             output.WriteLine("[NG] Service install (RequiredFileMissing)");

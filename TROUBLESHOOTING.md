@@ -6,7 +6,7 @@
 
 - 管理者権限で `service status` を確認します。
 - `config check`で設定Errorを解消します。
-- `bin`、`config`、`logs`、`secrets`の配置とAccess権を確認します。
+- `bin`、`config`、`logs`、`data`の配置とAccess権を確認します。
 - Windows Event ViewerのSystem LogでService Control ManagerのErrorを確認します。
 
 ## Tokenを取得できない、認証に失敗する
@@ -38,4 +38,3 @@
 - Workspace、Slug、Repository IDの取り違えを確認します。
 - Pull Requestの状態、Source/Destination Branch、Tag名Patternを確認します。
 - 詳細は監査LogのError分類を確認し、秘密値を除いた情報だけを共有します。
-

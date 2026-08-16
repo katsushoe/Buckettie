@@ -1,6 +1,7 @@
 param(
-    [string]$DisplayVersion = '1.1.0.0',
-    [string]$RuntimeIdentifier = 'win-x64'
+    [string]$DisplayVersion = '1.2.0.0',
+    [string]$RuntimeIdentifier = 'win-x64',
+    [switch]$NoRestore
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,6 +9,11 @@ $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $releaseWorkDirectory = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.local\release'))
 $stagingDirectory = Join-Path $releaseWorkDirectory 'staging'
 $outputDirectory = Join-Path $releaseWorkDirectory 'output'
+
+if (-not $NoRestore) {
+    dotnet restore (Join-Path $repositoryRoot 'Buckettie.slnx') --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'Solution restore failed.' }
+}
 
 foreach ($directory in @($stagingDirectory, $outputDirectory)) {
     $resolvedDirectory = [IO.Path]::GetFullPath($directory)
@@ -21,10 +27,13 @@ if (Test-Path -LiteralPath $outputDirectory) { Remove-Item -LiteralPath $outputD
 
 $binDirectory = Join-Path $stagingDirectory 'bin'
 $configDirectory = Join-Path $stagingDirectory 'config'
+$logDirectory = Join-Path $stagingDirectory 'logs'
+$dataDirectory = Join-Path $stagingDirectory 'data'
+$secretDirectory = Join-Path $dataDirectory 'secrets'
 $docsDirectory = Join-Path $stagingDirectory 'docs'
-New-Item -ItemType Directory -Path $binDirectory, $configDirectory, $docsDirectory, $outputDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $binDirectory, $configDirectory, $logDirectory, $dataDirectory, $secretDirectory, $docsDirectory, $outputDirectory -Force | Out-Null
 
-dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo
+dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo --no-restore
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'buckettie.example.json') -Destination $configDirectory

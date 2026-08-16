@@ -6,7 +6,7 @@ Windows Credential Manager isolates credentials by user. A LocalSystem Windows S
 
 ## Decision
 
-Use one DPAPI LocalMachine-encrypted file per Repository ID under the release `secrets` directory. Disable ACL inheritance and grant full control only to LocalSystem, Administrators, and the operator that creates the directory. Runtime code uses only `DpapiFileTokenStore`.
+Use one DPAPI LocalMachine-encrypted file per Repository ID under the release `data/secrets` directory. Disable ACL inheritance and grant full control only to LocalSystem, Administrators, and the operator that creates the directory. Runtime code uses only `DpapiFileTokenStore`.
 
 ## Alternatives
 
@@ -26,4 +26,4 @@ Use `buckettie auth set <repository>` from an elevated terminal to create or rep
 
 ## Implementation
 
-`DpapiFileTokenStore` owns validation, DPAPI calls, atomic files, and ACL application behind testable boundaries. Server composition and Git AskPass resolve `..\secrets` relative to the binary directory.
+`DpapiFileTokenStore` owns validation, DPAPI calls, atomic files, and ACL application behind testable boundaries. Server composition and Git AskPass resolve `..\data\secrets` relative to the binary directory.

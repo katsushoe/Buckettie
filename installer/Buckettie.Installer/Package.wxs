@@ -13,11 +13,13 @@
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Buckettie">
+      <Directory Id="INSTALLROOT" Name="Buckettie">
         <Directory Id="BINDIR" Name="bin" />
         <Directory Id="CONFIGDIR" Name="config" />
         <Directory Id="LOGDIR" Name="logs" />
-        <Directory Id="SECRETSDIR" Name="secrets" />
+        <Directory Id="DATADIR" Name="data">
+          <Directory Id="SECRETSDIR" Name="secrets" />
+        </Directory>
         <Directory Id="DOCDIR" Name="docs" />
       </Directory>
     </StandardDirectory>
@@ -71,7 +73,10 @@
       <Component Id="LogDirectoryComponent" Directory="LOGDIR" Guid="83B03F78-D829-4701-8A2B-DD4EF9C58386" Permanent="yes">
         <CreateFolder />
       </Component>
-      <Component Id="SecretsDirectoryComponent" Directory="SECRETSDIR" Guid="26755BA3-5934-4A61-998D-99FF88DC8D4D" Permanent="yes">
+      <Component Id="DataDirectoryComponent" Directory="DATADIR" Guid="9CA8AB97-29D9-49A1-9F43-D8A405BB35B8" Permanent="yes">
+        <CreateFolder />
+      </Component>
+      <Component Id="SecretsDirectoryComponent" Directory="SECRETSDIR" Guid="15D7E73A-6CF9-480C-97F1-3370FE01C859" Permanent="yes">
         <CreateFolder />
       </Component>
     </ComponentGroup>

@@ -1,4 +1,5 @@
 using System.Text;
+using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Infrastructure.Credentials;
 
@@ -19,8 +20,8 @@ internal static class Program
             return InvalidRequestExitCode;
         }
 
-        string secretDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "secrets"));
-        GitAskPassResponder responder = new(new DpapiFileTokenStore(secretDirectory));
+        BuckettiePathLayout paths = BuckettiePathLayout.FromBinaryDirectory(AppContext.BaseDirectory);
+        GitAskPassResponder responder = new(new DpapiFileTokenStore(paths.SecretDirectory));
         GitAskPassResponse response = responder.Respond(repository, username, args[0]);
         if (!response.IsSuccess || response.Value is null)
         {

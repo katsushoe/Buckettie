@@ -42,9 +42,9 @@ public static class BuckettieCompositionRoot
         ServiceCollection services = new();
         services.AddSingleton(options);
         services.AddSingleton<IBuckettieOptionsLoader, JsonBuckettieOptionsLoader>();
-        string secretDirectory = Path.GetFullPath(Path.Combine(
-            Path.GetDirectoryName(askPassExecutable)!, "..", "secrets"));
-        services.AddSingleton<IApiTokenStore>(_ => new DpapiFileTokenStore(secretDirectory));
+        string binaryDirectory = Path.GetDirectoryName(askPassExecutable)!;
+        BuckettiePathLayout paths = BuckettiePathLayout.FromBinaryDirectory(binaryDirectory);
+        services.AddSingleton<IApiTokenStore>(_ => new DpapiFileTokenStore(paths.SecretDirectory));
         services.AddSingleton<IRepositoryEnvironment, SystemRepositoryEnvironment>();
         services.AddSingleton<RepositoryAllowlist>();
         services.AddSingleton<LocalPathValidator>();
