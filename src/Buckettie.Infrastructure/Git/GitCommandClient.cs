@@ -143,10 +143,11 @@ public sealed class GitCommandClient : IGitCommandClient
         IReadOnlyDictionary<string, string>? environment = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
+        string[] safeArguments = ["-c", $"safe.directory={repositoryRoot}", .. arguments];
         ProcessRequest request = new(
             GitExecutable,
             repositoryRoot,
-            arguments,
+            safeArguments,
             environment ?? new Dictionary<string, string>(),
             _commandTimeout);
         ProcessExecutionResult result = await _executor.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);

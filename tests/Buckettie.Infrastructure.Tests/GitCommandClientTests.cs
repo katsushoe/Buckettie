@@ -25,6 +25,8 @@ public sealed class GitCommandClientTests
         result.IsSuccess.Should().BeTrue();
         _executor.Request!.Arguments.Should().Equal(
             "-c",
+            "safe.directory=repository-root",
+            "-c",
             "credential.helper=",
             "-c",
             "http.extraHeader=",
@@ -52,6 +54,8 @@ public sealed class GitCommandClientTests
 
         _executor.Request!.Arguments.Should().Equal(
             "-c",
+            "safe.directory=repository-root",
+            "-c",
             "credential.helper=",
             "-c",
             "http.extraHeader=",
@@ -71,7 +75,8 @@ public sealed class GitCommandClientTests
             "origin",
             TestContext.Current.CancellationToken);
 
-        _executor.Request!.Arguments.Should().Equal("remote", "get-url", "--", "origin");
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "remote", "get-url", "--", "origin");
     }
 
     [Fact]
@@ -86,6 +91,7 @@ public sealed class GitCommandClientTests
             TestContext.Current.CancellationToken);
 
         _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root",
             "rev-parse", "--verify", "--end-of-options", "refs/remotes/origin/develop");
     }
 
@@ -101,6 +107,7 @@ public sealed class GitCommandClientTests
             TestContext.Current.CancellationToken);
 
         _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root",
             "rev-list", "--left-right", "--count", "HEAD...refs/remotes/origin/develop");
     }
 
