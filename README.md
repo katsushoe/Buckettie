@@ -18,7 +18,9 @@ Claude CodeやCodexからBitbucket Repositoryへ直接pushする場合、外部S
 
 ## クイックスタート
 
-1. [インストール手順](INSTALLATION.md)に従って配布物を配置します。
+Windowsの標準配布物は、自己完結型のx64 MSIとSHA-256 Fileです。Portable ZIPは任意の補助成果物です。
+
+1. [インストール手順](INSTALLATION.md)に従ってMSIを実行します。
 2. `buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、Repositoryを設定します。
 3. 管理者権限のTerminalでTokenを登録し、Serviceを起動します。
 

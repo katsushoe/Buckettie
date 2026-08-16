@@ -1,0 +1,95 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Buckettie"
+    Manufacturer="Katsushoe"
+    Version="$(ProductVersion)"
+    UpgradeCode="DE2DA1AB-8E53-4EFC-BE41-3675B713FB78"
+    Language="1041"
+    Scope="perMachine"
+    InstallerVersion="500">
+
+    <SummaryInformation Description="Buckettie Bitbucket Cloud MCP Server" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Buckettie is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Buckettie">
+        <Directory Id="BINDIR" Name="bin" />
+        <Directory Id="CONFIGDIR" Name="config" />
+        <Directory Id="LOGDIR" Name="logs" />
+        <Directory Id="SECRETSDIR" Name="secrets" />
+        <Directory Id="DOCDIR" Name="docs" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="Buckettie" Level="1">
+      <ComponentGroupRef Id="BinaryComponents" />
+      <ComponentGroupRef Id="ConfigurationComponents" />
+      <ComponentGroupRef Id="DataDirectoryComponents" />
+      <ComponentGroupRef Id="DocumentationComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="BinaryComponents" Directory="BINDIR">
+      <Component Id="ServerServiceComponent" Guid="*">
+        <File Id="ServerExecutable" Source="$(PublishDir)\Buckettie.Server.exe" KeyPath="yes" />
+        <ServiceInstall
+          Id="BuckettieServiceInstall"
+          Name="Buckettie"
+          DisplayName="Buckettie MCP Server"
+          Description="Local MCP gateway for approved Git and Bitbucket Cloud operations."
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Account="LocalSystem"
+          Arguments="&quot;[CONFIGDIR]buckettie.json&quot;" />
+        <ServiceControl
+          Id="BuckettieServiceControl"
+          Name="Buckettie"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+      <Files Include="$(PublishDir)\**">
+        <Exclude Files="$(PublishDir)\Buckettie.Server.exe" />
+        <Exclude Files="$(PublishDir)\*.pdb" />
+      </Files>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ConfigurationComponents" Directory="CONFIGDIR">
+      <Component Id="ConfigurationTemplateComponent" Guid="*" Permanent="yes" NeverOverwrite="yes">
+        <File Id="ConfigurationTemplate" Source="..\..\buckettie.example.json" Name="buckettie.example.json" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="DataDirectoryComponents">
+      <Component Id="LogDirectoryComponent" Directory="LOGDIR" Guid="83B03F78-D829-4701-8A2B-DD4EF9C58386" Permanent="yes">
+        <CreateFolder />
+      </Component>
+      <Component Id="SecretsDirectoryComponent" Directory="SECRETSDIR" Guid="26755BA3-5934-4A61-998D-99FF88DC8D4D" Permanent="yes">
+        <CreateFolder />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="DocumentationComponents" Directory="DOCDIR">
+      <Component Id="DocumentationComponent" Guid="2BF0D368-0AFF-4F22-972A-93746EA0E804">
+        <File Source="..\..\README.md" />
+        <File Source="..\..\INSTALLATION.md" />
+        <File Source="..\..\OPERATIONS.md" />
+        <File Source="..\..\TROUBLESHOOTING.md" />
+        <File Source="..\..\CONFIG.md" />
+        <File Source="..\..\COMMANDS.md" />
+        <File Source="..\..\SECURITY.md" />
+        <File Source="..\..\PACKAGES.md" />
+        <File Source="..\..\LICENSE" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>
