@@ -1,6 +1,6 @@
 # Package contract
 
-Version 1 Release Packageは次の構成を正本とします。実際のVersion番号とRelease TagはRelease確定時に設定します。
+Version 1 Release Packageは `Buckettie-1.0.0-win-x64.zip` とし、次の構成を正本とします。
 
 | Package内Path | 内容 |
 | --- | --- |
@@ -19,5 +19,4 @@ Version 1 Release Packageは次の構成を正本とします。実際のVersion
 - `.local/`、Test結果、開発者Machine固有情報
 - Symbolや中間Build生成物（Release用途で別途必要な場合を除く）
 
-配布時はPackageのHashを記録し、展開後に `buckettie version`、`config check`、`doctor`を実行します。Framework依存Packageの場合は対象.NET Runtimeを要件へ明記します。
-
+Version 1はWindows x64向け自己完結型Packageとして発行します。配布時はSHA-256 Hashを記録し、展開後に `buckettie version`、`config check`、`doctor`を実行します。

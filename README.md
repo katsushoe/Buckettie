@@ -2,6 +2,8 @@
 
 Buckettieは、許可したローカルGit RepositoryとBitbucket CloudをMCP経由で安全に操作するWindows向けGatewayです。RepositoryごとのAllowlist、Branch保護、監査ログ、DPAPIで保護したAPI Tokenを組み合わせ、AI Clientへ必要最小限の操作だけを公開します。
 
+Current release: `1.0.0`
+
 ## 動作要件
 
 - Windows 10/11またはWindows Server
@@ -44,4 +46,3 @@ MCP Clientの接続先は既定で `http://127.0.0.1:45450/mcp` です。外部N
 - [Security設計](SECURITY.md)
 - [Package構成](PACKAGES.md)
 - [文書一覧](DOCUMENTS.md)
-
