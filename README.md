@@ -16,17 +16,47 @@ Claude CodeやCodexからBitbucket Repositoryへ直接pushする場合、外部S
 - 配布物に対応する.NET Runtime（自己完結型Packageの場合は不要）
 - 操作対象RepositoryのローカルClone
 
-## クイックスタート
+## インストール方法
 
-Windowsの標準配布物は、自己完結型のx64 MSIとSHA-256 Fileです。Portable ZIPは任意の補助成果物です。
+### インストーラ配布（推奨）
 
-1. [インストール手順](INSTALLATION.md)に従ってMSIを実行します。
-2. `buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、Repositoryを設定します。
-3. 管理者権限のTerminalでTokenを登録し、Serviceを起動します。
+Releaseの`Buckettie-<version>-win-x64.msi`とSHA-256 Fileを取得し、
+Hashを照合してからMSIを管理者権限で実行します。自己完結型Binaryは既定で
+`%ProgramFiles%\Buckettie`へ配置され、Windows Serviceも登録されます。
+設定とToken登録が終わるまでServiceは起動しません。
+
+### バイナリ配布
+
+Releaseの`Buckettie-<version>-win-x64.zip`とSHA-256 Fileを取得し、
+Hashを照合してから、Service登録後も移動しない任意の`<install-root>`へ
+展開します。ZIPは自己完結型のため.NET Runtimeの別途導入は不要です。
+設定後、管理者権限のTerminalから`service install`を実行します。
+
+### ソース配布
+
+.NET 9 SDKとGit for Windowsを導入し、RepositoryをCloneしてテスト後にMSIを生成します。
+
+```powershell
+git clone https://github.com/katsushoe/Buckettie.git
+Set-Location Buckettie
+dotnet test Buckettie.slnx -c Release
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Msi.ps1
+```
+
+生成物は`.local\installer\output`に出力されます。生成したMSIを管理者権限で
+実行します。詳細は[インストール手順](INSTALLATION.md)と
+[Package構成](PACKAGES.md)を参照してください。
+
+### 初期設定（全配布方式共通）
+
+1. `buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、Repositoryを設定します。
+2. 管理者権限のTerminalでTokenを登録し、Serviceを起動します。
+   インストーラ配布ではService登録済みのため`service install`は不要です。
 
 ```powershell
 <install-root>\bin\buckettie.exe config check
 <install-root>\bin\buckettie.exe auth set <repository-id>
+# バイナリ配布のみ実行
 <install-root>\bin\buckettie.exe service install
 <install-root>\bin\buckettie.exe start
 <install-root>\bin\buckettie.exe doctor
