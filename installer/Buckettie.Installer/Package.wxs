@@ -86,6 +86,8 @@
     <ComponentGroup Id="DocumentationComponents" Directory="DOCDIR">
       <Component Id="DocumentationComponent" Guid="2BF0D368-0AFF-4F22-972A-93746EA0E804">
         <File Source="..\..\README.md" />
+        <File Source="..\..\MCP_SETUP.md" />
+        <File Source="..\..\MCP_SETUP.ja.md" />
         <File Source="..\..\INSTALLATION.md" />
         <File Source="..\..\OPERATIONS.md" />
         <File Source="..\..\TROUBLESHOOTING.md" />

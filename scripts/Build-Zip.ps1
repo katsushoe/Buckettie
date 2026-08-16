@@ -41,6 +41,8 @@ if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'buckettie.example.json') -Destination $configDirectory
 $documents = @(
     'README.md',
+    'MCP_SETUP.md',
+    'MCP_SETUP.ja.md',
     'INSTALLATION.md',
     'OPERATIONS.md',
     'TROUBLESHOOTING.md',
