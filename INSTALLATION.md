@@ -1,0 +1,58 @@
+# Installation
+
+## 1. 配置
+
+配布Packageを任意の `<install-root>` に展開します。Service登録後も移動しないPathを選んでください。
+
+```text
+<install-root>\
+  bin\       実行BinaryとRuntime依存File
+  config\    buckettie.json
+  logs\      監査Log（実行時に作成）
+  secrets\   DPAPI暗号化Token（登録時に作成）
+```
+
+## 2. 設定
+
+`buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、[設定仕様](CONFIG.md)に従って編集します。`repositories`のKeyがCommandで使うRepository IDです。`slug`にはBitbucket URLの最後のRepository名を設定します。
+
+```powershell
+<install-root>\bin\buckettie.exe config check
+<install-root>\bin\buckettie.exe config show
+```
+
+標準外の配置では、各Commandへ `--config <path>` を指定します。
+
+## 3. Token登録
+
+Repositoryごとに、管理者権限のTerminalで次を実行します。Token入力は画面に表示されません。
+
+```powershell
+<install-root>\bin\buckettie.exe auth set <repository-id>
+<install-root>\bin\buckettie.exe auth test
+```
+
+TokenはDPAPI LocalMachineで暗号化され、`<install-root>\secrets\<repository-id>.token`へ保存されます。設定Fileや環境変数には保存しません。
+
+## 4. Service登録と確認
+
+管理者権限のTerminalで実行します。
+
+```powershell
+<install-root>\bin\buckettie.exe service install
+<install-root>\bin\buckettie.exe start
+<install-root>\bin\buckettie.exe status
+<install-root>\bin\buckettie.exe doctor
+```
+
+Service名は `Buckettie`、実行AccountはLocalSystem、起動種類は自動です。既定MCP Endpointは `http://127.0.0.1:45450/mcp` です。
+
+## Uninstall
+
+```powershell
+<install-root>\bin\buckettie.exe stop
+<install-root>\bin\buckettie.exe service uninstall
+```
+
+Service登録だけが削除されます。設定、監査Log、Token Fileは必要性を確認して個別に管理してください。
+
