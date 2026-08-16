@@ -1,30 +1,32 @@
-# Release 1.2.0.1
+# Release 1.2.0.2
 
 Release date: 2026-08-17
 
 ## Highlights
 
-- Added the public `MCP_SETUP.md` guide for connecting Codex and Claude Code
-- Added the synchronized Japanese guide `MCP_SETUP.ja.md`
-- Documented complete Streamable HTTP client configurations, authentication boundaries, multi-workspace use, connection verification, and troubleshooting
-- Included both MCP setup guides in the MSI and portable ZIP documentation
+- Separated user-entered values, automatically generated settings, and verification results in the MCP setup guides
+- Added an explicit value table for the installation root, Repository ID, MCP server name, transport, URL, and authentication
+- Defined one recommended path per client: manual user configuration for Codex and automatic user registration for Claude Code
+- Moved project-scoped configuration into a clearly labeled alternative procedure
+- Added ordered server, tool-discovery, client-registration, read-only tool-call, and complete-diagnosis checks with pass conditions
+- Kept the English and Japanese guides synchronized
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.2.0.1-win-x64.msi` | `F540A0CE51A8B6F05F27FA2FAEEEBB9586F6327D95D606FE349526C2383DE7F9` |
-| `Buckettie-1.2.0.1-win-x64.zip` | `1D57C8C77E0D8F414817F549A876A7ECA318A92B36D991F5502DA6AC0CAB465B` |
+| `Buckettie-1.2.0.2-win-x64.msi` | `DCDEB07B954A3832422DE44006A3760AADF475ABAF7FC821FC67DF6D4CF66843` |
+| `Buckettie-1.2.0.2-win-x64.zip` | `5560EEE02AF8DEF0CB40395FD9119079864D376638AC9F39596699238FB30AFC` |
 
 - Runtime: Windows x64, self-contained
-- Display version: `1.2.0.1`
-- Windows Installer product version: `1.2.1`
-- Tag: `v1.2.0.1`
+- Display version: `1.2.0.2`
+- Windows Installer product version: `1.2.2`
+- Tag: `v1.2.0.2`
 
 ## Validation
 
 - Automated tests: 112 passed
-- Markdown, JSON, TOML, and local-link parsing: passed
+- Markdown, JSON, TOML, local links, and bilingual command parity: passed
 - MSI release build: 0 warnings, 0 errors
 - MSI and ZIP: version, SHA-256, standard directory layout, and both MCP setup guides verified
 
