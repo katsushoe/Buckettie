@@ -8,6 +8,9 @@ namespace Buckettie.Server;
 /// <summary>Buckettieが公開する固定MCP Toolです。</summary>
 public sealed class BuckettieMcpTools
 {
+    private static readonly string ProductVersion =
+        typeof(BuckettieMcpTools).Assembly.GetName().Version?.ToString() ?? "unknown";
+
     private readonly IBitbucketRepositoryGateway _bitbucket;
     private readonly IGitGateway _git;
 
@@ -19,6 +22,14 @@ public sealed class BuckettieMcpTools
         _git = git;
         _bitbucket = bitbucket;
     }
+
+    /// <summary>稼働中のBuckettieバージョンを取得します。</summary>
+    [McpServerTool(Name = "get_version", ReadOnly = true, Destructive = false, Idempotent = true,
+        OpenWorld = false, UseStructuredContent = true)]
+    [Description("Returns the running Buckettie version.")]
+    public Task<BuckettieToolResult<BuckettieVersionData>> GetVersionAsync() =>
+        Task.FromResult(new BuckettieToolResult<BuckettieVersionData>(
+            true, "get_version", string.Empty, new BuckettieVersionData(ProductVersion), null));
 
     /// <summary>Repositoryのローカル状態を取得します。</summary>
     [McpServerTool(Name = "bitbucket_repository_status", ReadOnly = true, Destructive = false,

@@ -17,6 +17,9 @@ public sealed record BuckettieToolResult<T>(
 /// <summary>Git Toolの成功データです。</summary>
 public sealed record BuckettieGitData(string? Branch, GitRepositoryStatus? Status);
 
+/// <summary>get_version Toolの成功データです。</summary>
+public sealed record BuckettieVersionData(string Version);
+
 /// <summary>内部Gateway結果をMCP共通形式へ変換します。</summary>
 internal static class BuckettieToolResultMapper
 {
