@@ -1,42 +1,43 @@
 # DOCUMENTS.md Version
 
-2026.08.16
+2026.08.17
 
-この文書はBuckettieのディレクトリ構成とドキュメント正本配置を管理する。
+[English](DOCUMENTS.md) | [日本語](DOCUMENTS.ja.md)
 
-## 配置方針
+This document is the source of truth for Buckettie's directory structure and canonical document locations.
 
-公開可能な利用者・開発者向け文書はGit管理し、実環境情報を含み得る進捗・計画・実機試験資料は`.local/`でGit管理外とする。生成バイナリはリポジトリ外の設定済みリリース先へ配置する。
+## Placement Policy
 
-## プロジェクト内ディレクトリ構成
+Public user and developer documents are tracked by Git. Progress, plans, and operational-test material that may contain environment details stays untracked below `.local/`. Generated binaries are placed in the configured release destination outside the repository.
 
-| パス | Git管理 | 用途 |
+## Project Directory Structure
+
+| Path | Git tracked | Purpose |
 | :--- | :--- | :--- |
-| `.` | Yes | 入口文書、設定サンプル、Solutionを置く。 |
-| `src/` | Yes | 製品ソースコードを置く。 |
-| `tests/` | Yes | 自動テストを置く。 |
-| `docs/adr/` | Yes | 設計判断の正本を置く。 |
-| `.local/` | No | 進捗、計画、実機試験結果など内部資料を置く。 |
-| `.local/progress/` | No | 進捗グラフを置く。 |
+| `.` | Yes | Entry documents, configuration example, and solution. |
+| `src/` | Yes | Product source code. |
+| `tests/` | Yes | Automated tests. |
+| `docs/adr/` | Yes | Canonical architecture decisions. |
+| `.local/` | No | Internal progress, plans, and operational-test results. |
+| `.local/progress/` | No | Progress visualization. |
 
-## プロジェクト内ドキュメント一覧
+## Project Document Index
 
-| 文書名 | 正本パス | Git管理 | 用途 |
+| Document | Canonical path | Git tracked | Purpose |
 | :--- | :--- | :--- | :--- |
-| `README.md` | `README.md` | Yes | 製品概要、Quick Start、文書入口。 |
-| `MCP_SETUP.md` | `MCP_SETUP.md` | Yes | MCP Server導入とClient登録の英語正本。 |
-| `MCP_SETUP.ja.md` | `MCP_SETUP.ja.md` | Yes | MCP Server導入とClient登録の日本語版。 |
-| `INSTALLATION.md` | `INSTALLATION.md` | Yes | 配置、設定、Token登録、Service導入手順。 |
-| `OPERATIONS.md` | `OPERATIONS.md` | Yes | 日常運用、Token更新、Upgrade手順。 |
-| `TROUBLESHOOTING.md` | `TROUBLESHOOTING.md` | Yes | 障害切り分けと復旧手順。 |
-| `PACKAGES.md` | `PACKAGES.md` | Yes | Release Package構成と除外対象。 |
-| `RELEASE.md` | `RELEASE.md` | Yes | Version 1の内容、Artifact、Release手順。 |
-| `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | 文書正本配置一覧。 |
-| `CONFIG.md` | `CONFIG.md` | Yes | JSON設定仕様。 |
-| `SECURITY.md` | `SECURITY.md` | Yes | セキュリティ境界と秘密情報管理。 |
-| `COMMANDS.md` | `COMMANDS.md` | Yes | Management CLIのCommandと終了コード。 |
-| ADR | `docs/adr/` | Yes | 設計判断と代替案。 |
-| `PROGRESS.md` | `.local/PROGRESS.md` | No | 機能別進捗率、完了内容、残作業の正本。 |
-| `progress-chart.svg` | `.local/progress/progress-chart.svg` | No | 最新進捗率の可視化。 |
+| `README.md` / `README.ja.md` | `README.md` / `README.ja.md` | Yes | Product overview, quick start, and document entry. |
+| `MCP_SETUP.md` / `MCP_SETUP.ja.md` | Same | Yes | MCP server setup and client registration. |
+| `CONFIG.md` / `CONFIG.ja.md` | Same | Yes | JSON configuration contract. |
+| `COMMANDS.md` / `COMMANDS.ja.md` | Same | Yes | Management CLI and exit codes. |
+| `INSTALLATION.md` | `INSTALLATION.md` | Yes | Deployment, token registration, and service setup. |
+| `OPERATIONS.md` | `OPERATIONS.md` | Yes | Routine operation, token update, and upgrade. |
+| `TROUBLESHOOTING.md` | `TROUBLESHOOTING.md` | Yes | Failure isolation and recovery. |
+| `PACKAGES.md` | `PACKAGES.md` | Yes | Release package layout and exclusions. |
+| `RELEASE.md` | `RELEASE.md` | Yes | Current release notes and artifacts. |
+| `SECURITY.md` | `SECURITY.md` | Yes | Security boundaries and secret handling. |
+| `DOCUMENTS.md` / `DOCUMENTS.ja.md` | Same | Yes | Public canonical document index. |
+| ADRs | `docs/adr/` | Yes | Design decisions and alternatives. |
+| `PROGRESS.md` | `.local/PROGRESS.md` | No | Canonical progress and remaining-work record. |
+| `progress-chart.svg` | `.local/progress/progress-chart.svg` | No | Current progress visualization. |
 
-`.local/`はGit管理外の内部正本配置であり、Token、パスワード、Authorization Headerなどの秘密値は保存しない。
+`.local/` contains untracked internal sources of truth and temporary artifacts. Do not store tokens, passwords, authorization headers, or other secret values in documentation.

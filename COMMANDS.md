@@ -1,5 +1,7 @@
 # Buckettie commands
 
+[English](COMMANDS.md) | [日本語](COMMANDS.ja.md)
+
 The management executable is `buckettie.exe`. Its default configuration is `..\config\buckettie.json` relative to the executable directory. Override it with `--config <path>`.
 
 | Command | Purpose |
