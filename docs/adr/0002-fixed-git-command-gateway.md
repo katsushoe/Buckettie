@@ -26,6 +26,7 @@ Adding a Git operation requires a new typed interface method and explicit implem
 - Never accept executable names, command strings, or arbitrary argument arrays from MCP input.
 - Reject direct push to protected branches and dirty-tree push when configured.
 - Do not place API Tokens in arguments, environment values that can persist, output, or logs.
+- Pass only the validated configured LocalRoot as process-local `safe.directory` so LocalSystem can operate the Allowlisted Repository without changing global Git configuration.
 
 ## Operational conditions
 
