@@ -27,6 +27,6 @@ The management executable is `buckettie.exe`. Its default configuration is `..\c
 
 Exit code `0` means success, `1` means an operation or diagnostic failed, and `2` means invalid input or configuration. Run install, uninstall, start, stop, and restart from an elevated terminal. The service uses the fixed name `Buckettie`, automatic startup, `Buckettie.Server.exe` in the CLI binary directory, and `..\config\buckettie.json`.
 
-The service runs as LocalSystem and reads machine-protected Tokens from `..\secrets`. Re-run `buckettie doctor` after starting the service.
+The service runs as LocalSystem and reads machine-protected Tokens from `..\data\secrets`. Re-run `buckettie doctor` after starting the service.
 
 Installation and normal operation are described in [INSTALLATION.md](INSTALLATION.md) and [OPERATIONS.md](OPERATIONS.md). For failures, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
