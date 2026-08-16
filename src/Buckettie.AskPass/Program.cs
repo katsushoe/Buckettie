@@ -19,7 +19,8 @@ internal static class Program
             return InvalidRequestExitCode;
         }
 
-        GitAskPassResponder responder = new(new WindowsCredentialManagerTokenStore());
+        string secretDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "secrets"));
+        GitAskPassResponder responder = new(new DpapiFileTokenStore(secretDirectory));
         GitAskPassResponse response = responder.Respond(repository, username, args[0]);
         if (!response.IsSuccess || response.Value is null)
         {

@@ -2,14 +2,14 @@
 
 ## Bitbucket API Token
 
-Buckettie stores API Tokens as Windows Generic Credentials named `Buckettie/Bitbucket/<repository-id>`.
+Buckettie stores API Tokens as DPAPI LocalMachine-encrypted files named `secrets/<repository-id>.token`.
 
 - Do not put tokens in `buckettie.json`, Git Remote URLs, source files, command-line arguments, or logs.
-- Run Buckettie Server and its management CLI as the same Windows user.
 - Treat `TokenNotFound` as an unconfigured credential, not as an authentication failure.
-- Credential Manager provider error codes may be reported, but credential content must never be reported.
+- The `secrets` directory disables inherited ACLs and grants access only to LocalSystem, Administrators, and the creating operator.
+- Token files are machine-bound and must not be copied to another computer as backups.
 
-The design rationale and alternatives are recorded in [ADR 0001](docs/adr/0001-windows-credential-manager.md).
+The current design is recorded in [ADR 0010](docs/adr/0010-dpapi-machine-token-store.md). ADR 0001 records the superseded Credential Manager design.
 
 ## Git execution
 
@@ -19,11 +19,11 @@ The command-boundary design is recorded in [ADR 0002](docs/adr/0002-fixed-git-co
 
 ## Git AskPass
 
-`Buckettie.AskPass` receives only Repository ID and the case-sensitive Bitbucket username through environment variables. It reads the API Token directly from Windows Credential Manager and returns it only through the Git AskPass protocol. The Token must never be copied into an environment variable or temporary script.
+`Buckettie.AskPass` receives only Repository ID and the case-sensitive Bitbucket username through environment variables. It reads and decrypts the repository-scoped DPAPI Token and returns it only through the Git AskPass protocol. The Token must never be copied into an environment variable or temporary script.
 
 ## Bitbucket REST API
 
-Buckettie resolves workspace and repository slug only from the Repository Allowlist. The REST client uses the fixed `https://api.bitbucket.org/2.0/` base address and typed operations; it does not accept an arbitrary URL, HTTP method, or request body from an MCP client. Basic authentication is generated in memory from the configured Atlassian email and the repository-scoped Credential Manager Token. Pull Request creation and merge are restricted to the configured develop-to-main route. Automatic redirects are disabled; diff redirects are followed only inside the matching Bitbucket API repository path.
+Buckettie resolves workspace and repository slug only from the Repository Allowlist. The REST client uses the fixed `https://api.bitbucket.org/2.0/` base address and typed operations; it does not accept an arbitrary URL, HTTP method, or request body from an MCP client. Basic authentication is generated in memory from the configured Atlassian email and the repository-scoped DPAPI Token. Pull Request creation and merge are restricted to the configured develop-to-main route. Automatic redirects are disabled; diff redirects are followed only inside the matching Bitbucket API repository path.
 
 The REST trust-boundary design is recorded in [ADR 0004](docs/adr/0004-fixed-bitbucket-rest-client.md).
 

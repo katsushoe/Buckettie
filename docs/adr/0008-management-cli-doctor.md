@@ -22,7 +22,7 @@ Diagnostics print fixed error enums and operational identifiers only. Token valu
 
 ## Operational considerations
 
-Run the CLI as the same Windows user as the server so it reads the same Credential Manager entries. Bitbucket and MCP checks require network or local server availability and return exit code `1` when unavailable.
+Run Token mutation commands elevated so the protected `secrets` directory ACL can be maintained. Bitbucket and MCP checks require network or local server availability and return exit code `1` when unavailable.
 
 ## Implementation
 
