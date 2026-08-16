@@ -1,30 +1,31 @@
-# Release 1.1.0.0
+# Release 1.2.0.0
 
-Release date: 2026-08-16
+Release date: 2026-08-17
 
 ## Highlights
 
-- Windows x64 MSIを標準成果物として追加
-- MSIによる自己完結型Binary配置、Windows Service登録、Major Upgrade、Uninstall
-- Portable／手動導入向け自己完結型ZIPを継続提供
-- READMEにインストーラ配布、バイナリ配布、ソース配布の手順を追加
-- 設定、DPAPI Token、監査LogをPackageへ含めず、Upgrade／Uninstall時も保持
+- Windows標準構成として `bin`、`config`、`logs`、`data` をInstall Root直下へ分離
+- DPAPI Token保存先を `data/secrets` に統一
+- CLI、Server、AskPass、Service管理で共通のPath解決を使用
+- MSIのInstall先を `INSTALLROOT` Propertyで指定可能に変更
+- MSI／Portable ZIPの双方を標準構成へ対応
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.1.0.0-win-x64.msi` | `4963D751F9B144890198B0E71A0420FC94A6A7D33CF78514B3ABA25839E1D759` |
-| `Buckettie-1.1.0.0-win-x64.zip` | `FE127F416834322CF25775B4B5AE003BBA6B63E95928D3991EA1A5DEB60EBF8A` |
+| `Buckettie-1.2.0.0-win-x64.msi` | `42E93A19EB46468398B86B6FA2B0F410A02A913BB05496417F90E50A9C7FD876` |
+| `Buckettie-1.2.0.0-win-x64.zip` | `D7AF188B2DE6DDA47F3987E15C3F048A0BBCC2734D1A4BFC40440B5C6D6E43D7` |
 
 - Runtime: Windows x64、自己完結型
-- Tag: `v1.1.0.0`
+- Tag: `v1.2.0.0`
 
 ## Validation
 
 - Release Build: 警告0、エラー0
-- 自動Test: 110件合格
-- MSI: WiX Database解析、Windows Installer管理Install、通常Install、Service起動、Doctor、Uninstall、Data保持、必須File、Version、SHA-256を確認
-- ZIP: 展開、必須File、Version、README、SHA-256を確認
+- 自動Test: 112件合格
+- MSI: WiX Database解析、Windows Installer管理Install、必須Directory、Version、SHA-256を確認
+- ZIP: 展開、標準Directory構成、必須File、Version、README、SHA-256を確認
+- 実Install: `F:\Buckettie` へ標準構成でInstallし、Service起動およびDoctor全項目の合格を確認
 
-旧VersionにはMSIが存在しないため、MSI間のUpgradeだけは未実施です。通常Install／Uninstall後に元のBuckettie Service、設定、Token、監査Logを復元し、Doctor全項目の合格を確認しました。実環境DataはArtifactへ含めません。
+設定、DPAPI Token、監査LogはArtifactへ含めません。1.1.0.0以前から移行する場合は、既存TokenをInstall Root直下の `secrets` から `data/secrets` へ移動してください。

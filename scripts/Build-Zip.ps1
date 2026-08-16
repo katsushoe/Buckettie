@@ -11,8 +11,8 @@ $stagingDirectory = Join-Path $releaseWorkDirectory 'staging'
 $outputDirectory = Join-Path $releaseWorkDirectory 'output'
 
 if (-not $NoRestore) {
-    dotnet restore (Join-Path $repositoryRoot 'Buckettie.slnx') --nologo
-    if ($LASTEXITCODE -ne 0) { throw 'Solution restore failed.' }
+    dotnet restore (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -r $RuntimeIdentifier --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'CLI restore failed.' }
 }
 
 foreach ($directory in @($stagingDirectory, $outputDirectory)) {
@@ -32,6 +32,8 @@ $dataDirectory = Join-Path $stagingDirectory 'data'
 $secretDirectory = Join-Path $dataDirectory 'secrets'
 $docsDirectory = Join-Path $stagingDirectory 'docs'
 New-Item -ItemType Directory -Path $binDirectory, $configDirectory, $logDirectory, $dataDirectory, $secretDirectory, $docsDirectory, $outputDirectory -Force | Out-Null
+[IO.File]::WriteAllText((Join-Path $logDirectory '.keep'), '', [Text.Encoding]::ASCII)
+[IO.File]::WriteAllText((Join-Path $secretDirectory '.keep'), '', [Text.Encoding]::ASCII)
 
 dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo --no-restore
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
