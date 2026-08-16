@@ -101,7 +101,12 @@ internal sealed class AuditedBitbucketRepositoryGateway(
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         BitbucketResult<T> result = await operation().ConfigureAwait(false);
-        audit.Write(new(tool, repository, branch, pullRequestId, tag, result.IsSuccess,
+        int? auditedPullRequestId = pullRequestId;
+        if (auditedPullRequestId is null && result.Value is BitbucketPullRequestInfo pullRequest)
+        {
+            auditedPullRequestId = pullRequest.Id;
+        }
+        audit.Write(new(tool, repository, branch, auditedPullRequestId, tag, result.IsSuccess,
             stopwatch.ElapsedMilliseconds, result.Error?.ToString()));
         return result;
     }
