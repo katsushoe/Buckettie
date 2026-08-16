@@ -13,6 +13,7 @@ namespace Buckettie.Infrastructure.Bitbucket;
 public sealed class BitbucketApiClient : IBitbucketApiClient
 {
     private const int PageLength = 100;
+    private const int PullRequestPageLength = 50;
     private const int MaximumPages = 100;
     private const int MaximumDiffCharacters = 5_000_000;
     private readonly HttpClient _httpClient;
@@ -186,7 +187,7 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
         {
             BitbucketResult<PullRequestPageResponse> result = await GetResponseAsync<PullRequestPageResponse>(
                 repositoryId,
-                $"{basePath}?pagelen={PageLength}&page={page}{stateQuery}",
+                $"{basePath}?pagelen={PullRequestPageLength}&page={page}{stateQuery}",
                 cancellationToken).ConfigureAwait(false);
             if (!result.IsSuccess || result.Value?.Values is null)
             {
