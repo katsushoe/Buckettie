@@ -27,6 +27,8 @@ Normal path: an MCP client calls `bitbucket_repository_register`; approve or den
 
 Fallback: if the tool returns `no_interactive_session` (no local console logon, an RDP-only session, or a locked workstation), use the manual flow instead — run `stop`, edit `buckettie.json`, then `config check`, `restart`, and `doctor` as described above.
 
+On some hosts the approval Dialog process can fail to launch even with a valid console logon: the request times out with `approval_timed_out` and no Dialog ever appears on screen. This has been observed on machines running an agent sandbox layer (e.g. a `CodexSandboxUsers`-style setup) whose desktop security descriptor denies interactive attachment to processes created via `WTSQueryUserToken`/`CreateProcessWithTokenW`, regardless of which executable is launched. On such a host, use the manual flow above as the standard registration path rather than retrying the Dialog.
+
 ## Token Lifecycle
 
 Registration and rotation use the same command and hidden prompt.
