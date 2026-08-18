@@ -72,7 +72,9 @@ internal static class CliApplication
             await using FileStream stream = File.OpenRead(configPath);
             composition = await BuckettieCompositionRoot.CreateAsync(
                 stream,
+                configPath,
                 Path.Combine(AppContext.BaseDirectory, "Buckettie.AskPass.exe"),
+                Path.Combine(AppContext.BaseDirectory, "Buckettie.ApprovalPrompt.exe"),
                 GitTimeout,
                 cancellationToken).ConfigureAwait(false);
         }

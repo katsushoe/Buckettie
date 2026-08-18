@@ -143,7 +143,8 @@ public sealed class GitCommandClient : IGitCommandClient
         IReadOnlyDictionary<string, string>? environment = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
-        string[] safeArguments = ["-c", $"safe.directory={repositoryRoot}", .. arguments];
+        string safeDirectory = repositoryRoot.Replace('\\', '/');
+        string[] safeArguments = ["-c", $"safe.directory={safeDirectory}", .. arguments];
         ProcessRequest request = new(
             GitExecutable,
             repositoryRoot,

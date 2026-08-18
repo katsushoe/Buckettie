@@ -80,6 +80,25 @@ public sealed class GitCommandClientTests
     }
 
     [Fact]
+    public async Task GetRemoteUrlAsync_WhenRepositoryRootUsesBackslashes_NormalizesSafeDirectoryToForwardSlashes()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.GetRemoteUrlAsync(
+            @"F:\Workspace\sazysoft\AI_prompt",
+            "origin",
+            TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c",
+            "safe.directory=F:/Workspace/sazysoft/AI_prompt",
+            "remote",
+            "get-url",
+            "--",
+            "origin");
+    }
+
+    [Fact]
     public async Task GetRemoteHeadAsync_WhenCalled_UsesFixedRemoteTrackingReference()
     {
         GitCommandClient client = CreateClient();

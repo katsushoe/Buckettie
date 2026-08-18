@@ -111,3 +111,31 @@ internal sealed class AuditedBitbucketRepositoryGateway(
         return result;
     }
 }
+
+internal sealed class AuditedRepositoryRegistrationService(
+    IRepositoryRegistrationService inner,
+    IBuckettieAuditLogger audit) : IRepositoryRegistrationService
+{
+    public async Task<RepositoryRegistrationOutcome> RegisterAsync(
+        string repositoryId,
+        string localRoot,
+        string remote,
+        string developBranch,
+        string mainBranch,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        RepositoryRegistrationOutcome result = await inner.RegisterAsync(
+            repositoryId, localRoot, remote, developBranch, mainBranch, cancellationToken).ConfigureAwait(false);
+        audit.Write(new(
+            "bitbucket_repository_register",
+            repositoryId,
+            null,
+            null,
+            null,
+            result.IsSuccess,
+            stopwatch.ElapsedMilliseconds,
+            result.Error?.Code));
+        return result;
+    }
+}

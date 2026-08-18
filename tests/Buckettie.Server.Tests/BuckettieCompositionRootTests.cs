@@ -5,6 +5,7 @@ using Buckettie.Application.Credentials;
 using Buckettie.Application.Git;
 using Buckettie.Infrastructure.Configuration;
 using Buckettie.Infrastructure.Credentials;
+using Buckettie.Server;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -17,11 +18,15 @@ public sealed class BuckettieCompositionRootTests
     public async Task CreateAsync_WhenConfigurationIsValid_ResolvesRuntimeServices()
     {
         await using MemoryStream configuration = CreateConfiguration();
+        string configPath = Path.GetFullPath("buckettie.json");
         string askPassExecutable = Path.GetFullPath("Buckettie.AskPass.exe");
+        string approvalPromptExecutable = Path.GetFullPath("Buckettie.ApprovalPrompt.exe");
 
         using BuckettieCompositionResult result = await BuckettieCompositionRoot.CreateAsync(
             configuration,
+            configPath,
             askPassExecutable,
+            approvalPromptExecutable,
             TimeSpan.FromSeconds(30),
             TestContext.Current.CancellationToken);
 
@@ -35,6 +40,8 @@ public sealed class BuckettieCompositionRootTests
             .Should().NotBeNull();
         result.Services.GetRequiredService<IBitbucketRepositoryGateway>()
             .Should().NotBeNull();
+        result.Services.GetRequiredService<IRepositoryRegistrationService>()
+            .Should().NotBeNull();
     }
 
     [Fact]
@@ -44,7 +51,9 @@ public sealed class BuckettieCompositionRootTests
 
         using BuckettieCompositionResult result = await BuckettieCompositionRoot.CreateAsync(
             configuration,
+            Path.GetFullPath("buckettie.json"),
             Path.GetFullPath("Buckettie.AskPass.exe"),
+            Path.GetFullPath("Buckettie.ApprovalPrompt.exe"),
             TimeSpan.FromSeconds(30),
             TestContext.Current.CancellationToken);
 

@@ -38,6 +38,12 @@ Repository IDは大文字小文字を区別し、一意でなければなりま�
 
 TokenはBinary Directory基準の`..\data\secrets`へDPAPI LocalMachine暗号化ファイルとして保存されます。管理者Terminalで`buckettie auth set <repository-id>`を実行し、暗号化ファイルを手動編集しないでください。
 
+## Repository登録
+
+`bitbucket_repository_register` MCP Toolは、以下の手動フローを使わずに`repositories`へ1件追加します。受け付けるのは`repository`（新規Repository ID）、`local_root`、および任意の`remote`／`develop_branch`／`main_branch`だけです。`workspace`と`slug`は常に対象Local RepositoryのGit Remoteから導出され、呼び出し元は指定できません。`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`は、指定されたBranch名から上記の例と同じ保守的な形でServer側が既定値を設定します。異なるPolicyが必要な登録は、引き続き手動編集フローを使用します。
+
+呼び出しごとに、Serverマシンの対話Desktop SessionでNative Dialogへの人間による承認が必須です。呼び出し元のMCP Clientから承認することはできません。信頼境界の詳細は[SECURITY.md](SECURITY.md#repository-registration-approval)、設計は[ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md)を参照してください。
+
 ## 検証エラー
 
 | Code | 意味 |
