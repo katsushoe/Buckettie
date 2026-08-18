@@ -111,3 +111,77 @@ internal sealed class AuditedBitbucketRepositoryGateway(
         return result;
     }
 }
+
+internal sealed class AuditedRepositoryRegistrationService(
+    IRepositoryRegistrationService inner,
+    IBuckettieAuditLogger audit) : IRepositoryRegistrationService
+{
+    public async Task<RepositoryRegistrationOutcome> RegisterAsync(
+        string repositoryId,
+        string localRoot,
+        string remote,
+        string developBranch,
+        string mainBranch,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        RepositoryRegistrationOutcome result = await inner.RegisterAsync(
+            repositoryId, localRoot, remote, developBranch, mainBranch, cancellationToken).ConfigureAwait(false);
+        audit.Write(new(
+            "bitbucket_repository_register",
+            repositoryId,
+            null,
+            null,
+            null,
+            result.IsSuccess,
+            stopwatch.ElapsedMilliseconds,
+            result.Error?.Code));
+        return result;
+    }
+}
+
+internal sealed class AuditedRepositoryUnregistrationService(
+    IRepositoryUnregistrationService inner,
+    IBuckettieAuditLogger audit) : IRepositoryUnregistrationService
+{
+    public async Task<RepositoryUnregistrationOutcome> UnregisterAsync(
+        string repositoryId, CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        RepositoryUnregistrationOutcome result = await inner.UnregisterAsync(repositoryId, cancellationToken)
+            .ConfigureAwait(false);
+        audit.Write(new(
+            "bitbucket_repository_unregister",
+            repositoryId,
+            null,
+            null,
+            null,
+            result.IsSuccess,
+            stopwatch.ElapsedMilliseconds,
+            result.Error?.Code));
+        return result;
+    }
+}
+
+internal sealed class AuditedRepositoryUpdateService(
+    IRepositoryUpdateService inner,
+    IBuckettieAuditLogger audit) : IRepositoryUpdateService
+{
+    public async Task<RepositoryUpdateOutcome> UpdateAsync(
+        string repositoryId, RepositoryUpdateRequest request, CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        RepositoryUpdateOutcome result = await inner.UpdateAsync(repositoryId, request, cancellationToken)
+            .ConfigureAwait(false);
+        audit.Write(new(
+            "bitbucket_repository_update",
+            repositoryId,
+            null,
+            null,
+            null,
+            result.IsSuccess,
+            stopwatch.ElapsedMilliseconds,
+            result.Error?.Code));
+        return result;
+    }
+}

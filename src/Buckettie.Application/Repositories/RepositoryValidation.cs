@@ -12,6 +12,10 @@ public enum RepositoryValidationError
     LocalPathReparsePoint,
     RemoteUrlInvalid,
     RemoteMismatch,
+    RepositoryIdInvalid,
+    RepositoryAlreadyRegistered,
+    RepositoryNotRegistered,
+    TagPatternInvalid,
 }
 
 /// <summary>

@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Buckettie.Application.Configuration;
 using Buckettie.Application.Repositories;
 
@@ -32,6 +31,12 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
         PropertyNameCaseInsensitive = false,
         ReadCommentHandling = JsonCommentHandling.Disallow,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    };
+
+    private static readonly JsonSerializerOptions WriteSerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true,
     };
 
     /// <inheritdoc />
@@ -68,6 +73,18 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
         {
             return InvalidJson();
         }
+    }
+
+    /// <inheritdoc />
+    public async Task SaveAsync(
+        BuckettieOptions options,
+        Stream destination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(destination);
+        await JsonSerializer.SerializeAsync(destination, options, WriteSerializerOptions, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static ConfigurationError? ValidateStructure(JsonElement root)
@@ -160,14 +177,7 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
                 return requiredError;
             }
 
-            try
-            {
-                _ = new Regex(
-                    repository.TagPattern,
-                    RegexOptions.CultureInvariant,
-                    TimeSpan.FromSeconds(1));
-            }
-            catch (ArgumentException)
+            if (!TagPatternValidator.IsValid(repository.TagPattern))
             {
                 return new(ConfigurationErrorCode.InvalidTagPattern, $"{prefix}.tag_pattern");
             }

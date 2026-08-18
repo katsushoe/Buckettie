@@ -35,4 +35,4 @@ Only one process may listen on the configured port. Configuration changes requir
 
 ## Implementation, tests, and documentation
 
-The executable host configures Kestrel, Origin validation, the MCP transport, serializer, and fixed Tool set. Reflection tests verify the exact 14 names, structured output, and destructive annotations. Configuration and Origin tests cover the localhost boundary. `CONFIG.md`, the example configuration, and `SECURITY.md` describe the externally relevant settings and restrictions.
+The executable host configures Kestrel, Origin validation, the MCP transport, serializer, and fixed Tool set. Reflection tests verify the exact 15 tool names (the 14 `bitbucket_` tools plus the standard `get_version` tool), structured output, and destructive annotations. Configuration and Origin tests cover the localhost boundary. `CONFIG.md`, the example configuration, and `SECURITY.md` describe the externally relevant settings and restrictions.

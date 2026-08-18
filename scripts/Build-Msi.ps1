@@ -14,7 +14,8 @@ $installerProject = Join-Path $repositoryRoot 'installer\Buckettie.Installer\Buc
 $projects = @(
     'src\Buckettie.Cli\Buckettie.Cli.csproj',
     'src\Buckettie.Server\Buckettie.Server.csproj',
-    'src\Buckettie.AskPass\Buckettie.AskPass.csproj'
+    'src\Buckettie.AskPass\Buckettie.AskPass.csproj',
+    'src\Buckettie.ApprovalPrompt\Buckettie.ApprovalPrompt.csproj'
 )
 
 if (-not $NoRestore) {

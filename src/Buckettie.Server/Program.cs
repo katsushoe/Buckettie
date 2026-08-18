@@ -21,24 +21,33 @@ internal static class Program
             ? Path.GetFullPath(args[0])
             : Path.Combine(paths.ConfigurationDirectory, "buckettie.json");
         string askPassExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.AskPass.exe");
+        string approvalPromptExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.ApprovalPrompt.exe");
 
-        await using FileStream configuration = File.OpenRead(configurationPath);
-        using BuckettieCompositionResult result = await BuckettieCompositionRoot.CreateAsync(
+        // buckettie.jsonへの読み取りHandleを、CreateAsync内でのRepository移行時の書き込みより
+        // 前に確実に解放するため、Stream全体をMemoryへ読み込んでからCloseする。
+        await using MemoryStream configuration = new(await File.ReadAllBytesAsync(configurationPath));
+        BuckettieCompositionResult result = await BuckettieCompositionRoot.CreateAsync(
             configuration,
+            configurationPath,
             askPassExecutable,
+            approvalPromptExecutable,
             GitCommandTimeout).ConfigureAwait(false);
-        if (result.IsSuccess)
-        {
-            await RunServerAsync(result.Services!, paths, CancellationToken.None).ConfigureAwait(false);
-            return 0;
-        }
 
-        foreach (ConfigurationError error in result.Errors)
+        using (result)
         {
-            Console.Error.WriteLine($"{error.Code}: {error.Path}");
-        }
+            if (result.IsSuccess)
+            {
+                await RunServerAsync(result.Services!, paths, CancellationToken.None).ConfigureAwait(false);
+                return 0;
+            }
 
-        return 2;
+            foreach (ConfigurationError error in result.Errors)
+            {
+                Console.Error.WriteLine($"{error.Code}: {error.Path}");
+            }
+
+            return 2;
+        }
     }
 
     private static async Task RunServerAsync(
@@ -58,6 +67,18 @@ internal static class Program
         builder.Services.AddSingleton<IBitbucketRepositoryGateway>(provider => new AuditedBitbucketRepositoryGateway(
             buckettieServices.GetRequiredService<IBitbucketRepositoryGateway>(),
             provider.GetRequiredService<IBuckettieAuditLogger>()));
+        builder.Services.AddSingleton<IRepositoryRegistrationService>(provider =>
+            new AuditedRepositoryRegistrationService(
+                buckettieServices.GetRequiredService<IRepositoryRegistrationService>(),
+                provider.GetRequiredService<IBuckettieAuditLogger>()));
+        builder.Services.AddSingleton<IRepositoryUnregistrationService>(provider =>
+            new AuditedRepositoryUnregistrationService(
+                buckettieServices.GetRequiredService<IRepositoryUnregistrationService>(),
+                provider.GetRequiredService<IBuckettieAuditLogger>()));
+        builder.Services.AddSingleton<IRepositoryUpdateService>(provider =>
+            new AuditedRepositoryUpdateService(
+                buckettieServices.GetRequiredService<IRepositoryUpdateService>(),
+                provider.GetRequiredService<IBuckettieAuditLogger>()));
 
         builder.Services.AddMcpServer()
             .WithHttpTransport(transport => transport.Stateless = true)

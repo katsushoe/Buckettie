@@ -1,46 +1,37 @@
 # Buckettie
 
-Buckettieは、許可したローカルGit RepositoryとBitbucket CloudをMCP経由で安全に操作するWindows向けGatewayです。RepositoryごとのAllowlist、Branch保護、監査ログ、DPAPIで保護したAPI Tokenを組み合わせ、AI Clientへ必要最小限の操作だけを公開します。
+[English](README.md) | [日本語](README.ja.md)
 
-Current release: `1.2.0.2`
+Buckettie is a Windows gateway that lets MCP clients operate explicitly allowed local Git repositories and Bitbucket Cloud repositories. Repository allowlists, branch protection, audit logs, and DPAPI-protected API tokens expose only the operations an AI client needs.
 
-## 開発の動機
+Current release: `1.2.0.3`
 
-Claude CodeやCodexからBitbucket Repositoryへ直接pushする場合、外部Siteへの通信や認証情報の利用として、AI ClientのSecurity機構による確認または停止が発生することがあります。Buckettieは、Bitbucketとの通信と認証をlocalhost上の固定Gatewayへ集約し、AI ClientにはAllowlistで制限したMCP Toolだけを公開します。これによりSecurity境界を維持しながら、AI Clientによる直接の外部通信、秘密情報の保持、繰り返し発生する確認を減らすことを目的に開発しました。
+## Getting Started
 
-## 動作要件
+1. Install the MSI package or extract the binary archive.
+2. Copy `buckettie.example.json` to `<install-root>\config\buckettie.json` and configure a repository.
+3. Register its API token, start the service, and run diagnostics.
+4. Register `http://127.0.0.1:45450/mcp` in the MCP client.
 
-- Windows 10/11またはWindows Server
-- Git for Windows
-- Bitbucket CloudのAPI Token
-- 配布物に対応する.NET Runtime（自己完結型Packageの場合は不要）
-- 操作対象RepositoryのローカルClone
+See [MCP Setup](MCP_SETUP.md) for complete Codex and Claude Code registration instructions.
 
-## インストール方法
+## Installation
 
-### インストーラ配布（推奨）
+### Installer distribution (recommended)
 
-Releaseの`Buckettie-<version>-win-x64.msi`とSHA-256 Fileを取得し、
-Hashを照合してからMSIを管理者権限で実行します。自己完結型Binaryは既定で
-`%ProgramFiles%\Buckettie`へ配置され、Windows Serviceも登録されます。
-別のRootへ配置する場合は、管理者Terminalから`INSTALLROOT`を指定します。
+Download `Buckettie-<version>-win-x64.msi` and its SHA-256 file from the release. Verify the hash, then run the MSI as an administrator. The default installation root is `%ProgramFiles%\Buckettie`.
 
 ```powershell
 msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="F:\Buckettie"
 ```
 
-設定とToken登録が終わるまでServiceは起動しません。
+### Binary archive
 
-### バイナリ配布
+Download and verify `Buckettie-<version>-win-x64.zip`, then extract it to a permanent `<install-root>`. The archive is self-contained. Run `service install` after configuration.
 
-Releaseの`Buckettie-<version>-win-x64.zip`とSHA-256 Fileを取得し、
-Hashを照合してから、Service登録後も移動しない任意の`<install-root>`へ
-展開します。ZIPは自己完結型のため.NET Runtimeの別途導入は不要です。
-設定後、管理者権限のTerminalから`service install`を実行します。
+### Source build
 
-### ソース配布
-
-.NET 9 SDKとGit for Windowsを導入し、RepositoryをCloneしてテスト後にMSIを生成します。
+Install the .NET 9 SDK and Git for Windows, then run:
 
 ```powershell
 git clone https://github.com/katsushoe/Buckettie.git
@@ -49,46 +40,50 @@ dotnet test Buckettie.slnx -c Release
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Msi.ps1
 ```
 
-生成物は`.local\installer\output`に出力されます。生成したMSIを管理者権限で
-実行します。詳細は[インストール手順](INSTALLATION.md)と
-[Package構成](PACKAGES.md)を参照してください。
+The MSI is written below `.local\installer\output`. See [Installation](INSTALLATION.md) and [Package Contract](PACKAGES.md).
 
-### 初期設定（全配布方式共通）
+## Configuration
 
-標準構成は`<install-root>\bin`、`config`、`logs`、`data`です。DPAPIで
-暗号化したTokenは`<install-root>\data\secrets`へ保存されます。
-
-1. `buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、Repositoryを設定します。
-2. 管理者権限のTerminalでTokenを登録し、Serviceを起動します。
-   インストーラ配布ではService登録済みのため`service install`は不要です。
+The standard layout is `<install-root>\bin`, `config`, `logs`, and `data`. DPAPI-encrypted tokens are stored below `<install-root>\data\secrets`.
 
 ```powershell
 <install-root>\bin\buckettie.exe config check
 <install-root>\bin\buckettie.exe auth set <repository-id>
-# バイナリ配布のみ実行
-<install-root>\bin\buckettie.exe service install
 <install-root>\bin\buckettie.exe start
 <install-root>\bin\buckettie.exe doctor
 ```
 
-MCP Clientの接続先は既定で `http://127.0.0.1:45450/mcp` です。外部Networkへは公開せず、同一Machine内から利用します。CodexとClaude Codeの完全な登録例は[MCPセットアップ](MCP_SETUP.ja.md)を参照してください。
+For a ZIP deployment, run `service install` once before `start`. See [Configuration](CONFIG.md) for every setting and its constraints.
 
-## 主な機能
+## Usage
 
-- Repository状態確認、fetch、pull、許可Branchへのpush
-- Pull Requestの一覧、取得、差分、作成、merge
-- Tagの一覧、作成
-- Bitbucket APIとGit操作のRepository単位Allowlist
-- JSON Lines形式の監査ログ
-- Windows Service（LocalSystem）による自動起動
+- Inspect repository state and run `fetch`, `pull`, or an allowed `push`.
+- List, inspect, create, and merge pull requests.
+- List and create tags.
+- Restrict Git and Bitbucket API operations by repository and branch.
 
-## 文書
+See [Commands](COMMANDS.md) for the CLI and MCP tool contracts.
 
-- [MCP Setup (English)](MCP_SETUP.md) / [MCPセットアップ（日本語）](MCP_SETUP.ja.md)
-- [設定仕様](CONFIG.md)
-- [Command一覧](COMMANDS.md)
-- [運用手順](OPERATIONS.md)
-- [障害対応](TROUBLESHOOTING.md)
-- [Security設計](SECURITY.md)
-- [Package構成](PACKAGES.md)
-- [文書一覧](DOCUMENTS.md)
+## Development Motivation
+
+Direct Bitbucket access from Claude Code or Codex can trigger an AI client's security checks for external communication and credential use. Buckettie centralizes Bitbucket communication and authentication in a fixed localhost gateway and exposes only allowlisted MCP tools. This preserves the security boundary while reducing direct external access, secret handling by clients, and repeated confirmations.
+
+## Documentation
+
+- [MCP Setup](MCP_SETUP.md) / [MCPセットアップ](MCP_SETUP.ja.md)
+- [Configuration](CONFIG.md) / [設定](CONFIG.ja.md)
+- [Commands](COMMANDS.md) / [コマンド](COMMANDS.ja.md)
+- [Installation](INSTALLATION.md)
+- [Operations](OPERATIONS.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Security](SECURITY.md)
+- [Package Contract](PACKAGES.md)
+- [Document Index](DOCUMENTS.md) / [文書一覧](DOCUMENTS.ja.md)
+
+## Security
+
+The MCP endpoint listens only on loopback. Do not store API tokens in configuration files or MCP client settings. See [Security](SECURITY.md) for the trust boundaries and vulnerability-reporting guidance.
+
+## License
+
+Buckettie is licensed under the [MIT License](LICENSE).

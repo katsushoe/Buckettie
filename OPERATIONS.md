@@ -1,17 +1,17 @@
 # Operations
 
-## 日常確認
+## Routine Checks
 
 ```powershell
 <install-root>\bin\buckettie.exe status
 <install-root>\bin\buckettie.exe doctor
 ```
 
-`doctor`は設定、Git、Token、ローカルRepository、Bitbucket API、MCP Endpointを一括確認します。終了Code `0` を正常とします。
+`doctor` checks configuration, Git, tokens, local repositories, Bitbucket API access, and the MCP endpoint. Exit code `0` is a pass.
 
-## Service操作
+## Service Control
 
-起動、停止、再起動は管理者権限のTerminalで実行します。
+Run service control from an elevated terminal.
 
 ```powershell
 <install-root>\bin\buckettie.exe start
@@ -19,11 +19,23 @@
 <install-root>\bin\buckettie.exe restart
 ```
 
-設定変更後は `config check` を通し、Serviceを再起動してから `doctor` を実行します。
+After changing configuration, run `config check`, restart the service, and run `doctor`.
 
-## Tokenの登録・更新・削除
+## Repository Registration
 
-登録と更新は同じCommandです。管理者権限のTerminalで実行し、入力Promptへ新しいTokenを貼り付けます。
+Repository records live in a SQLite database (`data/repositories.db`), not `buckettie.json`. Register, unregister, and update all work against the *running* service — none of them need `stop`/`restart`:
+
+- **Register**: an MCP client calls `bitbucket_repository_register` (or `buckettie repo register <repository> <local-root>`); approve or deny the Dialog that appears on the server machine's own interactive desktop session. Workspace/Slug are derived from the local Git remote and branch policy is server-defaulted.
+- **Update**: `bitbucket_repository_update` (or `buckettie repo update <repository> --direct-push-branches ... --pull-branches ... --protected-branches ... --tag-target-branch ... --tag-pattern ...`) changes an existing repository's branch policy and also requires Dialog approval, since it can widen what's allowed. Workspace/Slug/LocalRoot/Remote/DevelopBranch/MainBranch cannot be changed this way — unregister and re-register instead, so the binding is re-validated against the actual Git remote.
+- **Unregister**: `bitbucket_repository_unregister` (or `buckettie repo unregister <repository>`) removes a repository immediately, with no Dialog — it only revokes rights.
+
+Fallback: if register/update return `no_interactive_session` (no local console logon, an RDP-only session, or a locked workstation), fall back to the manual flow instead — run `stop`, edit `buckettie.json`'s top-level settings or drop a row via a SQLite client against `data/repositories.db`, then `config check`, `restart`, and `doctor`.
+
+On some hosts the approval Dialog process previously failed to launch even with a valid console logon (`approval_timed_out`, no Dialog ever appears on screen). This was observed on machines running an agent sandbox layer (e.g. a `CodexSandboxUsers`-style setup) whose desktop security descriptor denied interactive attachment to processes created via `WTSQueryUserToken`/`CreateProcessWithTokenW`, regardless of which executable was launched. The Dialog is now launched via a one-shot Task Scheduler task (`/RU <user> /IT`) instead, which is not subject to the same denial on the hosts where this was tested. If a host still shows `approval_timed_out` with no visible Dialog after this change, fall back to the manual flow above.
+
+## Token Lifecycle
+
+Registration and rotation use the same command and hidden prompt.
 
 ```powershell
 <install-root>\bin\buckettie.exe auth set <repository-id>
@@ -31,17 +43,17 @@
 <install-root>\bin\buckettie.exe restart
 ```
 
-不要になったTokenは `auth delete <repository-id>` で削除できます。Tokenを削除すると該当RepositoryのBitbucket APIおよび認証が必要なGit操作は失敗します。
+Use `auth delete <repository-id>` to remove a token. Authenticated Git and Bitbucket API operations for that repository then fail until another token is registered.
 
-## Logと監査
+## Logs and Audit
 
-`buckettie logs`で監査Log Directoryを確認できます。LogはJSON Lines形式です。秘密値を出力せず、呼出元、Tool、対象Repository、結果、Error分類を記録します。容量と保管期間は運用環境側で監視し、必要に応じて退避・削除してください。
+`buckettie logs` prints the audit-log directory. Logs use JSON Lines and contain caller, tool, repository, result, and fixed error classification without secret values. Monitor retention and capacity in the operating environment.
 
 ## Upgrade
 
-1. `stop`でServiceを停止します。
-2. `config`、`logs`、`data`を保持し、`bin`の配布Fileを更新します。
-3. 必要に応じて `service install` を再実行します。
-4. `start`、`doctor`の順に確認します。
+1. Run `stop`.
+2. Preserve `config`, `logs`, and `data`; replace the distribution files in `bin`.
+3. Run `service install` again if required.
+4. Run `start` and then `doctor`.
 
-DPAPI Token Fileは作成Machineに束縛されるため、別MachineへCopyしても利用できません。移行先でTokenを再登録してください。
+DPAPI token files are machine-bound. Register tokens again after moving to another machine.

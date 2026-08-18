@@ -1,0 +1,73 @@
+using System.IO.Pipes;
+using System.Windows.Forms;
+using Buckettie.Application.Interactive;
+
+namespace Buckettie.ApprovalPrompt;
+
+/// <summary>
+/// Buckettie Serverから起動される承認Dialog processです。
+/// args[0]で渡された使い捨てNamed Pipeへ接続し、要求を表示して応答を書き戻します。
+/// </summary>
+internal static class Program
+{
+    private const int InvalidArgsExitCode = 2;
+    private const int PipeUnavailableExitCode = 3;
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
+
+    [STAThread]
+    private static int Main(string[] args)
+    {
+        if (args.Length != 1 || string.IsNullOrWhiteSpace(args[0]))
+        {
+            return InvalidArgsExitCode;
+        }
+
+        return RunAsync(args[0]).GetAwaiter().GetResult();
+    }
+
+    private static async Task<int> RunAsync(string pipeName)
+    {
+        await using NamedPipeClientStream pipe = new(
+            ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        using CancellationTokenSource connectTimeout = new(ConnectTimeout);
+        try
+        {
+            await pipe.ConnectAsync(connectTimeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException)
+        {
+            return PipeUnavailableExitCode;
+        }
+
+        ApprovalPromptRequest? request = await ApprovalPipeProtocol
+            .ReadFrameAsync<ApprovalPromptRequest>(pipe, CancellationToken.None)
+            .ConfigureAwait(false);
+        if (request is null)
+        {
+            return InvalidArgsExitCode;
+        }
+
+        System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+
+        bool approved;
+        using (ApprovalForm form = new(request))
+        {
+            approved = form.ShowDialog() == DialogResult.Yes;
+        }
+
+        try
+        {
+            await ApprovalPipeProtocol
+                .WriteFrameAsync(pipe, new ApprovalPromptResponse(approved), CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            return PipeUnavailableExitCode;
+        }
+
+        return 0;
+    }
+}

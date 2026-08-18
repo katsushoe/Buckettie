@@ -2,4 +2,9 @@
   <ItemGroup>
     <ProjectReference Include="../Buckettie.Domain/Buckettie.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Buckettie.Application.Tests" />
+    <InternalsVisibleTo Include="Buckettie.Server" />
+    <InternalsVisibleTo Include="Buckettie.Server.Tests" />
+  </ItemGroup>
 </Project>

@@ -42,4 +42,31 @@ public sealed class BitbucketRemoteUrlValidatorTests
 
         result.Error.Should().Be(RepositoryValidationError.RemoteMismatch);
     }
+
+    [Fact]
+    public void TryParse_WhenUrlIsValidHttps_ReturnsWorkspaceAndSlug()
+    {
+        bool parsed = BitbucketRemoteUrlValidator.TryParse(
+            "https://bitbucket.org/example-workspace/buckettie.git",
+            out BitbucketRemoteUrlValidator.BitbucketRemoteCoordinates? coordinates);
+
+        parsed.Should().BeTrue();
+        coordinates.Should().Be(
+            new BitbucketRemoteUrlValidator.BitbucketRemoteCoordinates("example-workspace", "buckettie"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("not-a-url")]
+    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
+    public void TryParse_WhenUrlIsNotAllowed_ReturnsFalse(string remoteUrl)
+    {
+        bool parsed = BitbucketRemoteUrlValidator.TryParse(
+            remoteUrl,
+            out BitbucketRemoteUrlValidator.BitbucketRemoteCoordinates? coordinates);
+
+        parsed.Should().BeFalse();
+        coordinates.Should().BeNull();
+    }
 }

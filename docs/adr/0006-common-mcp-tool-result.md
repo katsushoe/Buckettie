@@ -18,7 +18,7 @@ Every Buckettie MCP Tool returns the common structured shape `{ ok, operation, r
 
 ## Impact
 
-All 14 MCP output schemas share the same envelope while retaining typed success data. MCP clients can evaluate `ok` and `error.code` uniformly. Adding an internal Gateway error requires an explicit mapper decision or it safely falls back to `git_failed` or `bitbucket_api_error`.
+All 15 MCP output schemas share the same envelope while retaining typed success data. MCP clients can evaluate `ok` and `error.code` uniformly. Adding an internal Gateway error requires an explicit mapper decision or it safely falls back to `git_failed` or `bitbucket_api_error`.
 
 ## Security conditions
 
@@ -32,4 +32,4 @@ Transport- or schema-level MCP failures remain protocol errors because no Tool o
 
 ## Implementation, tests, and documentation
 
-The Server project owns the common contract and mapper because it is the external MCP boundary. Tests verify that all 14 methods return the common generic envelope, important error mappings are context-sensitive, and fixed errors contain the expected code and message. This ADR is the authoritative contract for MCP Tool result formatting.
+The Server project owns the common contract and mapper because it is the external MCP boundary. Tests verify that all 15 methods return the common generic envelope, important error mappings are context-sensitive, and fixed errors contain the expected code and message. This ADR is the authoritative contract for MCP Tool result formatting.

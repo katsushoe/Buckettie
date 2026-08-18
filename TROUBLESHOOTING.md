@@ -1,40 +1,40 @@
 # Troubleshooting
 
-最初に `buckettie status`、`buckettie doctor`、`buckettie logs` を実行します。Commandの終了Codeは、`0`が成功、`1`が処理または診断失敗、`2`が入力または設定不正です。
+Start with `buckettie status`, `buckettie doctor`, and `buckettie logs`. Exit codes are `0` for success, `1` for an operation or diagnostic failure, and `2` for invalid input or configuration.
 
-## Serviceが起動しない
+## Service Does Not Start
 
-- 管理者権限で `service status` を確認します。
-- `config check`で設定Errorを解消します。
-- `bin`、`config`、`logs`、`data`の配置とAccess権を確認します。
-- Windows Event ViewerのSystem LogでService Control ManagerのErrorを確認します。
+- Run `service status` as an administrator.
+- Resolve every `config check` error.
+- Check the layout and access rights for `bin`, `config`, `logs`, and `data`.
+- Inspect Service Control Manager errors in the Windows Event Viewer System log.
 
-## Tokenを取得できない、認証に失敗する
+## Token or Authentication Failure
 
-- `auth test`でRepository IDごとの読取結果を確認します。
-- `auth set <repository-id>`でTokenを再登録します。更新時も同じCommandです。
-- TokenのBitbucket権限、失効、有効期限、対象Workspaceを確認します。
-- Token Fileを別MachineからCopyした場合は削除し、利用Machine上で再登録します。
-- Token値をLog、Issue、画面Captureへ掲載しないでください。
+- Run `auth test` and inspect each Repository ID result.
+- Rotate the token with `auth set <repository-id>`.
+- Check token permissions, expiry, revocation, and workspace.
+- Re-register a token copied from another machine; DPAPI files are machine-bound.
+- Never put token values in logs, issues, or screenshots.
 
-## MCPへ接続できない
+## MCP Connection Failure
 
-- ServiceがRunningであることを確認します。
-- `mcp status`または`mcp test`を実行します。
-- Client URLが設定の `mcp_port` と `mcp_path` に一致することを確認します。
-- EndpointはLoopback専用です。別Machineから直接接続できません。
+- Confirm that the service is running.
+- Run `mcp status` and `mcp test`.
+- Match the client URL to `mcp_port` and `mcp_path`.
+- Connect only from the same machine; the endpoint is loopback-only.
 
-## Git操作が失敗する
+## Git Operation Failure
 
-- `repo status <repository-id>`でLocal Path、Remote URL、Branch、Working Treeを確認します。
-- `require_clean_working_tree`が有効な操作では未Commit変更を解消します。
-- `remote`のURLが設定したBitbucket WorkspaceとSlugに一致することを確認します。
-- pushの `nothing_to_push` は差分がない場合の正常結果です。
-- Branch AllowlistとProtected Branch規則は[設定仕様](CONFIG.md)を確認します。
+- Run `repo status <repository-id>` and inspect local path, remote URL, branch, and working tree.
+- Clean uncommitted changes when `require_clean_working_tree` applies.
+- Match the remote URL to the configured workspace and slug.
+- Treat push result `nothing_to_push` as success when no commits differ.
+- Check branch allowlists and protected branches in [Configuration](CONFIG.md).
 
-## Bitbucket API操作が失敗する
+## Bitbucket API Failure
 
-- `doctor`でAPI疎通と認証を確認します。
-- Workspace、Slug、Repository IDの取り違えを確認します。
-- Pull Requestの状態、Source/Destination Branch、Tag名Patternを確認します。
-- 詳細は監査LogのError分類を確認し、秘密値を除いた情報だけを共有します。
+- Run `doctor` to verify API connectivity and authentication.
+- Check workspace, slug, and Repository ID selection.
+- Check pull-request state, source and destination branches, and tag pattern.
+- Share only the fixed audit-log error classification; omit secrets.
