@@ -26,6 +26,8 @@ public sealed class BuckettieMcpToolsTests
         "bitbucket_tag_get",
         "bitbucket_tag_create",
         "bitbucket_repository_register",
+        "bitbucket_repository_unregister",
+        "bitbucket_repository_update",
     ];
 
     [Fact]
@@ -69,7 +71,9 @@ public sealed class BuckettieMcpToolsTests
             "bitbucket_pr_create",
             "bitbucket_pr_merge",
             "bitbucket_tag_create",
-            "bitbucket_repository_register");
+            "bitbucket_repository_register",
+            "bitbucket_repository_unregister",
+            "bitbucket_repository_update");
     }
 
     [Fact]
@@ -85,6 +89,72 @@ public sealed class BuckettieMcpToolsTests
         attribute.Idempotent.Should().BeFalse();
         attribute.OpenWorld.Should().BeTrue();
         attribute.Destructive.Should().BeTrue();
+    }
+
+    [Fact]
+    public void UnregisterRepositoryAsync_WhenInspected_IsNotOpenWorld()
+    {
+        McpServerToolAttribute attribute = typeof(BuckettieMcpTools)
+            .GetMethod(nameof(BuckettieMcpTools.UnregisterRepositoryAsync))!
+            .GetCustomAttributes(typeof(McpServerToolAttribute), inherit: false)
+            .Cast<McpServerToolAttribute>()
+            .Single();
+
+        attribute.ReadOnly.Should().BeFalse();
+        attribute.Idempotent.Should().BeFalse();
+        attribute.OpenWorld.Should().BeFalse();
+        attribute.Destructive.Should().BeTrue();
+    }
+
+    [Fact]
+    public void UpdateRepositoryAsync_WhenInspected_IsNotOpenWorld()
+    {
+        McpServerToolAttribute attribute = typeof(BuckettieMcpTools)
+            .GetMethod(nameof(BuckettieMcpTools.UpdateRepositoryAsync))!
+            .GetCustomAttributes(typeof(McpServerToolAttribute), inherit: false)
+            .Cast<McpServerToolAttribute>()
+            .Single();
+
+        attribute.ReadOnly.Should().BeFalse();
+        attribute.Idempotent.Should().BeFalse();
+        attribute.OpenWorld.Should().BeFalse();
+        attribute.Destructive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UnregisterRepositoryAsync_WhenServiceSucceeds_ReturnsOkResult()
+    {
+        BuckettieMcpTools tools = new(
+            new UnusedGitGateway(),
+            new UnusedBitbucketRepositoryGateway(),
+            new UnusedRepositoryRegistrationService(),
+            new StubRepositoryUnregistrationService(RepositoryUnregistrationOutcome.Success("buckettie")),
+            new UnusedRepositoryUpdateService());
+
+        BuckettieToolResult<BuckettieRepositoryUnregistrationData> result =
+            await tools.UnregisterRepositoryAsync("buckettie", TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeTrue();
+        result.Data!.RepositoryId.Should().Be("buckettie");
+    }
+
+    [Fact]
+    public async Task UpdateRepositoryAsync_WhenServiceFails_ReturnsErrorResult()
+    {
+        BuckettieToolError error = new("repository_not_registered", "The repository is not registered.");
+        BuckettieMcpTools tools = new(
+            new UnusedGitGateway(),
+            new UnusedBitbucketRepositoryGateway(),
+            new UnusedRepositoryRegistrationService(),
+            new UnusedRepositoryUnregistrationService(),
+            new StubRepositoryUpdateService(RepositoryUpdateOutcome.Failure(error)));
+
+        BuckettieToolResult<BuckettieRepositoryUpdateData> result = await tools.UpdateRepositoryAsync(
+            "unknown", ["develop"], ["develop", "main"], ["main"], "main", "^v[0-9]+.*$",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeFalse();
+        result.Error.Should().Be(error);
     }
 
     [Fact]
@@ -133,7 +203,11 @@ public sealed class BuckettieMcpToolsTests
     public async Task GetVersionAsync_WhenCalled_ReturnsRunningAssemblyVersion()
     {
         BuckettieMcpTools tools = new(
-            new UnusedGitGateway(), new UnusedBitbucketRepositoryGateway(), new UnusedRepositoryRegistrationService());
+            new UnusedGitGateway(),
+            new UnusedBitbucketRepositoryGateway(),
+            new UnusedRepositoryRegistrationService(),
+            new UnusedRepositoryUnregistrationService(),
+            new UnusedRepositoryUpdateService());
         string expectedVersion = typeof(BuckettieMcpTools).Assembly.GetName().Version!.ToString();
 
         BuckettieToolResult<BuckettieVersionData> result = await tools.GetVersionAsync();
@@ -212,5 +286,33 @@ public sealed class BuckettieMcpToolsTests
             string repositoryId, string localRoot, string remote, string developBranch, string mainBranch,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class UnusedRepositoryUnregistrationService : IRepositoryUnregistrationService
+    {
+        public Task<RepositoryUnregistrationOutcome> UnregisterAsync(
+            string repositoryId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class UnusedRepositoryUpdateService : IRepositoryUpdateService
+    {
+        public Task<RepositoryUpdateOutcome> UpdateAsync(
+            string repositoryId, RepositoryUpdateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class StubRepositoryUnregistrationService(RepositoryUnregistrationOutcome outcome)
+        : IRepositoryUnregistrationService
+    {
+        public Task<RepositoryUnregistrationOutcome> UnregisterAsync(
+            string repositoryId, CancellationToken cancellationToken) => Task.FromResult(outcome);
+    }
+
+    private sealed class StubRepositoryUpdateService(RepositoryUpdateOutcome outcome) : IRepositoryUpdateService
+    {
+        public Task<RepositoryUpdateOutcome> UpdateAsync(
+            string repositoryId, RepositoryUpdateRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult(outcome);
     }
 }

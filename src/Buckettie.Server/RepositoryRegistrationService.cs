@@ -28,33 +28,28 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
 
     private readonly RepositoryRegistrationValidator _validator;
     private readonly RepositoryAllowlist _allowlist;
-    private readonly BuckettieOptions _options;
-    private readonly IBuckettieOptionsLoader _optionsLoader;
+    private readonly IRepositoryStore _repositoryStore;
     private readonly IInteractiveApprovalPrompt _approvalPrompt;
-    private readonly string _configurationPath;
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly RepositoryMutationGate _gate;
 
     /// <summary>登録Serviceを初期化します。</summary>
     public RepositoryRegistrationService(
         RepositoryRegistrationValidator validator,
         RepositoryAllowlist allowlist,
-        BuckettieOptions options,
-        IBuckettieOptionsLoader optionsLoader,
+        IRepositoryStore repositoryStore,
         IInteractiveApprovalPrompt approvalPrompt,
-        string configurationPath)
+        RepositoryMutationGate gate)
     {
         ArgumentNullException.ThrowIfNull(validator);
         ArgumentNullException.ThrowIfNull(allowlist);
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(optionsLoader);
+        ArgumentNullException.ThrowIfNull(repositoryStore);
         ArgumentNullException.ThrowIfNull(approvalPrompt);
-        ArgumentException.ThrowIfNullOrWhiteSpace(configurationPath);
+        ArgumentNullException.ThrowIfNull(gate);
         _validator = validator;
         _allowlist = allowlist;
-        _options = options;
-        _optionsLoader = optionsLoader;
+        _repositoryStore = repositoryStore;
         _approvalPrompt = approvalPrompt;
-        _configurationPath = configurationPath;
+        _gate = gate;
     }
 
     /// <summary>
@@ -68,7 +63,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
         string mainBranch,
         CancellationToken cancellationToken)
     {
-        if (!await _gate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
         {
             return RepositoryRegistrationOutcome.Failure(BuckettieToolResultMapper.RegistrationInProgressError());
         }
@@ -102,7 +97,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
             RepositoryOptions newRepository = CreateServerDefaultedOptions(
                 validation.Workspace!, validation.Slug!, validation.LocalRoot!, remote, developBranch, mainBranch);
 
-            bool written = await TryPersistAsync(repositoryId, newRepository, cancellationToken)
+            bool written = await _repositoryStore.InsertAsync(repositoryId, newRepository, cancellationToken)
                 .ConfigureAwait(false);
             if (!written)
             {
@@ -116,47 +111,6 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
         finally
         {
             _gate.Release();
-        }
-    }
-
-    private async Task<bool> TryPersistAsync(
-        string repositoryId,
-        RepositoryOptions newRepository,
-        CancellationToken cancellationToken)
-    {
-        Dictionary<string, RepositoryOptions> repositories = new(_allowlist.Snapshot(), StringComparer.Ordinal)
-        {
-            [repositoryId] = newRepository,
-        };
-        BuckettieOptions updated = _options with { Repositories = repositories };
-
-        string temporary = $"{_configurationPath}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            await using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                await _optionsLoader.SaveAsync(updated, stream, cancellationToken).ConfigureAwait(false);
-            }
-
-            File.Move(temporary, _configurationPath, overwrite: true);
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            TryDeleteTemporaryFile(temporary);
-            return false;
-        }
-    }
-
-    private static void TryDeleteTemporaryFile(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // 一時ファイルの削除失敗は登録結果に影響しないため無視します。
         }
     }
 

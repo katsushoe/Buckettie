@@ -69,7 +69,9 @@ internal static class CliApplication
         BuckettieCompositionResult composition;
         try
         {
-            await using FileStream stream = File.OpenRead(configPath);
+            // buckettie.jsonへの読み取りHandleを、CreateAsync内でのRepository移行時の書き込みより
+            // 前に確実に解放するため、Stream全体をMemoryへ読み込んでからCloseする。
+            await using MemoryStream stream = new(await File.ReadAllBytesAsync(configPath, cancellationToken));
             composition = await BuckettieCompositionRoot.CreateAsync(
                 stream,
                 configPath,
@@ -102,6 +104,14 @@ internal static class CliApplication
                 ["config", "show"] => ShowConfig(services, output),
                 ["repo", "list"] => ListRepositories(services, output),
                 ["repo", "status", var repository] => await RepositoryStatusAsync(services, repository, output, cancellationToken).ConfigureAwait(false),
+                ["repo", "register", var repository, var localRoot, .. var rest] =>
+                    await RegisterRepositoryAsync(services, repository, localRoot, rest, output, cancellationToken).ConfigureAwait(false),
+                ["repo", "unregister", var repository] =>
+                    await CallRepositoryToolAsync(
+                        services, output, "bitbucket_repository_unregister", repository, [], cancellationToken)
+                        .ConfigureAwait(false),
+                ["repo", "update", var repository, .. var updateArgs] =>
+                    await UpdateRepositoryAsync(services, repository, updateArgs, output, error, cancellationToken).ConfigureAwait(false),
                 ["auth", "test"] => TestAuthentication(services, output),
                 ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader),
                 ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output),
@@ -194,6 +204,97 @@ internal static class CliApplication
         foreach (string id in services.GetRequiredService<BuckettieOptions>().Repositories.Keys.Order(StringComparer.Ordinal)) output.WriteLine(id);
         return 0;
     }
+
+    private static async Task<int> RegisterRepositoryAsync(IServiceProvider services, string repository,
+        string localRoot, string[] rest, TextWriter output, CancellationToken cancellationToken)
+    {
+        Dictionary<string, object?> arguments = new()
+        {
+            ["localRoot"] = localRoot,
+            ["remote"] = GetOption(rest, "--remote") ?? "origin",
+            ["developBranch"] = GetOption(rest, "--develop-branch") ?? "develop",
+            ["mainBranch"] = GetOption(rest, "--main-branch") ?? "main",
+        };
+        return await CallRepositoryToolAsync(
+            services, output, "bitbucket_repository_register", repository, arguments, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<int> UpdateRepositoryAsync(IServiceProvider services, string repository,
+        string[] rest, TextWriter output, TextWriter error, CancellationToken cancellationToken)
+    {
+        string? directPushBranches = GetOption(rest, "--direct-push-branches");
+        string? pullBranches = GetOption(rest, "--pull-branches");
+        string? protectedBranches = GetOption(rest, "--protected-branches");
+        string? tagTargetBranch = GetOption(rest, "--tag-target-branch");
+        string? tagPattern = GetOption(rest, "--tag-pattern");
+        if (directPushBranches is null || pullBranches is null || protectedBranches is null
+            || tagTargetBranch is null || tagPattern is null)
+        {
+            error.WriteLine(
+                "repo update requires --direct-push-branches, --pull-branches, --protected-branches, " +
+                "--tag-target-branch, and --tag-pattern (comma-separated branch lists).");
+            return 2;
+        }
+
+        Dictionary<string, object?> arguments = new()
+        {
+            ["directPushBranches"] = SplitList(directPushBranches),
+            ["pullBranches"] = SplitList(pullBranches),
+            ["protectedBranches"] = SplitList(protectedBranches),
+            ["tagTargetBranch"] = tagTargetBranch,
+            ["tagPattern"] = tagPattern,
+            ["requireCleanWorkingTree"] = !rest.Contains("--allow-dirty-working-tree"),
+        };
+        return await CallRepositoryToolAsync(
+            services, output, "bitbucket_repository_update", repository, arguments, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<int> CallRepositoryToolAsync(IServiceProvider services, TextWriter output,
+        string toolName, string repository, Dictionary<string, object?> arguments,
+        CancellationToken cancellationToken)
+    {
+        BuckettieOptions options = services.GetRequiredService<BuckettieOptions>();
+        arguments["repository"] = repository;
+        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(130) };
+        using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{options.McpPort}{options.McpPath}");
+        request.Headers.Accept.ParseAdd("application/json, text/event-stream");
+        request.Content = new StringContent(JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "tools/call",
+            @params = new { name = toolName, arguments },
+        }), Encoding.UTF8, "application/json");
+        try
+        {
+            using HttpResponseMessage response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            output.WriteLine($"[{(response.IsSuccessStatusCode ? "OK" : "NG")}] {toolName}: {repository}");
+            output.WriteLine(body);
+            return response.IsSuccessStatusCode ? 0 : 1;
+        }
+        catch (HttpRequestException)
+        {
+            output.WriteLine($"[NG] {toolName}: {repository} (service not reachable; is Buckettie running?)");
+            return 1;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            output.WriteLine($"[NG] {toolName}: {repository} (Timeout)");
+            return 1;
+        }
+    }
+
+    private static string? GetOption(string[] args, string name)
+    {
+        int index = Array.IndexOf(args, name);
+        return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
+    }
+
+    private static string[] SplitList(string value) =>
+        value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static int ShowConfig(IServiceProvider services, TextWriter output)
     {
@@ -292,6 +393,12 @@ internal static class CliApplication
         buckettie service install|uninstall|status
         buckettie config check|show
         buckettie repo list|status <repository>
+        buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X]
+        buckettie repo unregister <repository>
+        buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
+            --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
+        (repo register/unregister/update call the running service's MCP endpoint; register/update wait for
+        interactive Dialog approval on the server's desktop, up to 120s)
         buckettie auth test
         buckettie auth set|delete <repository>
         buckettie mcp status|tools|test

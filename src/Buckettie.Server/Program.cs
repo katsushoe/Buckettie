@@ -23,16 +23,15 @@ internal static class Program
         string askPassExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.AskPass.exe");
         string approvalPromptExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.ApprovalPrompt.exe");
 
-        BuckettieCompositionResult result;
-        await using (FileStream configuration = File.OpenRead(configurationPath))
-        {
-            result = await BuckettieCompositionRoot.CreateAsync(
-                configuration,
-                configurationPath,
-                askPassExecutable,
-                approvalPromptExecutable,
-                GitCommandTimeout).ConfigureAwait(false);
-        }
+        // buckettie.jsonへの読み取りHandleを、CreateAsync内でのRepository移行時の書き込みより
+        // 前に確実に解放するため、Stream全体をMemoryへ読み込んでからCloseする。
+        await using MemoryStream configuration = new(await File.ReadAllBytesAsync(configurationPath));
+        BuckettieCompositionResult result = await BuckettieCompositionRoot.CreateAsync(
+            configuration,
+            configurationPath,
+            askPassExecutable,
+            approvalPromptExecutable,
+            GitCommandTimeout).ConfigureAwait(false);
 
         using (result)
         {
@@ -71,6 +70,14 @@ internal static class Program
         builder.Services.AddSingleton<IRepositoryRegistrationService>(provider =>
             new AuditedRepositoryRegistrationService(
                 buckettieServices.GetRequiredService<IRepositoryRegistrationService>(),
+                provider.GetRequiredService<IBuckettieAuditLogger>()));
+        builder.Services.AddSingleton<IRepositoryUnregistrationService>(provider =>
+            new AuditedRepositoryUnregistrationService(
+                buckettieServices.GetRequiredService<IRepositoryUnregistrationService>(),
+                provider.GetRequiredService<IBuckettieAuditLogger>()));
+        builder.Services.AddSingleton<IRepositoryUpdateService>(provider =>
+            new AuditedRepositoryUpdateService(
+                buckettieServices.GetRequiredService<IRepositoryUpdateService>(),
                 provider.GetRequiredService<IBuckettieAuditLogger>()));
 
         builder.Services.AddMcpServer()

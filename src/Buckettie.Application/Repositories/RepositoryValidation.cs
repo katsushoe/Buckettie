@@ -14,6 +14,8 @@ public enum RepositoryValidationError
     RemoteMismatch,
     RepositoryIdInvalid,
     RepositoryAlreadyRegistered,
+    RepositoryNotRegistered,
+    TagPatternInvalid,
 }
 
 /// <summary>

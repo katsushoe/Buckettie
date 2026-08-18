@@ -29,6 +29,12 @@ public sealed record BuckettieRepositoryRegistrationData(
     string Slug,
     bool Approved);
 
+/// <summary>bitbucket_repository_unregister Toolの成功データです。</summary>
+public sealed record BuckettieRepositoryUnregistrationData(string RepositoryId);
+
+/// <summary>bitbucket_repository_update Toolの成功データです。</summary>
+public sealed record BuckettieRepositoryUpdateData(string RepositoryId, bool Approved);
+
 /// <summary>内部Gateway結果をMCP共通形式へ変換します。</summary>
 internal static class BuckettieToolResultMapper
 {
@@ -106,7 +112,9 @@ internal static class BuckettieToolResultMapper
         {
             RepositoryValidationError.RepositoryIdInvalid => "repository_id_invalid",
             RepositoryValidationError.RepositoryAlreadyRegistered => "repository_already_registered",
+            RepositoryValidationError.RepositoryNotRegistered => "repository_not_registered",
             RepositoryValidationError.RemoteUrlInvalid => "remote_url_invalid",
+            RepositoryValidationError.TagPatternInvalid => "tag_pattern_invalid",
             RepositoryValidationError.LocalRootNotFound
                 or RepositoryValidationError.GitMetadataNotFound
                 or RepositoryValidationError.LocalPathReparsePoint => "local_repository_invalid",

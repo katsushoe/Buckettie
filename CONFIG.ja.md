@@ -16,21 +16,15 @@
 | `mcp_path` | 任意 | string | `/mcp` | `/`で始まる128文字以下。制御文字、`?`、`#`は禁止。 |
 | `atlassian_email` | 必須 | string | なし | Bitbucket REST認証に使う有効なメールアドレス。秘密値ではありません。 |
 | `bitbucket_username` | 必須 | string | なし | Git HTTPS認証に使う、大文字小文字を区別するBitbucket Cloud Username。 |
-| `repositories` | 必須 | object | なし | Repository IDをKey、Repository設定をValueとする1件以上のDictionary。 |
-| `repositories.<id>.workspace` | 必須 | string | なし | Bitbucket Workspace Slug。 |
-| `repositories.<id>.slug` | 必須 | string | なし | Bitbucket Repository URL末尾のRepository Slug。 |
-| `repositories.<id>.local_root` | 必須 | string | なし | 許可する既存Local Git Repositoryの絶対Path。 |
-| `repositories.<id>.remote` | 必須 | string | なし | 検証および通信に使うGit Remote名。通常は`origin`。 |
-| `repositories.<id>.develop_branch` | 必須 | string | なし | 開発Branch名。 |
-| `repositories.<id>.main_branch` | 必須 | string | なし | Main Branch名。 |
-| `repositories.<id>.direct_push_branches` | 必須 | string array | なし | 直接Pushを許可するBranchの完全一致一覧。 |
-| `repositories.<id>.pull_branches` | 必須 | string array | なし | Pullを許可するBranchの完全一致一覧。 |
-| `repositories.<id>.protected_branches` | 必須 | string array | なし | 直接Pushを拒否する保護Branch一覧。 |
-| `repositories.<id>.tag_target_branch` | 必須 | string | なし | Tag作成を許可する対象Branch。 |
-| `repositories.<id>.tag_pattern` | 必須 | string | なし | 許可するTag名の有効な.NET正規表現。 |
-| `repositories.<id>.require_clean_working_tree` | 任意 | boolean | `true` | 対象操作でClean Working Treeを要求するか。 |
+| `repositories` | 必須 | object | なし | 後方互換のためだけに残る旧項目。[Repository保存先](#repository保存先)を参照。稼働中のインストールでは常に`{}`で、実際のRepository情報はSQLiteに保存されます。 |
 
 Repository IDは大文字小文字を区別し、一意でなければなりません。使用可能文字はASCII英数字、`.`、`_`、`-`で、最大128文字です。`protected_branches`は`direct_push_branches`より優先されます。
+
+## Repository保存先
+
+Repository情報（`workspace`、`slug`、`local_root`、`remote`、`develop_branch`、`main_branch`、`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`）は、`buckettie.json`ではなくBinary Directory基準の`..\data\repositories.db`（SQLite Database）に保存されます。
+
+`repositories`にRepository情報を保存していた旧Versionからのアップグレード後、初回起動時にServiceが`repositories`配下の全項目をDatabaseへ一度だけ移行し、その後`buckettie.json`の`repositories`を`{}`へ書き換えます。以降はDatabaseが唯一の正本となり、`buckettie.json`の`repositories`は再び読み込まれません（移行済みFileが引き続き検証を通るよう、JSON Schema上の項目としてのみ残ります）。
 
 ## 読み込みと秘密情報
 
@@ -38,11 +32,17 @@ Repository IDは大文字小文字を区別し、一意でなければなりま�
 
 TokenはBinary Directory基準の`..\data\secrets`へDPAPI LocalMachine暗号化ファイルとして保存されます。管理者Terminalで`buckettie auth set <repository-id>`を実行し、暗号化ファイルを手動編集しないでください。
 
-## Repository登録
+## Repository登録・修正・登録解除
 
-`bitbucket_repository_register` MCP Toolは、以下の手動フローを使わずに`repositories`へ1件追加します。受け付けるのは`repository`（新規Repository ID）、`local_root`、および任意の`remote`／`develop_branch`／`main_branch`だけです。`workspace`と`slug`は常に対象Local RepositoryのGit Remoteから導出され、呼び出し元は指定できません。`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`は、指定されたBranch名から上記の例と同じ保守的な形でServer側が既定値を設定します。異なるPolicyが必要な登録は、引き続き手動編集フローを使用します。
+`bitbucket_repository_register` MCP Tool（またはCLIの`buckettie repo register`）は、以下の手動フローを使わずにRepositoryを1件追加します。受け付けるのは`repository`（新規Repository ID）、`local_root`、および任意の`remote`／`develop_branch`／`main_branch`だけです。`workspace`と`slug`は常に対象Local RepositoryのGit Remoteから導出され、呼び出し元は指定できません。`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`は、指定されたBranch名から上記の例と同じ保守的な形でServer側が既定値を設定します。
 
-呼び出しごとに、Serverマシンの対話Desktop SessionでNative Dialogへの人間による承認が必須です。呼び出し元のMCP Clientから承認することはできません。信頼境界の詳細は[SECURITY.md](SECURITY.md#repository-registration-approval)、設計は[ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md)を参照してください。
+`bitbucket_repository_update` MCP Tool（またはCLIの`buckettie repo update`）は、登録済みRepositoryの`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`を変更します。`workspace`／`slug`／`local_root`／`remote`／`develop_branch`／`main_branch`はここでは変更できません。これらは登録時にGit Remoteに対して検証済みの値として固定されるため、指し示すRepositoryを変える場合は登録解除してから再登録します。
+
+`register`と`update`はいずれも、Serverマシンの対話Desktop SessionでNative Dialogへの人間による承認が必須です。呼び出し元のMCP Clientから承認することはできません。信頼境界の詳細は[SECURITY.md](SECURITY.md#repository-registration-approval)、設計は[ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md)・[ADR 0013](docs/adr/0013-repository-store-and-live-lifecycle.md)を参照してください。
+
+`bitbucket_repository_unregister` MCP Tool（またはCLIの`buckettie repo unregister`）はDialogなしで即座にRepositoryを削除します。権限を削減するだけの操作であり、侵害されたClientや誤操作によって得をする余地がないためです。
+
+これら3操作はいずれも`stop`/`restart`を必要としません。これらのToolが対応しない形の登録・修正が必要な場合は、引き続き手動編集フロー（対象がSQLite Databaseへ変わった点を除き[Repository保存先](#repository保存先)参照）を使用します。
 
 ## 検証エラー
 
