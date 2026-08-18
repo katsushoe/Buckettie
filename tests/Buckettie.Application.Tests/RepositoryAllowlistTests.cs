@@ -80,6 +80,52 @@ public sealed class RepositoryAllowlistTests
         allowlist.Snapshot().Keys.Should().Contain(["buckettie", "new-repo"]);
     }
 
+    [Fact]
+    public void Unregister_WhenRepositoryIdExists_RemovesItAndReadersSeeThat()
+    {
+        RepositoryAllowlist allowlist = new(CreateOptions());
+
+        bool unregistered = allowlist.Unregister("buckettie");
+
+        unregistered.Should().BeTrue();
+        allowlist.TryGet("buckettie", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Unregister_WhenRepositoryIdDoesNotExist_ReturnsFalse()
+    {
+        RepositoryAllowlist allowlist = new(CreateOptions());
+
+        bool unregistered = allowlist.Unregister("unknown");
+
+        unregistered.Should().BeFalse();
+        allowlist.TryGet("buckettie", out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Update_WhenRepositoryIdExists_ReplacesItAndReadersSeeThat()
+    {
+        RepositoryAllowlist allowlist = new(CreateOptions());
+        RepositoryOptions updated = CreateRepository() with { TagTargetBranch = "release" };
+
+        bool result = allowlist.Update("buckettie", updated);
+
+        result.Should().BeTrue();
+        allowlist.TryGet("buckettie", out RepositoryOptions? actual).Should().BeTrue();
+        actual.Should().BeSameAs(updated);
+    }
+
+    [Fact]
+    public void Update_WhenRepositoryIdDoesNotExist_ReturnsFalseAndDoesNotAddIt()
+    {
+        RepositoryAllowlist allowlist = new(CreateOptions());
+
+        bool result = allowlist.Update("unknown", CreateRepository());
+
+        result.Should().BeFalse();
+        allowlist.TryGet("unknown", out _).Should().BeFalse();
+    }
+
     private static BuckettieOptions CreateOptions(RepositoryOptions? repository = null) => new()
     {
         AtlassianEmail = "developer@example.com",

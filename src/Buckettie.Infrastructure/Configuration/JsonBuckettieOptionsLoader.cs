@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Buckettie.Application.Configuration;
 using Buckettie.Application.Repositories;
 
@@ -178,14 +177,7 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
                 return requiredError;
             }
 
-            try
-            {
-                _ = new Regex(
-                    repository.TagPattern,
-                    RegexOptions.CultureInvariant,
-                    TimeSpan.FromSeconds(1));
-            }
-            catch (ArgumentException)
+            if (!TagPatternValidator.IsValid(repository.TagPattern))
             {
                 return new(ConfigurationErrorCode.InvalidTagPattern, $"{prefix}.tag_pattern");
             }

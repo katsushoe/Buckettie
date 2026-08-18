@@ -23,11 +23,15 @@ After changing configuration, run `config check`, restart the service, and run `
 
 ## Repository Registration
 
-Normal path: an MCP client calls `bitbucket_repository_register`; approve or deny the Dialog that appears on the server machine's own interactive desktop session. Approval writes `buckettie.json` and updates the running service's allowlist immediately — no `stop`/`restart` is needed for this path.
+Repository records live in a SQLite database (`data/repositories.db`), not `buckettie.json`. Register, unregister, and update all work against the *running* service — none of them need `stop`/`restart`:
 
-Fallback: if the tool returns `no_interactive_session` (no local console logon, an RDP-only session, or a locked workstation), use the manual flow instead — run `stop`, edit `buckettie.json`, then `config check`, `restart`, and `doctor` as described above.
+- **Register**: an MCP client calls `bitbucket_repository_register` (or `buckettie repo register <repository> <local-root>`); approve or deny the Dialog that appears on the server machine's own interactive desktop session. Workspace/Slug are derived from the local Git remote and branch policy is server-defaulted.
+- **Update**: `bitbucket_repository_update` (or `buckettie repo update <repository> --direct-push-branches ... --pull-branches ... --protected-branches ... --tag-target-branch ... --tag-pattern ...`) changes an existing repository's branch policy and also requires Dialog approval, since it can widen what's allowed. Workspace/Slug/LocalRoot/Remote/DevelopBranch/MainBranch cannot be changed this way — unregister and re-register instead, so the binding is re-validated against the actual Git remote.
+- **Unregister**: `bitbucket_repository_unregister` (or `buckettie repo unregister <repository>`) removes a repository immediately, with no Dialog — it only revokes rights.
 
-On some hosts the approval Dialog process can fail to launch even with a valid console logon: the request times out with `approval_timed_out` and no Dialog ever appears on screen. This has been observed on machines running an agent sandbox layer (e.g. a `CodexSandboxUsers`-style setup) whose desktop security descriptor denies interactive attachment to processes created via `WTSQueryUserToken`/`CreateProcessWithTokenW`, regardless of which executable is launched. On such a host, use the manual flow above as the standard registration path rather than retrying the Dialog.
+Fallback: if register/update return `no_interactive_session` (no local console logon, an RDP-only session, or a locked workstation), fall back to the manual flow instead — run `stop`, edit `buckettie.json`'s top-level settings or drop a row via a SQLite client against `data/repositories.db`, then `config check`, `restart`, and `doctor`.
+
+On some hosts the approval Dialog process previously failed to launch even with a valid console logon (`approval_timed_out`, no Dialog ever appears on screen). This was observed on machines running an agent sandbox layer (e.g. a `CodexSandboxUsers`-style setup) whose desktop security descriptor denied interactive attachment to processes created via `WTSQueryUserToken`/`CreateProcessWithTokenW`, regardless of which executable was launched. The Dialog is now launched via a one-shot Task Scheduler task (`/RU <user> /IT`) instead, which is not subject to the same denial on the hosts where this was tested. If a host still shows `approval_timed_out` with no visible Dialog after this change, fall back to the manual flow above.
 
 ## Token Lifecycle
 

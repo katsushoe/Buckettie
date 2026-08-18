@@ -16,21 +16,15 @@ See [`buckettie.example.json`](buckettie.example.json) for a complete example.
 | `mcp_path` | No | string | `/mcp` | Starts with `/`, at most 128 characters; no control character, `?`, or `#`. |
 | `atlassian_email` | Yes | string | None | Valid email address for Bitbucket REST authentication; not a secret. |
 | `bitbucket_username` | Yes | string | None | Case-sensitive Bitbucket Cloud username for Git HTTPS authentication. |
-| `repositories` | Yes | object | None | Dictionary with one or more Repository IDs as keys and repository settings as values. |
-| `repositories.<id>.workspace` | Yes | string | None | Bitbucket workspace slug. |
-| `repositories.<id>.slug` | Yes | string | None | Repository slug at the end of the Bitbucket repository URL. |
-| `repositories.<id>.local_root` | Yes | string | None | Absolute path of an existing allowed local Git repository. |
-| `repositories.<id>.remote` | Yes | string | None | Git remote used for validation and communication; normally `origin`. |
-| `repositories.<id>.develop_branch` | Yes | string | None | Development branch name. |
-| `repositories.<id>.main_branch` | Yes | string | None | Main branch name. |
-| `repositories.<id>.direct_push_branches` | Yes | string array | None | Exact branch names allowed for direct push. |
-| `repositories.<id>.pull_branches` | Yes | string array | None | Exact branch names allowed for pull. |
-| `repositories.<id>.protected_branches` | Yes | string array | None | Branches on which direct push is denied. |
-| `repositories.<id>.tag_target_branch` | Yes | string | None | Branch on which tag creation is allowed. |
-| `repositories.<id>.tag_pattern` | Yes | string | None | Valid .NET regular expression for allowed tag names. |
-| `repositories.<id>.require_clean_working_tree` | No | boolean | `true` | Whether applicable operations require a clean working tree. |
+| `repositories` | Yes | object | None | Legacy field, kept for backward compatibility. See [Repository Storage](#repository-storage) below — on a running install this is always `{}` and repository records live in SQLite instead. |
 
 Repository IDs are case-sensitive and unique. They use only ASCII letters, numbers, `.`, `_`, and `-`, with a maximum length of 128. `protected_branches` takes precedence over `direct_push_branches`.
+
+## Repository Storage
+
+Repository records (`workspace`, `slug`, `local_root`, `remote`, `develop_branch`, `main_branch`, `direct_push_branches`, `pull_branches`, `protected_branches`, `tag_target_branch`, `tag_pattern`, `require_clean_working_tree`) are stored in a SQLite database at `..\data\repositories.db` relative to the binary directory, not in `buckettie.json`.
+
+On first startup after upgrading from a version that stored repositories in `buckettie.json`, the service migrates every entry under the old `repositories` key into the database once, then rewrites `buckettie.json` with `repositories` set to `{}`. From then on the database is the sole source of truth; `repositories` in `buckettie.json` is not read again (it stays in the JSON schema only so an already-migrated file still validates).
 
 ## Loading and Secrets
 
@@ -38,11 +32,17 @@ There is no override hierarchy. The CLI and service load one file selected by th
 
 Tokens are DPAPI LocalMachine-encrypted files below `..\data\secrets` relative to the binary directory. Run `buckettie auth set <repository-id>` from an elevated terminal and never edit an encrypted file manually.
 
-## Repository Registration
+## Repository Registration, Update, and Unregistration
 
-The `bitbucket_repository_register` MCP tool adds one entry to `repositories` without the manual stop/edit/restart flow below. It accepts only `repository` (the new Repository ID), `local_root`, and optionally `remote`, `develop_branch`, and `main_branch`. `workspace` and `slug` are always derived from the local repository's actual Git remote; the caller cannot supply them. `direct_push_branches`, `pull_branches`, `protected_branches`, `tag_target_branch`, `tag_pattern`, and `require_clean_working_tree` are entirely server-defaulted from the supplied branch names, matching the same conservative shape as the example above. A registration that needs different policy still uses the manual edit flow.
+The `bitbucket_repository_register` MCP tool (or `buckettie repo register`) adds one repository without the manual stop/edit/restart flow below. It accepts only `repository` (the new Repository ID), `local_root`, and optionally `remote`, `develop_branch`, and `main_branch`. `workspace` and `slug` are always derived from the local repository's actual Git remote; the caller cannot supply them. `direct_push_branches`, `pull_branches`, `protected_branches`, `tag_target_branch`, `tag_pattern`, and `require_clean_working_tree` are entirely server-defaulted from the supplied branch names, matching the same conservative shape as the example above.
 
-Every call requires a human to approve a native Dialog on the server machine's interactive desktop session; it cannot be approved from the calling MCP client. See [SECURITY.md](SECURITY.md#repository-registration-approval) for the trust boundary and [ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md) for the design.
+The `bitbucket_repository_update` MCP tool (or `buckettie repo update`) changes an already-registered repository's `direct_push_branches`, `pull_branches`, `protected_branches`, `tag_target_branch`, `tag_pattern`, and `require_clean_working_tree`. It cannot change `workspace`, `slug`, `local_root`, `remote`, `develop_branch`, or `main_branch` — those are fixed at registration time and re-validated against the Git remote, so changing what repository an ID points to means unregistering and registering again.
+
+Both `register` and `update` require a human to approve a native Dialog on the server machine's interactive desktop session; it cannot be approved from the calling MCP client. See [SECURITY.md](SECURITY.md#repository-registration-approval) for the trust boundary and [ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md) / [ADR 0013](docs/adr/0013-repository-store-and-live-lifecycle.md) for the design.
+
+The `bitbucket_repository_unregister` MCP tool (or `buckettie repo unregister`) removes a repository immediately, with no Dialog — since it only revokes push/PR/tag rights, there is no privilege for a compromised or over-eager caller to gain by calling it.
+
+None of these three operations need `stop`/`restart`. A registration or update that needs a different shape than these tools support still uses the manual edit flow (now against the SQLite database — see [Repository Storage](#repository-storage)).
 
 ## Validation Errors
 

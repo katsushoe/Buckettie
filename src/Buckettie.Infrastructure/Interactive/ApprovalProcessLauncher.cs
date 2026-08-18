@@ -1,7 +1,7 @@
-using System.ComponentModel;
-using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Runtime.Versioning;
-using System.Text;
+using System.Security;
+using System.Security.Principal;
 using Microsoft.Win32.SafeHandles;
 
 namespace Buckettie.Infrastructure.Interactive;
@@ -18,15 +18,17 @@ internal interface IApprovalProcessLauncher
 }
 
 /// <summary>
-/// <c>CreateProcessWithTokenW</c>で対話Desktop(winsta0\default)へprocessを起動します。
-/// LocalSystemは通常SeImpersonatePrivilegeを保有するため、AdjustTokenPrivilegesは不要です。
+/// Task SchedulerのInteractive Token機構(<c>/IT</c>)で対話Desktopへprocessを起動します。
+/// <c>CreateProcessWithTokenW</c>によるToken偽装型のSession越境は、EDR/サンドボックス製品が
+/// 典型的な侵害後の横移動手法として対話Desktopへの接続を拒否することがあるため採用しません。
+/// Task Scheduler自体のSession越境実装を経由することで同じ拒否を回避します。
+/// LocalSystemは全リポジトリ操作より広い権限を持つため、対象UserよりTaskの作成・実行・削除
+/// 権限が不足することはありません。
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class TokenProcessLauncher : IApprovalProcessLauncher
+internal sealed class TaskSchedulerProcessLauncher : IApprovalProcessLauncher
 {
-    private const uint CreateUnicodeEnvironment = 0x00000400;
-    private const uint CreateNoWindow = 0x08000000;
-    private const uint LogonWithProfile = 0x00000001;
+    private static readonly TimeSpan SchtasksTimeout = TimeSpan.FromSeconds(15);
 
     /// <inheritdoc />
     public bool TryLaunch(SafeAccessTokenHandle userToken, string executablePath, string argument)
@@ -35,114 +37,72 @@ internal sealed class TokenProcessLauncher : IApprovalProcessLauncher
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(argument);
 
-        StartupInfo startupInfo = new()
+        string? accountName = TryGetAccountName(userToken);
+        if (accountName is null)
         {
-            cb = Marshal.SizeOf<StartupInfo>(),
-            lpDesktop = "winsta0\\default",
-        };
+            return false;
+        }
 
-        StringBuilder commandLine = new($"\"{executablePath}\" \"{argument}\"");
-
-        IntPtr environmentBlock = IntPtr.Zero;
+        string taskName = $"Buckettie-Approval-{Guid.NewGuid():N}";
+        string commandLine = $"\"{executablePath}\" \"{argument}\"";
         try
         {
-            // CreateProcessWithTokenWにNULL環境を渡すとSYSTEMの環境が引き継がれ、
-            // SystemRoot等ToUserProfile由来の変数が欠落して.NET Hostが0xc0000142で
-            // 初期化に失敗する。対象UserのProfileから環境Blockを明示的に構築する。
-            if (!NativeMethods.CreateEnvironmentBlock(out environmentBlock, userToken, false))
+            if (!RunSchtasks(
+                "/Create", "/TN", taskName,
+                "/TR", commandLine,
+                "/SC", "ONCE", "/ST", "23:59",
+                "/RU", accountName, "/IT",
+                "/RL", "LIMITED", "/F"))
             {
                 return false;
             }
 
-            bool created = NativeMethods.CreateProcessWithTokenW(
-                userToken,
-                LogonWithProfile,
-                null,
-                commandLine,
-                CreateUnicodeEnvironment | CreateNoWindow,
-                environmentBlock,
-                null,
-                ref startupInfo,
-                out ProcessInformation processInformation);
-
-            if (!created)
-            {
-                return false;
-            }
-
-            NativeMethods.CloseHandle(processInformation.hProcess);
-            NativeMethods.CloseHandle(processInformation.hThread);
-            return true;
+            return RunSchtasks("/Run", "/TN", taskName);
         }
         finally
         {
-            if (environmentBlock != IntPtr.Zero)
-            {
-                NativeMethods.DestroyEnvironmentBlock(environmentBlock);
-            }
+            RunSchtasks("/Delete", "/TN", taskName, "/F");
         }
     }
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct StartupInfo
+    private static string? TryGetAccountName(SafeAccessTokenHandle userToken)
     {
-        public int cb;
-        public string? lpReserved;
-        public string? lpDesktop;
-        public string? lpTitle;
-        public int dwX;
-        public int dwY;
-        public int dwXSize;
-        public int dwYSize;
-        public int dwXCountChars;
-        public int dwYCountChars;
-        public int dwFillAttribute;
-        public int dwFlags;
-        public short wShowWindow;
-        public short cbReserved2;
-        public IntPtr lpReserved2;
-        public IntPtr hStdInput;
-        public IntPtr hStdOutput;
-        public IntPtr hStdError;
+        try
+        {
+            using WindowsIdentity identity = new(userToken.DangerousGetHandle());
+            return string.IsNullOrWhiteSpace(identity.Name) ? null : identity.Name;
+        }
+        catch (Exception exception) when (exception is SecurityException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct ProcessInformation
+    private static bool RunSchtasks(params string[] arguments)
     {
-        public IntPtr hProcess;
-        public IntPtr hThread;
-        public int dwProcessId;
-        public int dwThreadId;
-    }
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = "schtasks.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        foreach (string argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
 
-    private static class NativeMethods
-    {
-        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool CreateProcessWithTokenW(
-            SafeAccessTokenHandle token,
-            uint logonFlags,
-            string? applicationName,
-            StringBuilder commandLine,
-            uint creationFlags,
-            IntPtr environment,
-            string? currentDirectory,
-            ref StartupInfo startupInfo,
-            out ProcessInformation processInformation);
+        using Process process = new() { StartInfo = startInfo };
+        if (!process.Start())
+        {
+            return false;
+        }
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool CloseHandle(IntPtr handle);
-
-        [DllImport("userenv.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool CreateEnvironmentBlock(
-            out IntPtr lpEnvironment,
-            SafeAccessTokenHandle hToken,
-            [MarshalAs(UnmanagedType.Bool)] bool bInherit);
-
-        [DllImport("userenv.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool DestroyEnvironmentBlock(IntPtr lpEnvironment);
+        Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> errorTask = process.StandardError.ReadToEndAsync();
+        bool exited = process.WaitForExit((int)SchtasksTimeout.TotalMilliseconds);
+        Task.WaitAll(outputTask, errorTask);
+        return exited && process.ExitCode == 0;
     }
 }

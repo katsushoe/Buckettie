@@ -24,7 +24,7 @@ public sealed class WindowsInteractiveApprovalPrompt : IInteractiveApprovalPromp
 
         ArgumentException.ThrowIfNullOrWhiteSpace(approvalPromptExecutable);
         _sessionTokenProvider = new WtsSessionTokenProvider();
-        _processLauncher = new TokenProcessLauncher();
+        _processLauncher = new TaskSchedulerProcessLauncher();
         _pipeTransport = new NamedPipeApprovalTransport();
         _approvalPromptExecutable = approvalPromptExecutable;
     }

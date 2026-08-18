@@ -2,21 +2,18 @@ using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
-using Buckettie.Infrastructure.Configuration;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
 
 namespace Buckettie.Server.Tests;
 
-public sealed class RepositoryRegistrationServiceTests : IDisposable
+public sealed class RepositoryRegistrationServiceTests
 {
     private const string LocalRoot = "C:\\Repositories\\NewRepo";
     private readonly IRepositoryEnvironment _environment = Substitute.For<IRepositoryEnvironment>();
     private readonly IGitCommandClient _git = Substitute.For<IGitCommandClient>();
     private readonly IInteractiveApprovalPrompt _approvalPrompt = Substitute.For<IInteractiveApprovalPrompt>();
-    private readonly string _temporaryDirectory;
-    private readonly string _configurationPath;
 
     public RepositoryRegistrationServiceTests()
     {
@@ -26,21 +23,6 @@ public sealed class RepositoryRegistrationServiceTests : IDisposable
         _environment.GitMetadataExists(LocalRoot).Returns(true);
         _git.GetRemoteUrlAsync(LocalRoot, "origin", Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success("https://bitbucket.org/example-workspace/new-repo.git\n"));
-
-        _temporaryDirectory = Path.Combine(Path.GetTempPath(), $"buckettie-registration-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_temporaryDirectory);
-        _configurationPath = Path.Combine(_temporaryDirectory, "buckettie.json");
-    }
-
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(_temporaryDirectory, recursive: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-        }
     }
 
     [Fact]
@@ -75,7 +57,6 @@ public sealed class RepositoryRegistrationServiceTests : IDisposable
         outcome.IsSuccess.Should().BeFalse();
         outcome.Error!.Code.Should().Be("approval_denied");
         allowlist.TryGet("new-repo", out _).Should().BeFalse();
-        File.Exists(_configurationPath).Should().BeFalse();
     }
 
     [Fact]
@@ -99,9 +80,8 @@ public sealed class RepositoryRegistrationServiceTests : IDisposable
     public async Task RegisterAsync_WhenWriteFails_DoesNotMutateAllowlist()
     {
         RepositoryAllowlist allowlist = CreateAllowlist();
-        string missingDirectoryPath = Path.Combine(
-            _temporaryDirectory, "missing-" + Guid.NewGuid().ToString("N"), "buckettie.json");
-        RepositoryRegistrationService service = CreateService(allowlist, missingDirectoryPath);
+        FakeRepositoryStore store = new() { FailNextWrite = true };
+        RepositoryRegistrationService service = CreateService(allowlist, store);
         _approvalPrompt.RequestApprovalAsync(
                 Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
             .Returns(ApprovalPromptOutcome.Approved());
@@ -115,10 +95,11 @@ public sealed class RepositoryRegistrationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RegisterAsync_WhenApproved_WritesFileAndUpdatesAllowlist()
+    public async Task RegisterAsync_WhenApproved_WritesStoreAndUpdatesAllowlist()
     {
         RepositoryAllowlist allowlist = CreateAllowlist();
-        RepositoryRegistrationService service = CreateService(allowlist);
+        FakeRepositoryStore store = new();
+        RepositoryRegistrationService service = CreateService(allowlist, store);
         _approvalPrompt.RequestApprovalAsync(
                 Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
             .Returns(ApprovalPromptOutcome.Approved());
@@ -132,13 +113,10 @@ public sealed class RepositoryRegistrationServiceTests : IDisposable
         allowlist.TryGet("new-repo", out RepositoryOptions? registered).Should().BeTrue();
         registered!.ProtectedBranches.Should().BeEquivalentTo(["main"]);
         registered.DirectPushBranches.Should().BeEquivalentTo(["develop"]);
-        File.Exists(_configurationPath).Should().BeTrue();
 
-        JsonBuckettieOptionsLoader loader = new();
-        await using FileStream stream = File.OpenRead(_configurationPath);
-        ConfigurationLoadResult reloaded = await loader.LoadAsync(stream, TestContext.Current.CancellationToken);
-        reloaded.IsValid.Should().BeTrue();
-        reloaded.Options!.Repositories.Should().ContainKey("new-repo");
+        IReadOnlyDictionary<string, RepositoryOptions> stored = await store.LoadAllAsync(
+            TestContext.Current.CancellationToken);
+        stored.Should().ContainKey("new-repo");
     }
 
     [Fact]
@@ -175,21 +153,14 @@ public sealed class RepositoryRegistrationServiceTests : IDisposable
         Repositories = new Dictionary<string, RepositoryOptions>(),
     });
 
-    private RepositoryRegistrationService CreateService(RepositoryAllowlist allowlist, string? configurationPath = null)
+    private RepositoryRegistrationService CreateService(RepositoryAllowlist allowlist, FakeRepositoryStore? store = null)
     {
-        BuckettieOptions options = new()
-        {
-            AtlassianEmail = "developer@example.com",
-            BitbucketUsername = "developer",
-            Repositories = allowlist.Snapshot(),
-        };
         RepositoryRegistrationValidator validator = new(allowlist, _environment, _git);
         return new RepositoryRegistrationService(
             validator,
             allowlist,
-            options,
-            new JsonBuckettieOptionsLoader(),
+            store ?? new FakeRepositoryStore(),
             _approvalPrompt,
-            configurationPath ?? _configurationPath);
+            new RepositoryMutationGate());
     }
 }

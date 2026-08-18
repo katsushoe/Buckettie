@@ -56,4 +56,47 @@ public sealed class RepositoryAllowlist
             return true;
         }
     }
+
+    /// <summary>
+    /// RepositoryをAllowlistから削除します。存在しない場合は失敗します。
+    /// </summary>
+    internal bool Unregister(string repositoryId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryId);
+        lock (_writeLock)
+        {
+            if (!_repositories.ContainsKey(repositoryId))
+            {
+                return false;
+            }
+
+            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.Ordinal);
+            next.Remove(repositoryId);
+            _repositories = next;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 既存RepositoryのAllowlist設定を置き換えます。存在しない場合は失敗します。
+    /// </summary>
+    internal bool Update(string repositoryId, RepositoryOptions options)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryId);
+        ArgumentNullException.ThrowIfNull(options);
+        lock (_writeLock)
+        {
+            if (!_repositories.ContainsKey(repositoryId))
+            {
+                return false;
+            }
+
+            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.Ordinal)
+            {
+                [repositoryId] = options,
+            };
+            _repositories = next;
+            return true;
+        }
+    }
 }

@@ -14,19 +14,27 @@ public sealed class BuckettieMcpTools
     private readonly IBitbucketRepositoryGateway _bitbucket;
     private readonly IGitGateway _git;
     private readonly IRepositoryRegistrationService _registration;
+    private readonly IRepositoryUnregistrationService _unregistration;
+    private readonly IRepositoryUpdateService _update;
 
     /// <summary>MCP Toolを初期化します。</summary>
     public BuckettieMcpTools(
         IGitGateway git,
         IBitbucketRepositoryGateway bitbucket,
-        IRepositoryRegistrationService registration)
+        IRepositoryRegistrationService registration,
+        IRepositoryUnregistrationService unregistration,
+        IRepositoryUpdateService update)
     {
         ArgumentNullException.ThrowIfNull(git);
         ArgumentNullException.ThrowIfNull(bitbucket);
         ArgumentNullException.ThrowIfNull(registration);
+        ArgumentNullException.ThrowIfNull(unregistration);
+        ArgumentNullException.ThrowIfNull(update);
         _git = git;
         _bitbucket = bitbucket;
         _registration = registration;
+        _unregistration = unregistration;
+        _update = update;
     }
 
     /// <summary>稼働中のBuckettieバージョンを取得します。</summary>
@@ -234,5 +242,50 @@ public sealed class BuckettieMcpTools
                     outcome.RepositoryId!, outcome.Workspace!, outcome.Slug!, true),
                 null)
             : new(false, "bitbucket_repository_register", repository, null, outcome.Error);
+    }
+
+    /// <summary>登録済みRepositoryをAllowlistから削除します。Push/PR/Tag権限を削減するだけの操作のため、承認は不要です。</summary>
+    [McpServerTool(Name = "bitbucket_repository_unregister", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Removes a registered repository from the allowlist. Since this only revokes push/PR/tag " +
+        "rights, no interactive approval is required.")]
+    public async Task<BuckettieToolResult<BuckettieRepositoryUnregistrationData>> UnregisterRepositoryAsync(
+        [Description("Buckettie repository ID to unregister.")] string repository,
+        CancellationToken cancellationToken = default)
+    {
+        RepositoryUnregistrationOutcome outcome = await _unregistration
+            .UnregisterAsync(repository, cancellationToken).ConfigureAwait(false);
+        return outcome.IsSuccess
+            ? new(true, "bitbucket_repository_unregister", repository,
+                new BuckettieRepositoryUnregistrationData(outcome.RepositoryId!), null)
+            : new(false, "bitbucket_repository_unregister", repository, null, outcome.Error);
+    }
+
+    /// <summary>登録済みRepositoryのBranch Policyを修正します。対話Desktopでの人間承認が必須です。</summary>
+    [McpServerTool(Name = "bitbucket_repository_update", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Proposes updating a registered repository's branch policy (direct-push/pull/protected " +
+        "branches, tag target/pattern, require-clean-working-tree); requires interactive human approval on " +
+        "the server's desktop session. Workspace/Slug/LocalRoot/Remote/DevelopBranch/MainBranch cannot be " +
+        "changed here — unregister and re-register instead.")]
+    public async Task<BuckettieToolResult<BuckettieRepositoryUpdateData>> UpdateRepositoryAsync(
+        [Description("Buckettie repository ID to update.")] string repository,
+        [Description("Branches allowed to push directly.")] HashSet<string> directPushBranches,
+        [Description("Branches allowed to be pulled.")] HashSet<string> pullBranches,
+        [Description("Branches that are protected from direct push.")] HashSet<string> protectedBranches,
+        [Description("Branch that release tags target.")] string tagTargetBranch,
+        [Description("Regular expression allowed release tag names must match.")] string tagPattern,
+        [Description("Whether push requires a clean working tree.")] bool requireCleanWorkingTree = true,
+        CancellationToken cancellationToken = default)
+    {
+        RepositoryUpdateRequest request = new(
+            directPushBranches, pullBranches, protectedBranches, tagTargetBranch, tagPattern,
+            requireCleanWorkingTree);
+        RepositoryUpdateOutcome outcome = await _update
+            .UpdateAsync(repository, request, cancellationToken).ConfigureAwait(false);
+        return outcome.IsSuccess
+            ? new(true, "bitbucket_repository_update", repository,
+                new BuckettieRepositoryUpdateData(outcome.RepositoryId!, true), null)
+            : new(false, "bitbucket_repository_update", repository, null, outcome.Error);
     }
 }
