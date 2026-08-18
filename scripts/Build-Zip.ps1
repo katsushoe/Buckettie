@@ -13,6 +13,8 @@ $outputDirectory = Join-Path $releaseWorkDirectory 'output'
 if (-not $NoRestore) {
     dotnet restore (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -r $RuntimeIdentifier --nologo
     if ($LASTEXITCODE -ne 0) { throw 'CLI restore failed.' }
+    dotnet restore (Join-Path $repositoryRoot 'src\Buckettie.ApprovalPrompt\Buckettie.ApprovalPrompt.csproj') -r $RuntimeIdentifier --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'ApprovalPrompt restore failed.' }
 }
 
 foreach ($directory in @($stagingDirectory, $outputDirectory)) {
@@ -37,6 +39,9 @@ New-Item -ItemType Directory -Path $binDirectory, $configDirectory, $logDirector
 
 dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo --no-restore
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
+
+dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.ApprovalPrompt\Buckettie.ApprovalPrompt.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo --no-restore
+if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed: Buckettie.ApprovalPrompt.' }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'buckettie.example.json') -Destination $configDirectory
 $documents = @(

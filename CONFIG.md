@@ -38,6 +38,12 @@ There is no override hierarchy. The CLI and service load one file selected by th
 
 Tokens are DPAPI LocalMachine-encrypted files below `..\data\secrets` relative to the binary directory. Run `buckettie auth set <repository-id>` from an elevated terminal and never edit an encrypted file manually.
 
+## Repository Registration
+
+The `bitbucket_repository_register` MCP tool adds one entry to `repositories` without the manual stop/edit/restart flow below. It accepts only `repository` (the new Repository ID), `local_root`, and optionally `remote`, `develop_branch`, and `main_branch`. `workspace` and `slug` are always derived from the local repository's actual Git remote; the caller cannot supply them. `direct_push_branches`, `pull_branches`, `protected_branches`, `tag_target_branch`, `tag_pattern`, and `require_clean_working_tree` are entirely server-defaulted from the supplied branch names, matching the same conservative shape as the example above. A registration that needs different policy still uses the manual edit flow.
+
+Every call requires a human to approve a native Dialog on the server machine's interactive desktop session; it cannot be approved from the calling MCP client. See [SECURITY.md](SECURITY.md#repository-registration-approval) for the trust boundary and [ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md) for the design.
+
 ## Validation Errors
 
 | Code | Meaning |

@@ -12,6 +12,8 @@ public enum RepositoryValidationError
     LocalPathReparsePoint,
     RemoteUrlInvalid,
     RemoteMismatch,
+    RepositoryIdInvalid,
+    RepositoryAlreadyRegistered,
 }
 
 /// <summary>

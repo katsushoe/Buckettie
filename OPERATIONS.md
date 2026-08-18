@@ -21,6 +21,12 @@ Run service control from an elevated terminal.
 
 After changing configuration, run `config check`, restart the service, and run `doctor`.
 
+## Repository Registration
+
+Normal path: an MCP client calls `bitbucket_repository_register`; approve or deny the Dialog that appears on the server machine's own interactive desktop session. Approval writes `buckettie.json` and updates the running service's allowlist immediately — no `stop`/`restart` is needed for this path.
+
+Fallback: if the tool returns `no_interactive_session` (no local console logon, an RDP-only session, or a locked workstation), use the manual flow instead — run `stop`, edit `buckettie.json`, then `config check`, `restart`, and `doctor` as described above.
+
 ## Token Lifecycle
 
 Registration and rotation use the same command and hidden prompt.

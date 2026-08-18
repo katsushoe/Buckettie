@@ -34,6 +34,12 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
+    private static readonly JsonSerializerOptions WriteSerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true,
+    };
+
     /// <inheritdoc />
     public async Task<ConfigurationLoadResult> LoadAsync(
         Stream json,
@@ -68,6 +74,18 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
         {
             return InvalidJson();
         }
+    }
+
+    /// <inheritdoc />
+    public async Task SaveAsync(
+        BuckettieOptions options,
+        Stream destination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(destination);
+        await JsonSerializer.SerializeAsync(destination, options, WriteSerializerOptions, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static ConfigurationError? ValidateStructure(JsonElement root)

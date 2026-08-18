@@ -163,6 +163,24 @@ public sealed class JsonBuckettieOptionsLoaderTests
             .Which.Code.Should().Be(ConfigurationErrorCode.InvalidJson);
     }
 
+    [Fact]
+    public async Task SaveAsync_ThenLoadAsync_RoundTripsThroughTheSameStrictContract()
+    {
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson);
+        await using MemoryStream loadStream = CreateStream(json);
+        ConfigurationLoadResult loaded = await _loader.LoadAsync(loadStream, TestContext.Current.CancellationToken);
+        loaded.IsValid.Should().BeTrue();
+
+        await using MemoryStream saveStream = new();
+        await _loader.SaveAsync(loaded.Options!, saveStream, TestContext.Current.CancellationToken);
+        saveStream.Position = 0;
+
+        ConfigurationLoadResult reloaded = await _loader.LoadAsync(saveStream, TestContext.Current.CancellationToken);
+
+        reloaded.IsValid.Should().BeTrue();
+        reloaded.Options.Should().BeEquivalentTo(loaded.Options);
+    }
+
     private static MemoryStream CreateStream(string json) => new(Encoding.UTF8.GetBytes(json));
 
     private static string CreateRootJson(string repositories, string additionalProperty = "") =>

@@ -1,5 +1,7 @@
 using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Git;
+using Buckettie.Application.Interactive;
+using Buckettie.Application.Repositories;
 
 namespace Buckettie.Server;
 
@@ -19,6 +21,13 @@ public sealed record BuckettieGitData(string? Branch, GitRepositoryStatus? Statu
 
 /// <summary>get_version Toolの成功データです。</summary>
 public sealed record BuckettieVersionData(string Version);
+
+/// <summary>bitbucket_repository_register Toolの成功データです。</summary>
+public sealed record BuckettieRepositoryRegistrationData(
+    string RepositoryId,
+    string Workspace,
+    string Slug,
+    bool Approved);
 
 /// <summary>内部Gateway結果をMCP共通形式へ変換します。</summary>
 internal static class BuckettieToolResultMapper
@@ -92,6 +101,31 @@ internal static class BuckettieToolResultMapper
         _ => "bitbucket_api_error",
     };
 
+    internal static BuckettieToolError RegistrationValidationError(RepositoryValidationError error) =>
+        CreateError(error switch
+        {
+            RepositoryValidationError.RepositoryIdInvalid => "repository_id_invalid",
+            RepositoryValidationError.RepositoryAlreadyRegistered => "repository_already_registered",
+            RepositoryValidationError.RemoteUrlInvalid => "remote_url_invalid",
+            RepositoryValidationError.LocalRootNotFound
+                or RepositoryValidationError.GitMetadataNotFound
+                or RepositoryValidationError.LocalPathReparsePoint => "local_repository_invalid",
+            _ => "local_repository_invalid",
+        });
+
+    internal static BuckettieToolError RegistrationApprovalError(ApprovalOutcome outcome) =>
+        CreateError(outcome switch
+        {
+            ApprovalOutcome.Denied => "approval_denied",
+            ApprovalOutcome.TimedOut => "approval_timed_out",
+            ApprovalOutcome.NoInteractiveSession => "no_interactive_session",
+            _ => "approval_launch_failed",
+        });
+
+    internal static BuckettieToolError RegistrationInProgressError() => CreateError("registration_in_progress");
+
+    internal static BuckettieToolError RegistrationWriteFailedError() => CreateError("registration_write_failed");
+
     private static string NotFoundCode(string operation) => operation switch
     {
         "branch_get" => "branch_not_found",
@@ -129,6 +163,15 @@ internal static class BuckettieToolResultMapper
         "network_error" => "The network operation failed.",
         "timeout" => "The operation timed out.",
         "cancelled" => "The operation was cancelled.",
+        "repository_id_invalid" => "The repository ID is invalid.",
+        "repository_already_registered" => "The repository is already registered.",
+        "remote_url_invalid" => "The local repository's Git remote is not a valid Bitbucket repository.",
+        "approval_denied" => "The repository registration was denied.",
+        "approval_timed_out" => "The repository registration approval timed out.",
+        "no_interactive_session" => "No interactive desktop session is available to approve the request.",
+        "approval_launch_failed" => "The approval prompt could not be launched.",
+        "registration_in_progress" => "Another repository registration is already in progress.",
+        "registration_write_failed" => "The repository could not be persisted to the configuration file.",
         _ => "The Bitbucket API operation failed.",
     });
 }

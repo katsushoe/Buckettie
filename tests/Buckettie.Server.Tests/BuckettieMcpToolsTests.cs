@@ -25,6 +25,7 @@ public sealed class BuckettieMcpToolsTests
         "bitbucket_tag_list",
         "bitbucket_tag_get",
         "bitbucket_tag_create",
+        "bitbucket_repository_register",
     ];
 
     [Fact]
@@ -67,7 +68,23 @@ public sealed class BuckettieMcpToolsTests
             "bitbucket_push",
             "bitbucket_pr_create",
             "bitbucket_pr_merge",
-            "bitbucket_tag_create");
+            "bitbucket_tag_create",
+            "bitbucket_repository_register");
+    }
+
+    [Fact]
+    public void RegisterRepositoryAsync_WhenInspected_IsNotReadOnlyOrIdempotentAndIsOpenWorld()
+    {
+        McpServerToolAttribute attribute = typeof(BuckettieMcpTools)
+            .GetMethod(nameof(BuckettieMcpTools.RegisterRepositoryAsync))!
+            .GetCustomAttributes(typeof(McpServerToolAttribute), inherit: false)
+            .Cast<McpServerToolAttribute>()
+            .Single();
+
+        attribute.ReadOnly.Should().BeFalse();
+        attribute.Idempotent.Should().BeFalse();
+        attribute.OpenWorld.Should().BeTrue();
+        attribute.Destructive.Should().BeTrue();
     }
 
     [Fact]
@@ -115,7 +132,8 @@ public sealed class BuckettieMcpToolsTests
     [Fact]
     public async Task GetVersionAsync_WhenCalled_ReturnsRunningAssemblyVersion()
     {
-        BuckettieMcpTools tools = new(new UnusedGitGateway(), new UnusedBitbucketRepositoryGateway());
+        BuckettieMcpTools tools = new(
+            new UnusedGitGateway(), new UnusedBitbucketRepositoryGateway(), new UnusedRepositoryRegistrationService());
         string expectedVersion = typeof(BuckettieMcpTools).Assembly.GetName().Version!.ToString();
 
         BuckettieToolResult<BuckettieVersionData> result = await tools.GetVersionAsync();
@@ -185,6 +203,14 @@ public sealed class BuckettieMcpToolsTests
         public Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
             string repository, int pullRequestId, BitbucketPullRequestMerge input,
             CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class UnusedRepositoryRegistrationService : IRepositoryRegistrationService
+    {
+        public Task<RepositoryRegistrationOutcome> RegisterAsync(
+            string repositoryId, string localRoot, string remote, string developBranch, string mainBranch,
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 }

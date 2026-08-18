@@ -13,14 +13,20 @@ public sealed class BuckettieMcpTools
 
     private readonly IBitbucketRepositoryGateway _bitbucket;
     private readonly IGitGateway _git;
+    private readonly IRepositoryRegistrationService _registration;
 
     /// <summary>MCP Toolを初期化します。</summary>
-    public BuckettieMcpTools(IGitGateway git, IBitbucketRepositoryGateway bitbucket)
+    public BuckettieMcpTools(
+        IGitGateway git,
+        IBitbucketRepositoryGateway bitbucket,
+        IRepositoryRegistrationService registration)
     {
         ArgumentNullException.ThrowIfNull(git);
         ArgumentNullException.ThrowIfNull(bitbucket);
+        ArgumentNullException.ThrowIfNull(registration);
         _git = git;
         _bitbucket = bitbucket;
+        _registration = registration;
     }
 
     /// <summary>稼働中のBuckettieバージョンを取得します。</summary>
@@ -205,4 +211,28 @@ public sealed class BuckettieMcpTools
             _bitbucket.CreateTagAsync(repository, new BitbucketTagCreate(tag, message), cancellationToken),
             "tag_create",
             repository);
+
+    /// <summary>新規RepositoryをAllowlistへ登録します。対話Desktopでの人間承認が必須です。</summary>
+    [McpServerTool(Name = "bitbucket_repository_register", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
+    [Description("Proposes registering a new repository in the allowlist; requires interactive human approval " +
+        "on the server's desktop session. Workspace/Slug are always derived from the local Git remote, never " +
+        "from caller input, and branch policy fields are server-defaulted.")]
+    public async Task<BuckettieToolResult<BuckettieRepositoryRegistrationData>> RegisterRepositoryAsync(
+        [Description("New Buckettie repository ID to register.")] string repository,
+        [Description("Absolute local path of the existing Git repository to register.")] string localRoot,
+        [Description("Git remote name to validate and use.")] string remote = "origin",
+        [Description("Development branch name.")] string developBranch = "develop",
+        [Description("Main branch name.")] string mainBranch = "main",
+        CancellationToken cancellationToken = default)
+    {
+        RepositoryRegistrationOutcome outcome = await _registration.RegisterAsync(
+            repository, localRoot, remote, developBranch, mainBranch, cancellationToken).ConfigureAwait(false);
+        return outcome.IsSuccess
+            ? new(true, "bitbucket_repository_register", repository,
+                new BuckettieRepositoryRegistrationData(
+                    outcome.RepositoryId!, outcome.Workspace!, outcome.Slug!, true),
+                null)
+            : new(false, "bitbucket_repository_register", repository, null, outcome.Error);
+    }
 }

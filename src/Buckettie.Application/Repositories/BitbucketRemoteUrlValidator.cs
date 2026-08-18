@@ -16,7 +16,7 @@ public sealed class BitbucketRemoteUrlValidator
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(remoteUrl);
 
-        if (!TryParse(remoteUrl, out RemoteRepository? remote) || remote is null)
+        if (!TryParse(remoteUrl, out BitbucketRemoteCoordinates? remote) || remote is null)
         {
             return RepositoryValidationResult.Invalid(RepositoryValidationError.RemoteUrlInvalid);
         }
@@ -29,9 +29,17 @@ public sealed class BitbucketRemoteUrlValidator
             : RepositoryValidationResult.Invalid(RepositoryValidationError.RemoteMismatch);
     }
 
-    private static bool TryParse(string remoteUrl, out RemoteRepository? remote)
+    /// <summary>
+    /// HTTPS/SSH形式のBitbucket Remote URLからWorkspace/Slugを取り出します。
+    /// </summary>
+    public static bool TryParse(string remoteUrl, out BitbucketRemoteCoordinates? remote)
     {
         remote = null;
+        if (string.IsNullOrWhiteSpace(remoteUrl))
+        {
+            return false;
+        }
+
         string normalized = remoteUrl.StartsWith("git@bitbucket.org:", StringComparison.OrdinalIgnoreCase)
             ? $"ssh://git@bitbucket.org/{remoteUrl["git@bitbucket.org:".Length..]}"
             : remoteUrl;
@@ -55,7 +63,7 @@ public sealed class BitbucketRemoteUrlValidator
             return false;
         }
 
-        remote = new RemoteRepository(parts[0], repositorySlug);
+        remote = new BitbucketRemoteCoordinates(parts[0], repositorySlug);
         return true;
     }
 
@@ -76,5 +84,6 @@ public sealed class BitbucketRemoteUrlValidator
             && uri.IsDefaultPort;
     }
 
-    private sealed record RemoteRepository(string Workspace, string Slug);
+    /// <summary>解析済みBitbucket Remoteの座標です。</summary>
+    public sealed record BitbucketRemoteCoordinates(string Workspace, string Slug);
 }

@@ -11,4 +11,12 @@ public interface IBuckettieOptionsLoader
     public Task<ConfigurationLoadResult> LoadAsync(
         Stream json,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 設定をJSON Streamへ非同期で書き出します。読み込み時と同じsnake_case契約を使用します。
+    /// </summary>
+    public Task SaveAsync(
+        BuckettieOptions options,
+        Stream destination,
+        CancellationToken cancellationToken = default);
 }
