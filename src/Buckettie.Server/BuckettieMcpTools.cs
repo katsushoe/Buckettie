@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Buckettie.Application.Bitbucket;
+using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using ModelContextProtocol.Server;
 
@@ -16,6 +17,7 @@ public sealed class BuckettieMcpTools
     private readonly IRepositoryRegistrationService _registration;
     private readonly IRepositoryUnregistrationService _unregistration;
     private readonly IRepositoryUpdateService _update;
+    private readonly string _language;
 
     /// <summary>MCP Toolを初期化します。</summary>
     public BuckettieMcpTools(
@@ -23,7 +25,8 @@ public sealed class BuckettieMcpTools
         IBitbucketRepositoryGateway bitbucket,
         IRepositoryRegistrationService registration,
         IRepositoryUnregistrationService unregistration,
-        IRepositoryUpdateService update)
+        IRepositoryUpdateService update,
+        BuckettieOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(git);
         ArgumentNullException.ThrowIfNull(bitbucket);
@@ -35,6 +38,7 @@ public sealed class BuckettieMcpTools
         _registration = registration;
         _unregistration = unregistration;
         _update = update;
+        _language = options?.Language ?? "en-US";
     }
 
     /// <summary>稼働中のBuckettieバージョンを取得します。</summary>
@@ -53,7 +57,7 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieGitData>> RepositoryStatusAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.GetStatusAsync(repository, cancellationToken));
+        BuckettieToolResultMapper.MapGitAsync(_git.GetStatusAsync(repository, cancellationToken), _language);
 
     /// <summary>設定済みRemoteからfetchします。</summary>
     [McpServerTool(Name = "bitbucket_fetch", Destructive = false, Idempotent = true, OpenWorld = true,
@@ -62,7 +66,7 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieGitData>> FetchAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.FetchAsync(repository, cancellationToken));
+        BuckettieToolResultMapper.MapGitAsync(_git.FetchAsync(repository, cancellationToken), _language);
 
     /// <summary>現在Branchをfast-forward限定でpullします。</summary>
     [McpServerTool(Name = "bitbucket_pull", Destructive = false, Idempotent = true, OpenWorld = true,
@@ -71,7 +75,7 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieGitData>> PullAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.PullAsync(repository, cancellationToken));
+        BuckettieToolResultMapper.MapGitAsync(_git.PullAsync(repository, cancellationToken), _language);
 
     /// <summary>現在の許可Branchをpushします。</summary>
     [McpServerTool(Name = "bitbucket_push", Destructive = true, Idempotent = true, OpenWorld = true,
@@ -80,7 +84,7 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieGitData>> PushAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.PushAsync(repository, cancellationToken));
+        BuckettieToolResultMapper.MapGitAsync(_git.PushAsync(repository, cancellationToken), _language);
 
     /// <summary>Remote Branch一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_branch_list", ReadOnly = true, Destructive = false,
@@ -91,7 +95,7 @@ public sealed class BuckettieMcpTools
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.ListBranchesAsync(repository, cancellationToken), "branch_list", repository);
+            _bitbucket.ListBranchesAsync(repository, cancellationToken), "branch_list", repository, _language);
 
     /// <summary>Remote Branch詳細を取得します。</summary>
     [McpServerTool(Name = "bitbucket_branch_get", ReadOnly = true, Destructive = false,
@@ -103,7 +107,7 @@ public sealed class BuckettieMcpTools
         [Description("Branch name.")] string branch,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.GetBranchAsync(repository, branch, cancellationToken), "branch_get", repository);
+            _bitbucket.GetBranchAsync(repository, branch, cancellationToken), "branch_get", repository, _language);
 
     /// <summary>Pull Request一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_list", ReadOnly = true, Destructive = false,
@@ -119,7 +123,8 @@ public sealed class BuckettieMcpTools
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.ListPullRequestsAsync(repository, state, source, destination, cancellationToken),
             "pr_list",
-            repository);
+            repository,
+            _language);
 
     /// <summary>Pull Request詳細を取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_get", ReadOnly = true, Destructive = false,
@@ -131,7 +136,7 @@ public sealed class BuckettieMcpTools
         [Description("Pull-request ID.")] int pullRequestId,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.GetPullRequestAsync(repository, pullRequestId, cancellationToken), "pr_get", repository);
+            _bitbucket.GetPullRequestAsync(repository, pullRequestId, cancellationToken), "pr_get", repository, _language);
 
     /// <summary>Pull Request diffを取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_diff", ReadOnly = true, Destructive = false,
@@ -143,7 +148,7 @@ public sealed class BuckettieMcpTools
         [Description("Pull-request ID.")] int pullRequestId,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.GetPullRequestDiffAsync(repository, pullRequestId, cancellationToken), "pr_diff", repository);
+            _bitbucket.GetPullRequestDiffAsync(repository, pullRequestId, cancellationToken), "pr_diff", repository, _language);
 
     /// <summary>設定済みdevelopからmainへのPull Requestを作成します。</summary>
     [McpServerTool(Name = "bitbucket_pr_create", Destructive = true, OpenWorld = true,
@@ -161,7 +166,8 @@ public sealed class BuckettieMcpTools
                 new BitbucketPullRequestCreate(title, description, draft),
                 cancellationToken),
             "pr_create",
-            repository);
+            repository,
+            _language);
 
     /// <summary>Policy検証後にPull Requestをmergeします。</summary>
     [McpServerTool(Name = "bitbucket_pr_merge", Destructive = true, OpenWorld = true,
@@ -181,7 +187,8 @@ public sealed class BuckettieMcpTools
                 new BitbucketPullRequestMerge(strategy, message),
                 cancellationToken),
             "pr_merge",
-            repository);
+            repository,
+            _language);
 
     /// <summary>Tag一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_tag_list", ReadOnly = true, Destructive = false,
@@ -192,7 +199,7 @@ public sealed class BuckettieMcpTools
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.ListTagsAsync(repository, cancellationToken), "tag_list", repository);
+            _bitbucket.ListTagsAsync(repository, cancellationToken), "tag_list", repository, _language);
 
     /// <summary>Tag詳細を取得します。</summary>
     [McpServerTool(Name = "bitbucket_tag_get", ReadOnly = true, Destructive = false,
@@ -204,7 +211,7 @@ public sealed class BuckettieMcpTools
         [Description("Tag name.")] string tag,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.GetTagAsync(repository, tag, cancellationToken), "tag_get", repository);
+            _bitbucket.GetTagAsync(repository, tag, cancellationToken), "tag_get", repository, _language);
 
     /// <summary>設定済み対象BranchのHEADへTagを作成します。</summary>
     [McpServerTool(Name = "bitbucket_tag_create", Destructive = true, OpenWorld = true,
@@ -218,7 +225,8 @@ public sealed class BuckettieMcpTools
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.CreateTagAsync(repository, new BitbucketTagCreate(tag, message), cancellationToken),
             "tag_create",
-            repository);
+            repository,
+            _language);
 
     /// <summary>新規RepositoryをAllowlistへ登録します。対話Desktopでの人間承認が必須です。</summary>
     [McpServerTool(Name = "bitbucket_repository_register", ReadOnly = false, Destructive = true,
@@ -241,7 +249,8 @@ public sealed class BuckettieMcpTools
                 new BuckettieRepositoryRegistrationData(
                     outcome.RepositoryId!, outcome.Workspace!, outcome.Slug!, true),
                 null)
-            : new(false, "bitbucket_repository_register", repository, null, outcome.Error);
+            : new(false, "bitbucket_repository_register", repository, null,
+                BuckettieToolResultMapper.Localize(outcome.Error!, _language));
     }
 
     /// <summary>登録済みRepositoryをAllowlistから削除します。Push/PR/Tag権限を削減するだけの操作のため、承認は不要です。</summary>
@@ -258,7 +267,8 @@ public sealed class BuckettieMcpTools
         return outcome.IsSuccess
             ? new(true, "bitbucket_repository_unregister", repository,
                 new BuckettieRepositoryUnregistrationData(outcome.RepositoryId!), null)
-            : new(false, "bitbucket_repository_unregister", repository, null, outcome.Error);
+            : new(false, "bitbucket_repository_unregister", repository, null,
+                BuckettieToolResultMapper.Localize(outcome.Error!, _language));
     }
 
     /// <summary>登録済みRepositoryのBranch Policyを修正します。対話Desktopでの人間承認が必須です。</summary>
@@ -286,6 +296,7 @@ public sealed class BuckettieMcpTools
         return outcome.IsSuccess
             ? new(true, "bitbucket_repository_update", repository,
                 new BuckettieRepositoryUpdateData(outcome.RepositoryId!, true), null)
-            : new(false, "bitbucket_repository_update", repository, null, outcome.Error);
+            : new(false, "bitbucket_repository_update", repository, null,
+                BuckettieToolResultMapper.Localize(outcome.Error!, _language));
     }
 }

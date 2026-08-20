@@ -1,4 +1,5 @@
 using Buckettie.Application.Bitbucket;
+using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
@@ -39,7 +40,8 @@ public sealed record BuckettieRepositoryUpdateData(string RepositoryId, bool App
 internal static class BuckettieToolResultMapper
 {
     internal static async Task<BuckettieToolResult<BuckettieGitData>> MapGitAsync(
-        Task<GitGatewayResult> operation)
+        Task<GitGatewayResult> operation,
+        string language = "en-US")
     {
         GitGatewayResult result = await operation.ConfigureAwait(false);
         if (result.IsSuccess)
@@ -48,13 +50,14 @@ internal static class BuckettieToolResultMapper
         }
 
         string code = GitCode(result.Error ?? GitGatewayError.GitFailed);
-        return new(false, result.Operation, result.Repository, null, CreateError(code));
+        return new(false, result.Operation, result.Repository, null, CreateError(code, language));
     }
 
     internal static async Task<BuckettieToolResult<T>> MapBitbucketAsync<T>(
         Task<BitbucketResult<T>> operation,
         string operationName,
-        string repository)
+        string repository,
+        string language = "en-US")
     {
         BitbucketResult<T> result = await operation.ConfigureAwait(false);
         if (result.IsSuccess && result.Value is not null)
@@ -63,7 +66,7 @@ internal static class BuckettieToolResultMapper
         }
 
         string code = BitbucketCode(result.Error ?? BitbucketError.ApiError, operationName);
-        return new(false, operationName, repository, default, CreateError(code));
+        return new(false, operationName, repository, default, CreateError(code, language));
     }
 
     internal static string GitCode(GitGatewayError error) => error switch
@@ -142,7 +145,13 @@ internal static class BuckettieToolResultMapper
         _ => "repository_not_found",
     };
 
-    private static BuckettieToolError CreateError(string code) => new(code, code switch
+    internal static BuckettieToolError Localize(BuckettieToolError error, string language) =>
+        CreateError(error.Code, language);
+
+    private static BuckettieToolError CreateError(string code, string language = "en-US") =>
+        new(code, BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code));
+
+    private static string EnglishMessage(string code) => code switch
     {
         "repository_not_found" => "The repository was not found.",
         "repository_not_allowed" => "The repository is not allowed.",
@@ -173,6 +182,7 @@ internal static class BuckettieToolResultMapper
         "cancelled" => "The operation was cancelled.",
         "repository_id_invalid" => "The repository ID is invalid.",
         "repository_already_registered" => "The repository is already registered.",
+        "repository_not_registered" => "The repository is not registered.",
         "remote_url_invalid" => "The local repository's Git remote is not a valid Bitbucket repository.",
         "approval_denied" => "The repository registration was denied.",
         "approval_timed_out" => "The repository registration approval timed out.",
@@ -181,5 +191,47 @@ internal static class BuckettieToolResultMapper
         "registration_in_progress" => "Another repository registration is already in progress.",
         "registration_write_failed" => "The repository could not be persisted to the configuration file.",
         _ => "The Bitbucket API operation failed.",
-    });
+    };
+
+    private static string JapaneseMessage(string code) => code switch
+    {
+        "repository_not_found" => "リポジトリが見つかりません。",
+        "repository_not_allowed" => "このリポジトリは許可されていません。",
+        "local_repository_invalid" => "ローカルリポジトリの境界が無効です。",
+        "remote_mismatch" => "設定されたGitリモートがリポジトリと一致しません。",
+        "git_not_found" => "Gitが見つかりません。",
+        "git_failed" => "Git操作に失敗しました。",
+        "working_tree_dirty" => "作業ツリーをクリーンな状態にしてください。",
+        "branch_not_allowed" => "このブランチは許可されていません。",
+        "branch_not_found" => "ブランチが見つかりません。",
+        "protected_branch" => "保護ブランチへの直接pushは許可されていません。",
+        "nothing_to_push" => "pushする変更がありません。",
+        "non_fast_forward" => "fast-forwardできないため操作を完了できません。",
+        "authentication_failed" => "Bitbucketの認証に失敗しました。",
+        "permission_denied" => "Bitbucketで操作権限が拒否されました。",
+        "rate_limited" => "Bitbucket APIの利用制限に達しました。",
+        "pull_request_invalid" => "プルリクエストの入力が無効です。",
+        "pull_request_not_found" => "プルリクエストが見つかりません。",
+        "pull_request_not_open" => "プルリクエストはオープン状態ではありません。",
+        "pull_request_route_not_allowed" => "このプルリクエスト経路は許可されていません。",
+        "pull_request_merge_conflict" => "競合があるためプルリクエストをマージできません。",
+        "tag_invalid" => "タグが無効です。",
+        "tag_already_exists" => "タグは既に存在します。",
+        "tag_target_not_allowed" => "タグの対象は許可されていません。",
+        "tag_not_found" => "タグが見つかりません。",
+        "network_error" => "ネットワーク操作に失敗しました。",
+        "timeout" => "操作がタイムアウトしました。",
+        "cancelled" => "操作はキャンセルされました。",
+        "repository_id_invalid" => "リポジトリIDが無効です。",
+        "repository_already_registered" => "リポジトリは既に登録されています。",
+        "repository_not_registered" => "リポジトリは登録されていません。",
+        "remote_url_invalid" => "ローカルリポジトリのGitリモートは有効なBitbucketリポジトリではありません。",
+        "approval_denied" => "リポジトリ登録は承認されませんでした。",
+        "approval_timed_out" => "リポジトリ登録の承認がタイムアウトしました。",
+        "no_interactive_session" => "承認に使用できる対話型デスクトップセッションがありません。",
+        "approval_launch_failed" => "承認ダイアログを起動できませんでした。",
+        "registration_in_progress" => "別のリポジトリ登録が進行中です。",
+        "registration_write_failed" => "リポジトリを設定ファイルへ保存できませんでした。",
+        _ => "Bitbucket API操作に失敗しました。",
+    };
 }
