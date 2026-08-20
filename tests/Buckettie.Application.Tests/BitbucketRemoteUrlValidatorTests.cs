@@ -10,6 +10,8 @@ public sealed class BitbucketRemoteUrlValidatorTests
 
     [Theory]
     [InlineData("https://bitbucket.org/example-workspace/buckettie.git")]
+    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
+    [InlineData("ssh://git@bitbucket.org/example-workspace/buckettie.git")]
     public void Validate_WhenRemoteMatchesConfiguredRepository_ReturnsValid(string remoteUrl)
     {
         RepositoryValidationResult result = _validator.Validate("example-workspace", "buckettie", remoteUrl);
@@ -21,8 +23,8 @@ public sealed class BitbucketRemoteUrlValidatorTests
     [InlineData("https://example.com/example-workspace/buckettie.git")]
     [InlineData("https://token@bitbucket.org/example-workspace/buckettie.git")]
     [InlineData("file:///example-workspace/buckettie.git")]
-    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
-    [InlineData("ssh://git@bitbucket.org/example-workspace/buckettie.git")]
+    [InlineData("ssh://other@bitbucket.org/example-workspace/buckettie.git")]
+    [InlineData("ssh://git@bitbucket.org:2222/example-workspace/buckettie.git")]
     [InlineData("https://bitbucket.org/example-workspace/buckettie.git?token=secret")]
     [InlineData("not-a-url")]
     public void Validate_WhenRemoteFormatIsNotAllowed_ReturnsInvalidUrl(string remoteUrl)
@@ -43,11 +45,14 @@ public sealed class BitbucketRemoteUrlValidatorTests
         result.Error.Should().Be(RepositoryValidationError.RemoteMismatch);
     }
 
-    [Fact]
-    public void TryParse_WhenUrlIsValidHttps_ReturnsWorkspaceAndSlug()
+    [Theory]
+    [InlineData("https://bitbucket.org/example-workspace/buckettie.git")]
+    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
+    [InlineData("ssh://git@bitbucket.org/example-workspace/buckettie.git")]
+    public void TryParse_WhenUrlIsValid_ReturnsWorkspaceAndSlug(string remoteUrl)
     {
         bool parsed = BitbucketRemoteUrlValidator.TryParse(
-            "https://bitbucket.org/example-workspace/buckettie.git",
+            remoteUrl,
             out BitbucketRemoteUrlValidator.BitbucketRemoteCoordinates? coordinates);
 
         parsed.Should().BeTrue();
@@ -59,7 +64,7 @@ public sealed class BitbucketRemoteUrlValidatorTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("not-a-url")]
-    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
+    [InlineData("ssh://other@bitbucket.org/example-workspace/buckettie.git")]
     public void TryParse_WhenUrlIsNotAllowed_ReturnsFalse(string remoteUrl)
     {
         bool parsed = BitbucketRemoteUrlValidator.TryParse(
