@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $installerWorkDirectory = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.local\installer'))
 $publishDirectory = Join-Path $repositoryRoot '.local\installer\publish'
+$installerConfigDirectory = Join-Path $repositoryRoot '.local\installer\config'
 $outputDirectory = Join-Path $repositoryRoot '.local\installer\output'
 $installerProject = Join-Path $repositoryRoot 'installer\Buckettie.Installer\Buckettie.Installer.wixproj'
 $projects = @(
@@ -27,7 +28,7 @@ if (-not $NoRestore) {
     if ($LASTEXITCODE -ne 0) { throw 'Installer restore failed.' }
 }
 
-foreach ($directory in @($publishDirectory, $outputDirectory)) {
+foreach ($directory in @($publishDirectory, $installerConfigDirectory, $outputDirectory)) {
     $resolvedDirectory = [IO.Path]::GetFullPath($directory)
     if (-not $resolvedDirectory.StartsWith("$installerWorkDirectory\", [StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to remove a directory outside the installer work directory: $resolvedDirectory"
@@ -35,15 +36,29 @@ foreach ($directory in @($publishDirectory, $outputDirectory)) {
 }
 
 if (Test-Path -LiteralPath $publishDirectory) { Remove-Item -LiteralPath $publishDirectory -Recurse -Force }
+if (Test-Path -LiteralPath $installerConfigDirectory) { Remove-Item -LiteralPath $installerConfigDirectory -Recurse -Force }
 if (Test-Path -LiteralPath $outputDirectory) { Remove-Item -LiteralPath $outputDirectory -Recurse -Force }
-New-Item -ItemType Directory -Path $publishDirectory, $outputDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $publishDirectory, $installerConfigDirectory, $outputDirectory -Force | Out-Null
+
+$configurationTemplate = [IO.File]::ReadAllText(
+    (Join-Path $repositoryRoot 'buckettie.example.json'),
+    [Text.Encoding]::UTF8)
+foreach ($language in @('ja-JP', 'en-US')) {
+    $localizedConfiguration = $configurationTemplate.Replace(
+        '"language": "auto"',
+        '"language": "' + $language + '"')
+    [IO.File]::WriteAllText(
+        (Join-Path $installerConfigDirectory "buckettie.$language.json"),
+        $localizedConfiguration,
+        [Text.UTF8Encoding]::new($false))
+}
 
 foreach ($project in $projects) {
     dotnet publish (Join-Path $repositoryRoot $project) -c Release -r $RuntimeIdentifier --self-contained true -o $publishDirectory --nologo --no-restore
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed: $project" }
 }
 
-dotnet build $installerProject -c Release --nologo --no-restore -p:DisplayVersion=$DisplayVersion -p:ProductVersion=$ProductVersion -p:PublishDir=$publishDirectory -p:OutputPath=$outputDirectory
+dotnet build $installerProject -c Release --nologo --no-restore -p:DisplayVersion=$DisplayVersion -p:ProductVersion=$ProductVersion -p:PublishDir=$publishDirectory -p:InstallerConfigDir=$installerConfigDirectory -p:OutputPath=$outputDirectory
 if ($LASTEXITCODE -ne 0) { throw 'MSI build failed.' }
 
 $msiPath = Join-Path $outputDirectory "Buckettie-$DisplayVersion-win-x64.msi"

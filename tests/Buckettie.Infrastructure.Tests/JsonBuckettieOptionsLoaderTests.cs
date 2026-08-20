@@ -37,8 +37,38 @@ public sealed class JsonBuckettieOptionsLoaderTests
 
         result.IsValid.Should().BeTrue();
         result.Options!.Repositories["buckettie"].RequireCleanWorkingTree.Should().BeTrue();
+        result.Options.Language.Should().Be("auto");
         result.Options.McpPort.Should().Be(45450);
         result.Options.McpPath.Should().Be("/mcp");
+    }
+
+    [Theory]
+    [InlineData("ja-JP")]
+    [InlineData("en-US")]
+    public async Task LoadAsync_WhenLanguageIsSupported_ReturnsSelectedLanguage(string language)
+    {
+        string json = CreateRootJson(
+            "\"buckettie\":" + ValidRepositoryJson,
+            $"\"language\":\"{language}\",");
+        await using MemoryStream stream = CreateStream(json);
+
+        ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeTrue();
+        result.Options!.Language.Should().Be(language);
+    }
+
+    [Fact]
+    public async Task LoadAsync_WhenLanguageIsUnsupported_ReturnsLanguageError()
+    {
+        string json = CreateRootJson(
+            "\"buckettie\":" + ValidRepositoryJson,
+            "\"language\":\"fr-FR\",");
+        await using MemoryStream stream = CreateStream(json);
+
+        ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
+
+        result.Errors.Should().ContainSingle().Which.Code.Should().Be(ConfigurationErrorCode.InvalidLanguage);
     }
 
     [Theory]

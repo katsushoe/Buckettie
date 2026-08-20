@@ -14,6 +14,7 @@ public enum ConfigurationErrorCode
     InvalidTagPattern,
     InvalidMcpPort,
     InvalidMcpPath,
+    InvalidLanguage,
 }
 
 /// <summary>

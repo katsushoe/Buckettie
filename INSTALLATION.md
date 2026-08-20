@@ -2,7 +2,7 @@
 
 ## MSI (Recommended)
 
-Run `Buckettie-<version>-win-x64.msi` as an administrator. It installs the self-contained binaries, configuration template, and documentation below `%ProgramFiles%\Buckettie` by default and registers the `Buckettie` Windows Service. The service remains stopped until configuration and token registration are complete. Set `INSTALLROOT` for another root.
+Run `Buckettie-<version>-win-x64.msi` as an administrator and select Japanese or English when prompted. It installs the self-contained binaries, a `buckettie.json` file containing the selected `language`, a configuration template, and documentation below `%ProgramFiles%\Buckettie` by default and registers the `Buckettie` Windows Service. Existing configuration files are preserved during upgrades. The service remains stopped until configuration and token registration are complete. Set `INSTALLROOT` for another root.
 
 ```powershell
 msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="F:\Buckettie"

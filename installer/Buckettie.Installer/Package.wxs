@@ -1,16 +1,44 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
     Name="Buckettie"
     Manufacturer="Katsushoe"
     Version="$(ProductVersion)"
     UpgradeCode="DE2DA1AB-8E53-4EFC-BE41-3675B713FB78"
     Language="1041"
+    Codepage="932"
     Scope="perMachine"
     InstallerVersion="500">
 
     <SummaryInformation Description="Buckettie Bitbucket Cloud MCP Server" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of Buckettie is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Property Id="BUCKETTIE_LANGUAGE" Value="ja-JP" Secure="yes" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLROOT" />
+
+    <UI>
+      <Dialog Id="LanguageDlg" Width="370" Height="270" Title="[ProductName] セットアップ">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="25"
+                 Transparent="yes" NoPrefix="yes" Text="表示言語 / Display language" />
+        <Control Id="Description" Type="Text" X="25" Y="40" Width="320" Height="35"
+                 Text="Buckettieで使用する表示言語を選択してください。&#x0D;&#x0A;Select the language used by Buckettie." />
+        <Control Id="Language" Type="RadioButtonGroup" X="35" Y="85" Width="300" Height="70" Property="BUCKETTIE_LANGUAGE">
+          <RadioButtonGroup Property="BUCKETTIE_LANGUAGE">
+            <RadioButton Value="ja-JP" X="0" Y="0" Width="250" Height="18" Text="日本語" />
+            <RadioButton Value="en-US" X="0" Y="25" Width="250" Height="18" Text="English" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="戻る(&amp;B)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="次へ(&amp;N)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="キャンセル">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="LanguageDlg" Order="5" Condition="NOT Installed" />
+      <Publish Dialog="LanguageDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" />
+      <Publish Dialog="LanguageDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LanguageDlg" Order="5" Condition="NOT Installed" />
+    </UI>
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLROOT" Name="Buckettie">
@@ -62,8 +90,17 @@
 
   <Fragment>
     <ComponentGroup Id="ConfigurationComponents" Directory="CONFIGDIR">
-      <Component Id="ConfigurationTemplateComponent" Guid="*" Permanent="yes" NeverOverwrite="yes">
-        <File Id="ConfigurationTemplate" Source="..\..\buckettie.example.json" Name="buckettie.example.json" KeyPath="yes" />
+      <Component Id="JapaneseConfigurationComponent" Guid="2F6C87BD-8583-4C60-8F44-89AF813A47C1" Permanent="yes" NeverOverwrite="yes" Condition="BUCKETTIE_LANGUAGE = &quot;ja-JP&quot;">
+        <File Id="JapaneseConfiguration" Source="$(InstallerConfigDir)\buckettie.ja-JP.json" Name="buckettie.json" ShortName="BUCKETJA.JSN" KeyPath="yes" />
+      </Component>
+      <Component Id="JapaneseConfigurationTemplateComponent" Guid="1976D771-C5E2-4E8C-8D48-4C0895E52EB8" Permanent="yes" NeverOverwrite="yes" Condition="BUCKETTIE_LANGUAGE = &quot;ja-JP&quot;">
+        <File Id="JapaneseConfigurationTemplate" Source="$(InstallerConfigDir)\buckettie.ja-JP.json" Name="buckettie.example.json" ShortName="EXAMPLJA.JSN" KeyPath="yes" />
+      </Component>
+      <Component Id="EnglishConfigurationComponent" Guid="A4F60897-F077-40DF-9B13-C04562662B8B" Permanent="yes" NeverOverwrite="yes" Condition="BUCKETTIE_LANGUAGE = &quot;en-US&quot;">
+        <File Id="EnglishConfiguration" Source="$(InstallerConfigDir)\buckettie.en-US.json" Name="buckettie.json" ShortName="BUCKETEN.JSN" KeyPath="yes" />
+      </Component>
+      <Component Id="EnglishConfigurationTemplateComponent" Guid="3F8FF938-E73A-4947-984A-B01BF7145831" Permanent="yes" NeverOverwrite="yes" Condition="BUCKETTIE_LANGUAGE = &quot;en-US&quot;">
+        <File Id="EnglishConfigurationTemplate" Source="$(InstallerConfigDir)\buckettie.en-US.json" Name="buckettie.example.json" ShortName="EXAMPLEN.JSN" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>
