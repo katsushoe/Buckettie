@@ -84,11 +84,13 @@ internal sealed class ApprovalForm : Form
     /// <inheritdoc />
     protected override void OnShown(EventArgs e)
     {
+        base.OnShown(e);
         Rectangle desktop = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
         Location = new Point(
             desktop.Left + Math.Max(0, (desktop.Width - Width) / 2),
             desktop.Top + Math.Max(0, (desktop.Height - Height) / 2));
-        base.OnShown(e);
+        BringToFront();
+        Activate();
     }
 
     private string FormatCountdown(int remainingSeconds) =>
