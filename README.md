@@ -4,12 +4,12 @@
 
 Buckettie is a Windows gateway that lets MCP clients operate explicitly allowed local Git repositories and Bitbucket Cloud repositories. Repository allowlists, branch protection, audit logs, and DPAPI-protected API tokens expose only the operations an AI client needs.
 
-Current release: `1.2.0.3`
+Current release: `1.3.0.0`
 
 ## Getting Started
 
 1. Install the MSI package or extract the binary archive.
-2. Copy `buckettie.example.json` to `<install-root>\config\buckettie.json` and configure a repository.
+2. For an MSI installation, edit the generated `<install-root>\config\buckettie.json`; for ZIP, copy `buckettie.example.json` to that path first.
 3. Register its API token, start the service, and run diagnostics.
 4. Register `http://127.0.0.1:45450/mcp` in the MCP client.
 
