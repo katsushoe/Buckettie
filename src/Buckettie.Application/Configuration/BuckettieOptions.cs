@@ -5,6 +5,9 @@
 /// </summary>
 public sealed record BuckettieOptions
 {
+    /// <summary>UI表示言語です。auto、ja-JP、en-USのいずれかを指定します。</summary>
+    public string Language { get; init; } = "auto";
+
     /// <summary>MCP ServerがlocalhostでListenするTCP portです。</summary>
     public int McpPort { get; init; } = 45450;
 

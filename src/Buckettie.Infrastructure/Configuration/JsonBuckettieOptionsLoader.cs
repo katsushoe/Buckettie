@@ -143,6 +143,11 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
 
     private static ConfigurationError? ValidateValues(BuckettieOptions options)
     {
+        if (options.Language is not ("auto" or "ja-JP" or "en-US"))
+        {
+            return new(ConfigurationErrorCode.InvalidLanguage, "language");
+        }
+
         if (options.McpPort is < 1 or > 65_535)
         {
             return new(ConfigurationErrorCode.InvalidMcpPort, "mcp_port");

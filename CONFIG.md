@@ -4,7 +4,7 @@
 
 ## Configuration File
 
-The default file is `..\config\buckettie.json` relative to the executable. Select another file with `--config <path>`. The file is strict UTF-8 JSON: property names are case-sensitive `snake_case`, and unknown properties and comments are rejected.
+The default file is `..\config\buckettie.json` relative to the executable. Select another file with `--config <path>`. The file is strict UTF-8 JSON: property names are case-sensitive `snake_case`, and unknown properties and comments are rejected. `language` controls interactive UI text: use `ja-JP`, `en-US`, or `auto` to follow the Windows UI language. The MSI writes the language selected during setup.
 
 See [`buckettie.example.json`](buckettie.example.json) for a complete example.
 

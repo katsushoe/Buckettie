@@ -1,4 +1,5 @@
 {
+  "language": "auto",
   "mcp_port": 45450,
   "mcp_path": "/mcp",
   "atlassian_email": "developer@example.com",

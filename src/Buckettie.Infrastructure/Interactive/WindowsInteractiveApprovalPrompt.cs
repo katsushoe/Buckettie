@@ -13,9 +13,10 @@ public sealed class WindowsInteractiveApprovalPrompt : IInteractiveApprovalPromp
     private readonly IApprovalProcessLauncher _processLauncher;
     private readonly IApprovalPipeTransport _pipeTransport;
     private readonly string _approvalPromptExecutable;
+    private readonly string _language;
 
     /// <summary>実運用向けのWindows実装で初期化します。</summary>
-    public WindowsInteractiveApprovalPrompt(string approvalPromptExecutable)
+    public WindowsInteractiveApprovalPrompt(string approvalPromptExecutable, string language = "auto")
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -23,10 +24,12 @@ public sealed class WindowsInteractiveApprovalPrompt : IInteractiveApprovalPromp
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(approvalPromptExecutable);
+        ArgumentException.ThrowIfNullOrWhiteSpace(language);
         _sessionTokenProvider = new WtsSessionTokenProvider();
         _processLauncher = new TaskSchedulerProcessLauncher();
         _pipeTransport = new NamedPipeApprovalTransport();
         _approvalPromptExecutable = approvalPromptExecutable;
+        _language = language;
     }
 
     /// <summary>テスト用にSeamをすべて注入して初期化します。</summary>
@@ -34,16 +37,19 @@ public sealed class WindowsInteractiveApprovalPrompt : IInteractiveApprovalPromp
         ISessionTokenProvider sessionTokenProvider,
         IApprovalProcessLauncher processLauncher,
         IApprovalPipeTransport pipeTransport,
-        string approvalPromptExecutable)
+        string approvalPromptExecutable,
+        string language = "auto")
     {
         ArgumentNullException.ThrowIfNull(sessionTokenProvider);
         ArgumentNullException.ThrowIfNull(processLauncher);
         ArgumentNullException.ThrowIfNull(pipeTransport);
         ArgumentException.ThrowIfNullOrWhiteSpace(approvalPromptExecutable);
+        ArgumentException.ThrowIfNullOrWhiteSpace(language);
         _sessionTokenProvider = sessionTokenProvider;
         _processLauncher = processLauncher;
         _pipeTransport = pipeTransport;
         _approvalPromptExecutable = approvalPromptExecutable;
+        _language = language;
     }
 
     /// <inheritdoc />
@@ -75,7 +81,8 @@ public sealed class WindowsInteractiveApprovalPrompt : IInteractiveApprovalPromp
                 return ApprovalPromptOutcome.Failure(ApprovalOutcome.TimedOut);
             }
 
-            ApprovalOutcome outcome = await server.ExchangeAsync(request, timeout, cancellationToken)
+            ApprovalOutcome outcome = await server.ExchangeAsync(
+                    request with { Language = _language }, timeout, cancellationToken)
                 .ConfigureAwait(false);
             return outcome switch
             {
