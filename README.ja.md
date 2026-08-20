@@ -4,12 +4,12 @@
 
 Buckettieは、許可したローカルGitリポジトリとBitbucket CloudをMCPクライアントから操作するWindows向けゲートウェイです。リポジトリAllowlist、ブランチ保護、監査ログ、DPAPIで保護したAPI Tokenにより、AIクライアントへ必要な操作だけを公開します。
 
-現在のリリース：`1.2.0.3`
+現在のリリース：`1.3.0.0`
 
 ## はじめに
 
 1. MSIをインストールするか、バイナリアーカイブを展開します。
-2. `buckettie.example.json`を`<install-root>\config\buckettie.json`へコピーし、リポジトリを設定します。
+2. MSI版では生成された`<install-root>\config\buckettie.json`を編集し、ZIP版では先に`buckettie.example.json`をそのパスへコピーします。
 3. API Tokenを登録し、サービスを起動して診断します。
 4. MCPクライアントへ`http://127.0.0.1:45450/mcp`を登録します。
 

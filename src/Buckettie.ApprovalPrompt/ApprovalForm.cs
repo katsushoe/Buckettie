@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 using System.Windows.Forms;
 using Buckettie.Application.Interactive;
 
@@ -13,6 +14,7 @@ internal sealed class ApprovalForm : Form
     private const int TimeoutSeconds = 120;
     private readonly System.Windows.Forms.Timer _countdownTimer;
     private readonly Label _countdownLabel;
+    private readonly ApprovalFormText _text;
     private int _remainingSeconds = TimeoutSeconds;
 
     /// <summary>承認Dialogを構築します。</summary>
@@ -20,19 +22,20 @@ internal sealed class ApprovalForm : Form
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        Text = "Buckettie - Repository Registration Approval";
+        _text = ApprovalFormText.ForLanguage(request.Language, CultureInfo.CurrentUICulture);
+        Text = _text.Title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
-        StartPosition = FormStartPosition.CenterScreen;
+        StartPosition = FormStartPosition.Manual;
         MinimizeBox = false;
         MaximizeBox = false;
         TopMost = true;
         ClientSize = new Size(480, 300);
 
-        AddField("Repository ID", request.RepositoryId, 16);
-        AddField("Workspace", request.Workspace, 56);
-        AddField("Slug", request.Slug, 96);
-        AddField("Local Root", request.LocalRoot, 136);
-        AddField("Remote URL", request.RemoteUrl, 176);
+        AddField(_text.RepositoryId, request.RepositoryId, 16);
+        AddField(_text.Workspace, request.Workspace, 56);
+        AddField(_text.Slug, request.Slug, 96);
+        AddField(_text.LocalRoot, request.LocalRoot, 136);
+        AddField(_text.RemoteUrl, request.RemoteUrl, 176);
 
         _countdownLabel = new Label
         {
@@ -44,14 +47,14 @@ internal sealed class ApprovalForm : Form
 
         Button approveButton = new()
         {
-            Text = "&Approve",
+            Text = _text.Approve,
             DialogResult = DialogResult.Yes,
             Location = new Point(232, 248),
             Size = new Size(110, 32),
         };
         Button denyButton = new()
         {
-            Text = "&Deny",
+            Text = _text.Deny,
             DialogResult = DialogResult.No,
             Location = new Point(352, 248),
             Size = new Size(110, 32),
@@ -78,8 +81,20 @@ internal sealed class ApprovalForm : Form
         }
     }
 
-    private static string FormatCountdown(int remainingSeconds) =>
-        $"Auto-deny in {remainingSeconds}s if no response.";
+    /// <inheritdoc />
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        Rectangle desktop = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
+        Location = new Point(
+            desktop.Left + Math.Max(0, (desktop.Width - Width) / 2),
+            desktop.Top + Math.Max(0, (desktop.Height - Height) / 2));
+        BringToFront();
+        Activate();
+    }
+
+    private string FormatCountdown(int remainingSeconds) =>
+        string.Format(CultureInfo.CurrentUICulture, _text.CountdownFormat, remainingSeconds);
 
     private void AddField(string label, string value, int y)
     {

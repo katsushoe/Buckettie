@@ -3,5 +3,6 @@ obj/
 .vs/
 TestResults/
 .local/
+CR_HANDOFF.md
 *.user
 *.suo

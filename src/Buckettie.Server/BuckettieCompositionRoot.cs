@@ -82,7 +82,7 @@ public static class BuckettieCompositionRoot
         services.AddSingleton<IBitbucketRepositoryGateway, BitbucketRepositoryGateway>();
         services.AddSingleton<RepositoryRegistrationValidator>();
         services.AddSingleton<IInteractiveApprovalPrompt>(
-            _ => new WindowsInteractiveApprovalPrompt(approvalPromptExecutable));
+            _ => new WindowsInteractiveApprovalPrompt(approvalPromptExecutable, options.Language));
         services.AddSingleton<RepositoryMutationGate>();
         services.AddSingleton<IRepositoryRegistrationService>(provider => new RepositoryRegistrationService(
             provider.GetRequiredService<RepositoryRegistrationValidator>(),

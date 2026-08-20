@@ -33,7 +33,8 @@ public sealed record ApprovalPromptRequest(
     string Workspace,
     string Slug,
     string LocalRoot,
-    string RemoteUrl);
+    string RemoteUrl,
+    string Language = "auto");
 
 /// <summary>承認要求の結果です。</summary>
 public sealed record ApprovalPromptOutcome(ApprovalOutcome Outcome)

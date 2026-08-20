@@ -2,10 +2,15 @@
   <PropertyGroup>
     <OutputType>Package</OutputType>
     <Platform>x64</Platform>
-    <ProductVersion Condition="'$(ProductVersion)' == ''">1.2.2</ProductVersion>
-    <DisplayVersion Condition="'$(DisplayVersion)' == ''">1.2.0.2</DisplayVersion>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.3.0</ProductVersion>
+    <DisplayVersion Condition="'$(DisplayVersion)' == ''">1.3.0.0</DisplayVersion>
     <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildThisFileDirectory)..\..\.local\installer\publish</PublishDir>
+    <InstallerConfigDir Condition="'$(InstallerConfigDir)' == ''">$(MSBuildThisFileDirectory)..\..\.local\installer\config</InstallerConfigDir>
     <OutputName>Buckettie-$(DisplayVersion)-win-x64</OutputName>
-    <DefineConstants>ProductVersion=$(ProductVersion);PublishDir=$(PublishDir);$(DefineConstants)</DefineConstants>
+    <SuppressIces>ICE30</SuppressIces>
+    <DefineConstants>ProductVersion=$(ProductVersion);PublishDir=$(PublishDir);InstallerConfigDir=$(InstallerConfigDir);$(DefineConstants)</DefineConstants>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+  </ItemGroup>
 </Project>
