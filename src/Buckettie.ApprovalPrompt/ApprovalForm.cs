@@ -29,18 +29,18 @@ internal sealed class ApprovalForm : Form
         MinimizeBox = false;
         MaximizeBox = false;
         TopMost = true;
-        ClientSize = new Size(480, 300);
+        ClientSize = new Size(640, 480);
 
         AddField(_text.RepositoryId, request.RepositoryId, 16);
-        AddField(_text.Workspace, request.Workspace, 56);
-        AddField(_text.Slug, request.Slug, 96);
-        AddField(_text.LocalRoot, request.LocalRoot, 136);
-        AddField(_text.RemoteUrl, request.RemoteUrl, 176);
+        AddField(_text.Workspace, request.Workspace, 76);
+        AddField(_text.Slug, request.Slug, 136);
+        AddField(_text.LocalRoot, request.LocalRoot, 196);
+        AddField(_text.RemoteUrl, request.RemoteUrl, 256);
 
         _countdownLabel = new Label
         {
             AutoSize = true,
-            Location = new Point(16, 220),
+            Location = new Point(16, 400),
             Text = FormatCountdown(_remainingSeconds),
         };
         Controls.Add(_countdownLabel);
@@ -49,14 +49,14 @@ internal sealed class ApprovalForm : Form
         {
             Text = _text.Approve,
             DialogResult = DialogResult.Yes,
-            Location = new Point(232, 248),
+            Location = new Point(392, 428),
             Size = new Size(110, 32),
         };
         Button denyButton = new()
         {
             Text = _text.Deny,
             DialogResult = DialogResult.No,
-            Location = new Point(352, 248),
+            Location = new Point(512, 428),
             Size = new Size(110, 32),
         };
         Controls.Add(approveButton);
@@ -110,7 +110,7 @@ internal sealed class ApprovalForm : Form
             Text = value,
             Location = new Point(16, y + 18),
             AutoSize = true,
-            MaximumSize = new Size(448, 0),
+            MaximumSize = new Size(608, 0),
         });
     }
 
