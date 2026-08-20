@@ -79,9 +79,11 @@ public sealed class BitbucketRemoteUrlValidator
             return false;
         }
 
-        return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            && string.IsNullOrEmpty(uri.UserInfo)
-            && uri.IsDefaultPort;
+        bool isHttps = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrEmpty(uri.UserInfo);
+        bool isSsh = string.Equals(uri.Scheme, Uri.UriSchemeSsh, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(uri.UserInfo, "git", StringComparison.Ordinal);
+        return (isHttps || isSsh) && uri.IsDefaultPort;
     }
 
     /// <summary>解析済みBitbucket Remoteの座標です。</summary>
