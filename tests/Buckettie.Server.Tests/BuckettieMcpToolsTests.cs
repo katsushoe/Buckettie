@@ -187,6 +187,19 @@ public sealed class BuckettieMcpToolsTests
             new BuckettieToolError("protected_branch", "Direct push to the protected branch is not allowed.")));
     }
 
+    [Fact]
+    public async Task MapGitAsync_WhenLanguageIsJapanese_ReturnsJapaneseMessageAndStableCode()
+    {
+        GitGatewayResult gatewayResult = GitGatewayResult.Failure(
+            "push", "example", GitGatewayError.ProtectedBranch, "main");
+
+        BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
+            Task.FromResult(gatewayResult), "ja-JP");
+
+        result.Error.Should().Be(new BuckettieToolError(
+            "protected_branch", "保護ブランチへの直接pushは許可されていません。"));
+    }
+
     [Theory]
     [InlineData("pr_get", "pull_request_not_found")]
     [InlineData("pr_diff", "pull_request_not_found")]

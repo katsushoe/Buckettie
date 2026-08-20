@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 
 namespace Buckettie.Cli;
 
@@ -41,9 +42,10 @@ internal static class CliApplication
         ArgumentNullException.ThrowIfNull(args);
         string configPath = GetConfigPath(args);
         string[] command = RemoveConfigOption(args);
+        bool japanese = ResolveJapanese(configPath);
         if (command.Length == 0 || command[0] is "help" or "--help" or "-h")
         {
-            WriteHelp(output);
+            WriteHelp(output, japanese);
             return 0;
         }
 
@@ -62,7 +64,8 @@ internal static class CliApplication
 
         WindowsServiceManager serviceManager = new(
             serviceExecutor ?? new ScServiceCommandExecutor(),
-            AppContext.BaseDirectory);
+            AppContext.BaseDirectory,
+            japanese);
         int serviceExitCode = await serviceManager.ExecuteAsync(command, output, cancellationToken).ConfigureAwait(false);
         if (serviceExitCode >= 0) return serviceExitCode;
 
@@ -82,7 +85,7 @@ internal static class CliApplication
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            error.WriteLine($"[NG] Config: {exception.GetType().Name}");
+            error.WriteLine($"[NG] {(japanese ? "設定" : "Config")}: {exception.GetType().Name}");
             return 2;
         }
 
@@ -92,7 +95,7 @@ internal static class CliApplication
             {
                 foreach (ConfigurationError item in composition.Errors)
                 {
-                    error.WriteLine($"[NG] Config: {item.Code} ({item.Path})");
+                    error.WriteLine($"[NG] {(japanese ? "設定" : "Config")}: {item.Code} ({item.Path})");
                 }
                 return 2;
             }
@@ -111,7 +114,7 @@ internal static class CliApplication
                         services, output, "bitbucket_repository_unregister", repository, [], cancellationToken)
                         .ConfigureAwait(false),
                 ["repo", "update", var repository, .. var updateArgs] =>
-                    await UpdateRepositoryAsync(services, repository, updateArgs, output, error, cancellationToken).ConfigureAwait(false),
+                    await UpdateRepositoryAsync(services, repository, updateArgs, output, error, japanese, cancellationToken).ConfigureAwait(false),
                 ["auth", "test"] => TestAuthentication(services, output),
                 ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader),
                 ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output),
@@ -119,7 +122,7 @@ internal static class CliApplication
                 ["mcp", "test"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "tools"] => await TestMcpAsync(services, output, true, cancellationToken).ConfigureAwait(false),
                 ["doctor"] => await DoctorAsync(services, output, cancellationToken).ConfigureAwait(false),
-                _ => UnknownCommand(error),
+                _ => UnknownCommand(error, japanese),
             };
         }
     }
@@ -221,7 +224,7 @@ internal static class CliApplication
     }
 
     private static async Task<int> UpdateRepositoryAsync(IServiceProvider services, string repository,
-        string[] rest, TextWriter output, TextWriter error, CancellationToken cancellationToken)
+        string[] rest, TextWriter output, TextWriter error, bool japanese, CancellationToken cancellationToken)
     {
         string? directPushBranches = GetOption(rest, "--direct-push-branches");
         string? pullBranches = GetOption(rest, "--pull-branches");
@@ -231,9 +234,11 @@ internal static class CliApplication
         if (directPushBranches is null || pullBranches is null || protectedBranches is null
             || tagTargetBranch is null || tagPattern is null)
         {
-            error.WriteLine(
-                "repo update requires --direct-push-branches, --pull-branches, --protected-branches, " +
-                "--tag-target-branch, and --tag-pattern (comma-separated branch lists).");
+            error.WriteLine(japanese
+                ? "repo updateには--direct-push-branches、--pull-branches、--protected-branches、" +
+                  "--tag-target-branch、--tag-patternが必要です（ブランチ一覧はカンマ区切り）。"
+                : "repo update requires --direct-push-branches, --pull-branches, --protected-branches, " +
+                  "--tag-target-branch, and --tag-pattern (comma-separated branch lists).");
             return 2;
         }
 
@@ -277,7 +282,8 @@ internal static class CliApplication
         }
         catch (HttpRequestException)
         {
-            output.WriteLine($"[NG] {toolName}: {repository} (service not reachable; is Buckettie running?)");
+            bool japanese = BuckettieLanguage.IsJapanese(options.Language);
+            output.WriteLine($"[NG] {toolName}: {repository} ({(japanese ? "サービスに接続できません。Buckettieが起動しているか確認してください。" : "service not reachable; is Buckettie running?")})");
             return 1;
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -369,7 +375,11 @@ internal static class CliApplication
     }
 
     private static int WriteOk(TextWriter output, string name) { output.WriteLine($"[OK] {name}"); return 0; }
-    private static int UnknownCommand(TextWriter error) { error.WriteLine("Unknown command. Run 'buckettie help'."); return 2; }
+    private static int UnknownCommand(TextWriter error, bool japanese)
+    {
+        error.WriteLine(japanese ? "不明なコマンドです。'buckettie help'を実行してください。" : "Unknown command. Run 'buckettie help'.");
+        return 2;
+    }
 
     private static string GetConfigPath(string[] args)
     {
@@ -387,7 +397,42 @@ internal static class CliApplication
         return index < 0 ? args : args.Where((_, position) => position != index && position != index + 1).ToArray();
     }
 
-    private static void WriteHelp(TextWriter output) => output.WriteLine("""
+    private static bool ResolveJapanese(string configPath)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(configPath));
+            string? language = document.RootElement.TryGetProperty("language", out JsonElement value)
+                ? value.GetString()
+                : null;
+            return BuckettieLanguage.IsJapanese(language, CultureInfo.CurrentUICulture);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static void WriteHelp(TextWriter output, bool japanese) => output.WriteLine(japanese ? """
+        使用方法:
+        buckettie doctor
+        buckettie start|stop|restart|status
+        buckettie service install|uninstall|status
+        buckettie config check|show
+        buckettie repo list|status <repository>
+        buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X]
+        buckettie repo unregister <repository>
+        buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
+            --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
+        repo register/unregister/updateは稼働中サービスのMCPエンドポイントを呼び出します。
+        register/updateはサーバーのデスクトップに承認ダイアログを表示し、最大120秒待機します。
+        buckettie auth test
+        buckettie auth set|delete <repository>
+        buckettie mcp status|tools|test
+        buckettie logs
+        buckettie version
+        共通オプション: --config <path>
+        """ : """
         buckettie doctor
         buckettie start|stop|restart|status
         buckettie service install|uninstall|status
