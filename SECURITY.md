@@ -13,7 +13,7 @@ The current design is recorded in [ADR 0010](docs/adr/0010-dpapi-machine-token-s
 
 ## Git execution
 
-Buckettie exposes typed Git operations only. It does not accept shell commands, executable paths, or arbitrary Git arguments. Repository LocalRoot and HTTPS Bitbucket Remote URL are validated before every operation, and configured operands are separated from options with `--` or embedded below the fixed `refs/remotes/` namespace. Each process trusts only that validated LocalRoot through a process-local `safe.directory`; no global Git configuration is changed. Repository status uses only local remote-tracking refs and performs no implicit network access. Inherited Git override variables are removed before process start.
+Buckettie exposes typed Git operations only. It does not accept shell commands, executable paths, or arbitrary Git arguments. Repository LocalRoot and HTTPS/SSH Bitbucket Remote URL are validated before every operation, and configured operands are separated from options with `--` or embedded below the fixed `refs/remotes/` namespace. Each process trusts only that validated LocalRoot through a process-local `safe.directory`; no global Git configuration is changed. Repository status uses only local remote-tracking refs and performs no implicit network access. Inherited Git override variables are removed before process start.
 
 The command-boundary design is recorded in [ADR 0002](docs/adr/0002-fixed-git-command-gateway.md).
 

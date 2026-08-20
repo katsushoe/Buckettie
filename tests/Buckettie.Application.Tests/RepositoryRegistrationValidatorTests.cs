@@ -36,6 +36,22 @@ public sealed class RepositoryRegistrationValidatorTests
     }
 
     [Fact]
+    public async Task ValidateAsync_WhenRemoteUsesBitbucketSsh_ReturnsDerivedCoordinates()
+    {
+        RepositoryRegistrationValidator validator = CreateValidator();
+        ConfigureValidLocalRoot();
+        _git.GetRemoteUrlAsync(LocalRoot, "origin", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("git@bitbucket.org:example-workspace/new-repo.git\n"));
+
+        RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
+            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeTrue();
+        result.Workspace.Should().Be("example-workspace");
+        result.Slug.Should().Be("new-repo");
+    }
+
+    [Fact]
     public async Task ValidateAsync_WhenRepositoryIdIsInvalid_ReturnsRepositoryIdInvalid()
     {
         RepositoryRegistrationValidator validator = CreateValidator();
