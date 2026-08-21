@@ -55,7 +55,7 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("設定済みリポジトリのローカルブランチ、HEAD、作業ツリー状態を返します。 / Returns the configured repository's local branch, HEAD, and working-tree status.")]
     public Task<BuckettieToolResult<BuckettieGitData>> RepositoryStatusAsync(
-        [Description("Buckettie repository ID.")] string repository,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(_git.GetStatusAsync(repository, cancellationToken), _language);
 
@@ -64,7 +64,7 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("設定済みBitbucketリモートからrefを取得します。 / Fetches refs from the repository's configured Bitbucket remote.")]
     public Task<BuckettieToolResult<BuckettieGitData>> FetchAsync(
-        [Description("Buckettie repository ID.")] string repository,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(_git.FetchAsync(repository, cancellationToken), _language);
 
@@ -73,7 +73,7 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("許可された現在のブランチをfast-forward限定でpullします。 / Pulls the current allowed branch using fast-forward only.")]
     public Task<BuckettieToolResult<BuckettieGitData>> PullAsync(
-        [Description("Buckettie repository ID.")] string repository,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(_git.PullAsync(repository, cancellationToken), _language);
 
@@ -82,7 +82,7 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("リポジトリと保護ブランチのポリシーを適用して現在のブランチをpushします。 / Pushes the current branch after applying repository and protected-branch policies.")]
     public Task<BuckettieToolResult<BuckettieGitData>> PushAsync(
-        [Description("Buckettie repository ID.")] string repository,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(_git.PushAsync(repository, cancellationToken), _language);
 
@@ -92,7 +92,7 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("許可されたリポジトリのBitbucketブランチを一覧表示します。 / Lists Bitbucket branches for an allowed repository.")]
     public Task<BuckettieToolResult<IReadOnlyList<BitbucketBranchInfo>>> ListBranchesAsync(
-        [Description("Buckettie repository ID.")] string repository,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.ListBranchesAsync(repository, cancellationToken), "branch_list", repository, _language);
@@ -103,8 +103,8 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("Bitbucketブランチと対象コミットハッシュを取得します。 / Gets a Bitbucket branch and its target commit hash.")]
     public Task<BuckettieToolResult<BitbucketBranchInfo>> GetBranchAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Branch name.")] string branch,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("ブランチ名。 / Branch name.")] string branch,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetBranchAsync(repository, branch, cancellationToken), "branch_get", repository, _language);
@@ -115,10 +115,10 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("Bitbucketプルリクエストを一覧表示します。状態による絞り込みが可能です。 / Lists Bitbucket pull requests, optionally filtered by state.")]
     public Task<BuckettieToolResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Optional pull-request state.")] BitbucketPullRequestState? state = null,
-        [Description("Optional exact source branch filter.")] string? source = null,
-        [Description("Optional exact destination branch filter.")] string? destination = null,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("任意のプルリクエスト状態。 / Optional pull-request state.")] BitbucketPullRequestState? state = null,
+        [Description("任意の完全一致ソースブランチフィルター。 / Optional exact source branch filter.")] string? source = null,
+        [Description("任意の完全一致宛先ブランチフィルター。 / Optional exact destination branch filter.")] string? destination = null,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.ListPullRequestsAsync(repository, state, source, destination, cancellationToken),
@@ -132,8 +132,8 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("IDを指定してBitbucketプルリクエストを取得します。 / Gets a Bitbucket pull request by ID.")]
     public Task<BuckettieToolResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Pull-request ID.")] int pullRequestId,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("プルリクエストID。 / Pull-request ID.")] int pullRequestId,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetPullRequestAsync(repository, pullRequestId, cancellationToken), "pr_get", repository, _language);
@@ -144,8 +144,8 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("Bitbucketプルリクエストの制限付きunified diffを取得します。 / Gets the bounded unified diff for a Bitbucket pull request.")]
     public Task<BuckettieToolResult<string>> GetPullRequestDiffAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Pull-request ID.")] int pullRequestId,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("プルリクエストID。 / Pull-request ID.")] int pullRequestId,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetPullRequestDiffAsync(repository, pullRequestId, cancellationToken), "pr_diff", repository, _language);
@@ -155,10 +155,10 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("設定済みdevelopからmainへの経路でプルリクエストを作成します。 / Creates a pull request using the repository's configured develop-to-main route.")]
     public Task<BuckettieToolResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Pull-request title.")] string title,
-        [Description("Pull-request description.")] string description,
-        [Description("Whether to create the pull request as a draft.")] bool draft = false,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("プルリクエストのタイトル。 / Pull-request title.")] string title,
+        [Description("プルリクエストの説明。 / Pull-request description.")] string description,
+        [Description("ドラフトとして作成するか。 / Whether to create the pull request as a draft.")] bool draft = false,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.CreatePullRequestAsync(
@@ -174,11 +174,11 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("設定済みdevelopからmainへの経路に従うOPEN状態のプルリクエストをマージします。 / Merges an OPEN pull request only when it follows the configured develop-to-main route.")]
     public Task<BuckettieToolResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Pull-request ID.")] int pullRequestId,
-        [Description("Merge strategy; RepositoryDefault uses the repository setting.")]
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("プルリクエストID。 / Pull-request ID.")] int pullRequestId,
+        [Description("マージ方式。RepositoryDefaultはリポジトリ設定を使用します。 / Merge strategy; RepositoryDefault uses the repository setting.")]
         BitbucketMergeStrategy strategy = BitbucketMergeStrategy.RepositoryDefault,
-        [Description("Optional merge commit message.")] string? message = null,
+        [Description("任意のマージコミットメッセージ。 / Optional merge commit message.")] string? message = null,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.MergePullRequestAsync(
@@ -196,7 +196,7 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("許可されたリポジトリのBitbucketタグを一覧表示します。 / Lists Bitbucket tags for an allowed repository.")]
     public Task<BuckettieToolResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
-        [Description("Buckettie repository ID.")] string repository,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.ListTagsAsync(repository, cancellationToken), "tag_list", repository, _language);
@@ -207,8 +207,8 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("Bitbucketタグと対象コミットハッシュを取得します。 / Gets a Bitbucket tag and its target commit hash.")]
     public Task<BuckettieToolResult<BitbucketTagInfo>> GetTagAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Tag name.")] string tag,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("タグ名。 / Tag name.")] string tag,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetTagAsync(repository, tag, cancellationToken), "tag_get", repository, _language);
@@ -218,9 +218,9 @@ public sealed class BuckettieMcpTools
         UseStructuredContent = true)]
     [Description("設定済み対象ブランチの現在のHEADへポリシー準拠タグを作成します。 / Creates a policy-compliant tag at the configured target branch's current HEAD.")]
     public Task<BuckettieToolResult<BitbucketTagInfo>> CreateTagAsync(
-        [Description("Buckettie repository ID.")] string repository,
-        [Description("Policy-compliant tag name.")] string tag,
-        [Description("Optional annotated-tag message.")] string? message = null,
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("ポリシー準拠のタグ名。 / Policy-compliant tag name.")] string tag,
+        [Description("任意の注釈付きタグメッセージ。 / Optional annotated-tag message.")] string? message = null,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.CreateTagAsync(repository, new BitbucketTagCreate(tag, message), cancellationToken),
@@ -236,11 +236,11 @@ public sealed class BuckettieMcpTools
         "on the server's desktop session. Workspace/Slug are always derived from the local Git remote, never " +
         "from caller input, and branch policy fields are server-defaulted.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryRegistrationData>> RegisterRepositoryAsync(
-        [Description("New Buckettie repository ID to register.")] string repository,
-        [Description("Absolute local path of the existing Git repository to register.")] string localRoot,
-        [Description("Git remote name to validate and use.")] string remote = "origin",
-        [Description("Development branch name.")] string developBranch = "develop",
-        [Description("Main branch name.")] string mainBranch = "main",
+        [Description("登録する新しいBuckettieリポジトリID。 / New Buckettie repository ID to register.")] string repository,
+        [Description("登録する既存Gitリポジトリの絶対ローカルパス。 / Absolute local path of the existing Git repository to register.")] string localRoot,
+        [Description("検証して使用するGitリモート名。 / Git remote name to validate and use.")] string remote = "origin",
+        [Description("開発ブランチ名。 / Development branch name.")] string developBranch = "develop",
+        [Description("主要ブランチ名。 / Main branch name.")] string mainBranch = "main",
         CancellationToken cancellationToken = default)
     {
         RepositoryRegistrationOutcome outcome = await _registration.RegisterAsync(
@@ -261,7 +261,7 @@ public sealed class BuckettieMcpTools
         "Removes a registered repository from the allowlist. Since this only revokes push/PR/tag " +
         "rights, no interactive approval is required.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryUnregistrationData>> UnregisterRepositoryAsync(
-        [Description("Buckettie repository ID to unregister.")] string repository,
+        [Description("登録解除するBuckettieリポジトリID。 / Buckettie repository ID to unregister.")] string repository,
         CancellationToken cancellationToken = default)
     {
         RepositoryUnregistrationOutcome outcome = await _unregistration
@@ -282,13 +282,13 @@ public sealed class BuckettieMcpTools
         "the server's desktop session. Workspace/Slug/LocalRoot/Remote/DevelopBranch/MainBranch cannot be " +
         "changed here — unregister and re-register instead.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryUpdateData>> UpdateRepositoryAsync(
-        [Description("Buckettie repository ID to update.")] string repository,
-        [Description("Branches allowed to push directly.")] HashSet<string> directPushBranches,
-        [Description("Branches allowed to be pulled.")] HashSet<string> pullBranches,
-        [Description("Branches that are protected from direct push.")] HashSet<string> protectedBranches,
-        [Description("Branch that release tags target.")] string tagTargetBranch,
-        [Description("Regular expression allowed release tag names must match.")] string tagPattern,
-        [Description("Whether push requires a clean working tree.")] bool requireCleanWorkingTree = true,
+        [Description("更新するBuckettieリポジトリID。 / Buckettie repository ID to update.")] string repository,
+        [Description("直接pushを許可するブランチ。 / Branches allowed to push directly.")] HashSet<string> directPushBranches,
+        [Description("pullを許可するブランチ。 / Branches allowed to be pulled.")] HashSet<string> pullBranches,
+        [Description("直接pushから保護するブランチ。 / Branches that are protected from direct push.")] HashSet<string> protectedBranches,
+        [Description("リリースタグの対象ブランチ。 / Branch that release tags target.")] string tagTargetBranch,
+        [Description("許可するリリースタグ名が一致すべき正規表現。 / Regular expression allowed release tag names must match.")] string tagPattern,
+        [Description("pushにクリーンな作業ツリーを要求するか。 / Whether push requires a clean working tree.")] bool requireCleanWorkingTree = true,
         CancellationToken cancellationToken = default)
     {
         RepositoryUpdateRequest request = new(

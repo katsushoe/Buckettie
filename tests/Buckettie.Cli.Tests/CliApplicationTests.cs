@@ -55,6 +55,19 @@ public sealed class CliApplicationTests : IDisposable
     }
 
     [Fact]
+    public async Task McpStatus_WhenLanguageIsJapanese_LocalizesEndpointLabel()
+    {
+        string path = WriteConfiguration("ja-JP");
+        StringWriter output = new();
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "mcp", "status"], output, new StringWriter(), TestContext.Current.CancellationToken);
+
+        exitCode.Should().Be(1);
+        output.ToString().Should().Contain("[NG] MCP エンドポイント");
+    }
+
+    [Fact]
     public async Task ConfigCheck_WhenJsonIsInvalid_DoesNotEchoInput()
     {
         Directory.CreateDirectory(_directory);
@@ -112,6 +125,7 @@ public sealed class CliApplicationTests : IDisposable
         File.WriteAllText(path, """
             {
               "language": "LANGUAGE_VALUE",
+              "mcp_port": 65534,
               "atlassian_email": "dev@example.com",
               "bitbucket_username": "developer",
               "repositories": {
