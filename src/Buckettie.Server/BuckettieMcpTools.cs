@@ -44,7 +44,7 @@ public sealed class BuckettieMcpTools
     /// <summary>稼働中のBuckettieバージョンを取得します。</summary>
     [McpServerTool(Name = "get_version", ReadOnly = true, Destructive = false, Idempotent = true,
         OpenWorld = false, UseStructuredContent = true)]
-    [Description("Returns the running Buckettie version.")]
+    [Description("稼働中のBuckettieバージョンを返します。 / Returns the running Buckettie version.")]
     public Task<BuckettieToolResult<BuckettieVersionData>> GetVersionAsync() =>
         Task.FromResult(new BuckettieToolResult<BuckettieVersionData>(
             true, "get_version", string.Empty, new BuckettieVersionData(ProductVersion), null));
@@ -53,7 +53,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_repository_status", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Returns the configured repository's local branch, HEAD, and working-tree status.")]
+    [Description("設定済みリポジトリのローカルブランチ、HEAD、作業ツリー状態を返します。 / Returns the configured repository's local branch, HEAD, and working-tree status.")]
     public Task<BuckettieToolResult<BuckettieGitData>> RepositoryStatusAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
@@ -62,7 +62,7 @@ public sealed class BuckettieMcpTools
     /// <summary>設定済みRemoteからfetchします。</summary>
     [McpServerTool(Name = "bitbucket_fetch", Destructive = false, Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Fetches refs from the repository's configured Bitbucket remote.")]
+    [Description("設定済みBitbucketリモートからrefを取得します。 / Fetches refs from the repository's configured Bitbucket remote.")]
     public Task<BuckettieToolResult<BuckettieGitData>> FetchAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
@@ -71,7 +71,7 @@ public sealed class BuckettieMcpTools
     /// <summary>現在Branchをfast-forward限定でpullします。</summary>
     [McpServerTool(Name = "bitbucket_pull", Destructive = false, Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Pulls the current allowed branch using fast-forward only.")]
+    [Description("許可された現在のブランチをfast-forward限定でpullします。 / Pulls the current allowed branch using fast-forward only.")]
     public Task<BuckettieToolResult<BuckettieGitData>> PullAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
@@ -80,7 +80,7 @@ public sealed class BuckettieMcpTools
     /// <summary>現在の許可Branchをpushします。</summary>
     [McpServerTool(Name = "bitbucket_push", Destructive = true, Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Pushes the current branch after applying repository and protected-branch policies.")]
+    [Description("リポジトリと保護ブランチのポリシーを適用して現在のブランチをpushします。 / Pushes the current branch after applying repository and protected-branch policies.")]
     public Task<BuckettieToolResult<BuckettieGitData>> PushAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
@@ -90,7 +90,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_branch_list", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Lists Bitbucket branches for an allowed repository.")]
+    [Description("許可されたリポジトリのBitbucketブランチを一覧表示します。 / Lists Bitbucket branches for an allowed repository.")]
     public Task<BuckettieToolResult<IReadOnlyList<BitbucketBranchInfo>>> ListBranchesAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
@@ -101,7 +101,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_branch_get", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Gets a Bitbucket branch and its target commit hash.")]
+    [Description("Bitbucketブランチと対象コミットハッシュを取得します。 / Gets a Bitbucket branch and its target commit hash.")]
     public Task<BuckettieToolResult<BitbucketBranchInfo>> GetBranchAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Branch name.")] string branch,
@@ -113,7 +113,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_pr_list", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Lists Bitbucket pull requests, optionally filtered by state.")]
+    [Description("Bitbucketプルリクエストを一覧表示します。状態による絞り込みが可能です。 / Lists Bitbucket pull requests, optionally filtered by state.")]
     public Task<BuckettieToolResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Optional pull-request state.")] BitbucketPullRequestState? state = null,
@@ -130,7 +130,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_pr_get", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Gets a Bitbucket pull request by ID.")]
+    [Description("IDを指定してBitbucketプルリクエストを取得します。 / Gets a Bitbucket pull request by ID.")]
     public Task<BuckettieToolResult<BitbucketPullRequestInfo>> GetPullRequestAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request ID.")] int pullRequestId,
@@ -142,7 +142,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_pr_diff", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Gets the bounded unified diff for a Bitbucket pull request.")]
+    [Description("Bitbucketプルリクエストの制限付きunified diffを取得します。 / Gets the bounded unified diff for a Bitbucket pull request.")]
     public Task<BuckettieToolResult<string>> GetPullRequestDiffAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request ID.")] int pullRequestId,
@@ -153,7 +153,7 @@ public sealed class BuckettieMcpTools
     /// <summary>設定済みdevelopからmainへのPull Requestを作成します。</summary>
     [McpServerTool(Name = "bitbucket_pr_create", Destructive = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Creates a pull request using the repository's configured develop-to-main route.")]
+    [Description("設定済みdevelopからmainへの経路でプルリクエストを作成します。 / Creates a pull request using the repository's configured develop-to-main route.")]
     public Task<BuckettieToolResult<BitbucketPullRequestInfo>> CreatePullRequestAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request title.")] string title,
@@ -172,7 +172,7 @@ public sealed class BuckettieMcpTools
     /// <summary>Policy検証後にPull Requestをmergeします。</summary>
     [McpServerTool(Name = "bitbucket_pr_merge", Destructive = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Merges an OPEN pull request only when it follows the configured develop-to-main route.")]
+    [Description("設定済みdevelopからmainへの経路に従うOPEN状態のプルリクエストをマージします。 / Merges an OPEN pull request only when it follows the configured develop-to-main route.")]
     public Task<BuckettieToolResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Pull-request ID.")] int pullRequestId,
@@ -194,7 +194,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_tag_list", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Lists Bitbucket tags for an allowed repository.")]
+    [Description("許可されたリポジトリのBitbucketタグを一覧表示します。 / Lists Bitbucket tags for an allowed repository.")]
     public Task<BuckettieToolResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
         [Description("Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
@@ -205,7 +205,7 @@ public sealed class BuckettieMcpTools
     [McpServerTool(Name = "bitbucket_tag_get", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Gets a Bitbucket tag and its target commit hash.")]
+    [Description("Bitbucketタグと対象コミットハッシュを取得します。 / Gets a Bitbucket tag and its target commit hash.")]
     public Task<BuckettieToolResult<BitbucketTagInfo>> GetTagAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Tag name.")] string tag,
@@ -216,7 +216,7 @@ public sealed class BuckettieMcpTools
     /// <summary>設定済み対象BranchのHEADへTagを作成します。</summary>
     [McpServerTool(Name = "bitbucket_tag_create", Destructive = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Creates a policy-compliant tag at the configured target branch's current HEAD.")]
+    [Description("設定済み対象ブランチの現在のHEADへポリシー準拠タグを作成します。 / Creates a policy-compliant tag at the configured target branch's current HEAD.")]
     public Task<BuckettieToolResult<BitbucketTagInfo>> CreateTagAsync(
         [Description("Buckettie repository ID.")] string repository,
         [Description("Policy-compliant tag name.")] string tag,
@@ -231,7 +231,8 @@ public sealed class BuckettieMcpTools
     /// <summary>新規RepositoryをAllowlistへ登録します。対話Desktopでの人間承認が必須です。</summary>
     [McpServerTool(Name = "bitbucket_repository_register", ReadOnly = false, Destructive = true,
         Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
-    [Description("Proposes registering a new repository in the allowlist; requires interactive human approval " +
+    [Description("新しいリポジトリの許可リスト登録を提案し、サーバーのデスクトップで対話承認を要求します。 / " +
+        "Proposes registering a new repository in the allowlist; requires interactive human approval " +
         "on the server's desktop session. Workspace/Slug are always derived from the local Git remote, never " +
         "from caller input, and branch policy fields are server-defaulted.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryRegistrationData>> RegisterRepositoryAsync(
@@ -256,7 +257,8 @@ public sealed class BuckettieMcpTools
     /// <summary>登録済みRepositoryをAllowlistから削除します。Push/PR/Tag権限を削減するだけの操作のため、承認は不要です。</summary>
     [McpServerTool(Name = "bitbucket_repository_unregister", ReadOnly = false, Destructive = true,
         Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Removes a registered repository from the allowlist. Since this only revokes push/PR/tag " +
+    [Description("登録済みリポジトリを許可リストから削除します。権限を減らす操作のため対話承認は不要です。 / " +
+        "Removes a registered repository from the allowlist. Since this only revokes push/PR/tag " +
         "rights, no interactive approval is required.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryUnregistrationData>> UnregisterRepositoryAsync(
         [Description("Buckettie repository ID to unregister.")] string repository,
@@ -274,7 +276,8 @@ public sealed class BuckettieMcpTools
     /// <summary>登録済みRepositoryのBranch Policyを修正します。対話Desktopでの人間承認が必須です。</summary>
     [McpServerTool(Name = "bitbucket_repository_update", ReadOnly = false, Destructive = true,
         Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Proposes updating a registered repository's branch policy (direct-push/pull/protected " +
+    [Description("登録済みリポジトリのブランチポリシー更新を提案し、対話承認を要求します。 / " +
+        "Proposes updating a registered repository's branch policy (direct-push/pull/protected " +
         "branches, tag target/pattern, require-clean-working-tree); requires interactive human approval on " +
         "the server's desktop session. Workspace/Slug/LocalRoot/Remote/DevelopBranch/MainBranch cannot be " +
         "changed here — unregister and re-register instead.")]

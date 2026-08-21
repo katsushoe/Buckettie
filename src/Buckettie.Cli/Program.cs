@@ -103,10 +103,10 @@ internal static class CliApplication
             IServiceProvider services = composition.Services!;
             return command switch
             {
-                ["config", "check"] => WriteOk(output, "Config"),
+                ["config", "check"] => WriteOk(output, japanese ? "設定" : "Config"),
                 ["config", "show"] => ShowConfig(services, output),
                 ["repo", "list"] => ListRepositories(services, output),
-                ["repo", "status", var repository] => await RepositoryStatusAsync(services, repository, output, cancellationToken).ConfigureAwait(false),
+                ["repo", "status", var repository] => await RepositoryStatusAsync(services, repository, output, japanese, cancellationToken).ConfigureAwait(false),
                 ["repo", "register", var repository, var localRoot, .. var rest] =>
                     await RegisterRepositoryAsync(services, repository, localRoot, rest, output, cancellationToken).ConfigureAwait(false),
                 ["repo", "unregister", var repository] =>
@@ -115,22 +115,22 @@ internal static class CliApplication
                         .ConfigureAwait(false),
                 ["repo", "update", var repository, .. var updateArgs] =>
                     await UpdateRepositoryAsync(services, repository, updateArgs, output, error, japanese, cancellationToken).ConfigureAwait(false),
-                ["auth", "test"] => TestAuthentication(services, output),
-                ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader),
-                ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output),
+                ["auth", "test"] => TestAuthentication(services, output, japanese),
+                ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader, japanese),
+                ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output, japanese),
                 ["mcp", "status"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "test"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "tools"] => await TestMcpAsync(services, output, true, cancellationToken).ConfigureAwait(false),
-                ["doctor"] => await DoctorAsync(services, output, cancellationToken).ConfigureAwait(false),
+                ["doctor"] => await DoctorAsync(services, output, japanese, cancellationToken).ConfigureAwait(false),
                 _ => UnknownCommand(error, japanese),
             };
         }
     }
 
-    private static async Task<int> DoctorAsync(IServiceProvider services, TextWriter output, CancellationToken cancellationToken)
+    private static async Task<int> DoctorAsync(IServiceProvider services, TextWriter output, bool japanese, CancellationToken cancellationToken)
     {
         int failures = 0;
-        failures += Check(output, "Config", true);
+        failures += Check(output, japanese ? "設定" : "Config", true);
         failures += Check(output, "Git", await IsGitAvailableAsync(cancellationToken).ConfigureAwait(false));
         BuckettieOptions options = services.GetRequiredService<BuckettieOptions>();
         IApiTokenStore tokens = services.GetRequiredService<IApiTokenStore>();
@@ -139,18 +139,18 @@ internal static class CliApplication
         foreach (string repository in options.Repositories.Keys.Order(StringComparer.Ordinal))
         {
             ApiTokenStoreResult token = tokens.Read(repository);
-            failures += Check(output, $"API Token: {repository}", token.IsSuccess, token.Error?.ToString());
+            failures += Check(output, $"{(japanese ? "APIトークン" : "API Token")}: {repository}", token.IsSuccess, token.Error?.ToString());
             GitGatewayResult local = await git.GetStatusAsync(repository, cancellationToken).ConfigureAwait(false);
-            failures += Check(output, $"Repository: {repository}", local.IsSuccess, local.Error?.ToString());
+            failures += Check(output, $"{(japanese ? "リポジトリ" : "Repository")}: {repository}", local.IsSuccess, local.Error?.ToString());
             BitbucketResult<BitbucketRepositoryInfo> remote = await bitbucket.GetRepositoryAsync(repository, cancellationToken).ConfigureAwait(false);
             failures += Check(output, $"Bitbucket API: {repository}", remote.IsSuccess, remote.Error?.ToString());
         }
         bool mcp = await IsMcpAvailableAsync(options, cancellationToken).ConfigureAwait(false);
-        failures += Check(output, "MCP Endpoint", mcp);
+        failures += Check(output, japanese ? "MCPエンドポイント" : "MCP Endpoint", mcp);
         return failures == 0 ? 0 : 1;
     }
 
-    private static int TestAuthentication(IServiceProvider services, TextWriter output)
+    private static int TestAuthentication(IServiceProvider services, TextWriter output, bool japanese)
     {
         BuckettieOptions options = services.GetRequiredService<BuckettieOptions>();
         IApiTokenStore tokens = services.GetRequiredService<IApiTokenStore>();
@@ -158,47 +158,49 @@ internal static class CliApplication
         foreach (string repository in options.Repositories.Keys.Order(StringComparer.Ordinal))
         {
             ApiTokenStoreResult result = tokens.Read(repository);
-            failures += Check(output, $"API Token: {repository}", result.IsSuccess, result.Error?.ToString());
+            failures += Check(output, $"{(japanese ? "APIトークン" : "API Token")}: {repository}", result.IsSuccess, result.Error?.ToString());
         }
         return failures == 0 ? 0 : 1;
     }
 
     private static int SetAuthentication(IServiceProvider services, string repository, TextWriter output,
-        TextWriter error, Func<string?>? secretReader)
+        TextWriter error, Func<string?>? secretReader, bool japanese)
     {
         if (!services.GetRequiredService<BuckettieOptions>().Repositories.ContainsKey(repository))
         {
-            output.WriteLine($"[NG] API Token: {repository} (RepositoryNotAllowed)");
+            output.WriteLine($"[NG] {(japanese ? "APIトークン" : "API Token")}: {repository} (RepositoryNotAllowed)");
             return 1;
         }
-        error.Write("Token: ");
+        error.Write(japanese ? "トークン: " : "Token: ");
         string? token = secretReader?.Invoke();
         ApiTokenStoreResult result = token is null
             ? ApiTokenStoreResult.Failure(ApiTokenStoreError.InvalidToken)
             : services.GetRequiredService<IApiTokenStore>().Save(repository, token);
-        output.WriteLine($"[{(result.IsSuccess ? "OK" : "NG")}] API Token: {repository}{(result.Error is null ? string.Empty : $" ({result.Error})")}");
+        output.WriteLine($"[{(result.IsSuccess ? "OK" : "NG")}] {(japanese ? "APIトークン" : "API Token")}: {repository}{(result.Error is null ? string.Empty : $" ({result.Error})")}");
         return result.IsSuccess ? 0 : 1;
     }
 
-    private static int DeleteAuthentication(IServiceProvider services, string repository, TextWriter output)
+    private static int DeleteAuthentication(IServiceProvider services, string repository, TextWriter output, bool japanese)
     {
         ApiTokenStoreResult result = services.GetRequiredService<IApiTokenStore>().Delete(repository);
-        output.WriteLine($"[{(result.IsSuccess ? "OK" : "NG")}] API Token deleted: {repository}");
+        output.WriteLine($"[{(result.IsSuccess ? "OK" : "NG")}] {(japanese ? "APIトークンを削除しました" : "API Token deleted")}: {repository}");
         return result.IsSuccess ? 0 : 1;
     }
 
     private static async Task<int> RepositoryStatusAsync(IServiceProvider services, string repository,
-        TextWriter output, CancellationToken cancellationToken)
+        TextWriter output, bool japanese, CancellationToken cancellationToken)
     {
         GitGatewayResult result = await services.GetRequiredService<IGitGateway>()
             .GetStatusAsync(repository, cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
-            output.WriteLine($"[NG] Repository: {repository} ({result.Error})");
+            output.WriteLine($"[NG] {(japanese ? "リポジトリ" : "Repository")}: {repository} ({result.Error})");
             return 1;
         }
-        output.WriteLine($"[OK] Repository: {repository}");
-        output.WriteLine($"branch={result.Branch ?? "-"} head={result.Status?.LocalHead ?? "-"} clean={result.Status?.WorkingTreeClean}");
+        output.WriteLine($"[OK] {(japanese ? "リポジトリ" : "Repository")}: {repository}");
+        output.WriteLine(japanese
+            ? $"ブランチ={result.Branch ?? "-"} HEAD={result.Status?.LocalHead ?? "-"} クリーン={result.Status?.WorkingTreeClean}"
+            : $"branch={result.Branch ?? "-"} head={result.Status?.LocalHead ?? "-"} clean={result.Status?.WorkingTreeClean}");
         return 0;
     }
 
