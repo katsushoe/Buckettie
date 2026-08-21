@@ -26,6 +26,34 @@ public sealed class CliApplicationTests : IDisposable
         output.ToString().Should().Contain("[OK] Config");
     }
 
+    [Theory]
+    [InlineData("ja-JP", "[OK] 設定")]
+    [InlineData("en-US", "[OK] Config")]
+    public async Task ConfigCheck_WhenLanguageIsConfigured_LocalizesOutput(string language, string expected)
+    {
+        string path = WriteConfiguration(language);
+        StringWriter output = new();
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "config", "check"], output, new StringWriter(), TestContext.Current.CancellationToken);
+
+        exitCode.Should().Be(0);
+        output.ToString().Should().Contain(expected);
+    }
+
+    [Fact]
+    public async Task Help_WhenLanguageIsJapanese_ReturnsJapaneseGuidance()
+    {
+        string path = WriteConfiguration("ja-JP");
+        StringWriter output = new();
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "help"], output, new StringWriter(), TestContext.Current.CancellationToken);
+
+        exitCode.Should().Be(0);
+        output.ToString().Should().Contain("使用方法:").And.Contain("共通オプション");
+    }
+
     [Fact]
     public async Task ConfigCheck_WhenJsonIsInvalid_DoesNotEchoInput()
     {
@@ -51,6 +79,21 @@ public sealed class CliApplicationTests : IDisposable
     }
 
     [Fact]
+    public async Task ServiceStatus_WhenLanguageIsJapanese_ReturnsJapaneseStatus()
+    {
+        string path = WriteConfiguration("ja-JP");
+        FakeServiceCommandExecutor executor = new(new(0, "STATE : 4 RUNNING"));
+        StringWriter output = new();
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "service", "status"], output, new StringWriter(),
+            TestContext.Current.CancellationToken, executor);
+
+        exitCode.Should().Be(0);
+        output.ToString().Should().Contain("[OK] サービス: 実行中");
+    }
+
+    [Fact]
     public async Task Start_WhenServiceControlFails_DoesNotExposeNativeOutput()
     {
         FakeServiceCommandExecutor executor = new(new(5, "sensitive native diagnostic"));
@@ -62,12 +105,13 @@ public sealed class CliApplicationTests : IDisposable
         executor.Arguments.Should().Equal("start", "Buckettie");
     }
 
-    private string WriteConfiguration()
+    private string WriteConfiguration(string language = "en-US")
     {
         Directory.CreateDirectory(_directory);
         string path = Path.Combine(_directory, "buckettie.json");
         File.WriteAllText(path, """
             {
+              "language": "LANGUAGE_VALUE",
               "atlassian_email": "dev@example.com",
               "bitbucket_username": "developer",
               "repositories": {
@@ -80,7 +124,7 @@ public sealed class CliApplicationTests : IDisposable
                 }
               }
             }
-            """);
+            """.Replace("LANGUAGE_VALUE", language, StringComparison.Ordinal));
         return path;
     }
 
