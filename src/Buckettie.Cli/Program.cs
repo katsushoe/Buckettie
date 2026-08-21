@@ -290,7 +290,8 @@ internal static class CliApplication
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            output.WriteLine($"[NG] {toolName}: {repository} (Timeout)");
+            bool japanese = BuckettieLanguage.IsJapanese(options.Language);
+            output.WriteLine($"[NG] {toolName}: {repository} ({(japanese ? "タイムアウト" : "Timeout")})");
             return 1;
         }
     }
@@ -314,6 +315,10 @@ internal static class CliApplication
     private static async Task<int> TestMcpAsync(IServiceProvider services, TextWriter output, bool tools, CancellationToken cancellationToken)
     {
         BuckettieOptions options = services.GetRequiredService<BuckettieOptions>();
+        bool japanese = BuckettieLanguage.IsJapanese(options.Language);
+        string label = tools
+            ? (japanese ? "ツール" : "Tools")
+            : (japanese ? "エンドポイント" : "Endpoint");
         string method = tools ? "tools/list" : "initialize";
         using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(5) };
         using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{options.McpPort}{options.McpPath}");
@@ -327,18 +332,18 @@ internal static class CliApplication
         {
             using HttpResponseMessage response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
             bool ok = response.IsSuccessStatusCode;
-            output.WriteLine($"[{(ok ? "OK" : "NG")}] MCP {(tools ? "Tools" : "Endpoint")} ({(int)response.StatusCode})");
+            output.WriteLine($"[{(ok ? "OK" : "NG")}] MCP {label} ({(int)response.StatusCode})");
             if (tools && ok) output.WriteLine(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
             return ok ? 0 : 1;
         }
         catch (HttpRequestException)
         {
-            output.WriteLine($"[NG] MCP {(tools ? "Tools" : "Endpoint")}");
+            output.WriteLine($"[NG] MCP {label}");
             return 1;
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            output.WriteLine($"[NG] MCP {(tools ? "Tools" : "Endpoint")} (Timeout)");
+            output.WriteLine($"[NG] MCP {label} ({(japanese ? "タイムアウト" : "Timeout")})");
             return 1;
         }
     }

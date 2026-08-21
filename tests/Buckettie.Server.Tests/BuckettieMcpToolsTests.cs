@@ -2,6 +2,7 @@ using FluentAssertions;
 using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Git;
 using ModelContextProtocol.Server;
+using System.ComponentModel;
 using Xunit;
 
 namespace Buckettie.Server.Tests;
@@ -74,6 +75,22 @@ public sealed class BuckettieMcpToolsTests
             "bitbucket_repository_register",
             "bitbucket_repository_unregister",
             "bitbucket_repository_update");
+    }
+
+    [Fact]
+    public void ToolMethods_WhenDescriptionsArePublished_UseBilingualMetadata()
+    {
+        DescriptionAttribute[] descriptions = typeof(BuckettieMcpTools)
+            .GetMethods()
+            .Where(method => method.GetCustomAttributes(typeof(McpServerToolAttribute), false).Length > 0)
+            .SelectMany(method => method.GetCustomAttributes(typeof(DescriptionAttribute), false)
+                .Cast<DescriptionAttribute>()
+                .Concat(method.GetParameters().SelectMany(parameter =>
+                    parameter.GetCustomAttributes(typeof(DescriptionAttribute), false).Cast<DescriptionAttribute>())))
+            .ToArray();
+
+        descriptions.Should().NotBeEmpty().And.OnlyContain(description =>
+            description.Description.Contains(" / ", StringComparison.Ordinal));
     }
 
     [Fact]
