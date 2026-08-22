@@ -18,12 +18,18 @@
 | `buckettie config show` | 有効な秘密値以外の設定を表示します。 |
 | `buckettie repo list` | 設定済みRepository IDを一覧表示します。 |
 | `buckettie repo status <id>` | ローカルRepositoryを検証して状態を表示します。 |
+| `buckettie repo fetch\|pull\|push <id>` | MCPサービス経由でポリシー検証付きGit操作を実行します。 |
+| `buckettie repo register\|unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。 |
+| `buckettie branch list <id>` / `branch get <id> <branch>` | Bitbucketブランチを一覧表示または取得します。 |
+| `buckettie pr list\|get\|diff\|create\|merge ...` | Bitbucketプルリクエストの一覧・詳細・差分・作成・マージを実行します。 |
+| `buckettie tag list\|get\|create ...` | Bitbucketタグの一覧・詳細取得とポリシー準拠タグ作成を実行します。 |
 | `buckettie auth test` | 値を表示せず各Repositoryの認証情報を読めるか確認します。 |
 | `buckettie auth set <id>` | 非表示でTokenを読み、DPAPI LocalMachineで保護して保存します。 |
 | `buckettie auth delete <id>` | Repository単位の暗号化Tokenファイルを削除します。 |
 | `buckettie mcp status` | MCP initialize Requestを実行します。 |
 | `buckettie mcp tools` | MCP Tool一覧を取得します。 |
 | `buckettie mcp test` | MCP initialize Smoke Testを実行します。 |
+| `buckettie mcp version` | 稼働中MCPサーバーのバージョンを表示します。 |
 | `buckettie logs` | 監査ログDirectoryを表示します。 |
 | `buckettie version` | CLI Assembly Versionを表示します。 |
 

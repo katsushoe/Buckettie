@@ -18,12 +18,18 @@ The management executable is `buckettie.exe`. Its default configuration is `..\c
 | `buckettie config show` | Print effective non-secret configuration. |
 | `buckettie repo list` | List configured Repository IDs. |
 | `buckettie repo status <id>` | Validate and show local repository status. |
+| `buckettie repo fetch\|pull\|push <id>` | Run the corresponding policy-checked Git operation through the MCP service. |
+| `buckettie repo register\|unregister\|update ...` | Manage the repository allowlist and branch policy through the MCP service. |
+| `buckettie branch list <id>` / `branch get <id> <branch>` | List or get Bitbucket branches. |
+| `buckettie pr list\|get\|diff\|create\|merge ...` | List, inspect, create, or merge Bitbucket pull requests. |
+| `buckettie tag list\|get\|create ...` | List, inspect, or create policy-compliant Bitbucket tags. |
 | `buckettie auth test` | Check that each repository credential is readable without printing it. |
 | `buckettie auth set <id>` | Read a Token without echo and save it with DPAPI LocalMachine protection. |
 | `buckettie auth delete <id>` | Delete the repository-scoped encrypted Token file. |
 | `buckettie mcp status` | Perform an MCP initialize request. |
 | `buckettie mcp tools` | Request the MCP tool list. |
 | `buckettie mcp test` | Perform an MCP initialize smoke test. |
+| `buckettie mcp version` | Print the running MCP server version. |
 | `buckettie logs` | Print the audit-log directory. |
 | `buckettie version` | Print the CLI assembly version. |
 
