@@ -20,7 +20,7 @@ Release date: 2026-08-23
 | File | SHA-256 |
 | --- | --- |
 | `Buckettie-1.3.5.0-win-x64.msi` | `D6F7EB8BE528DA61BB353B02EEDEEA8737CCE5470FADD33AEAACCAAA8F03E7FE` |
-| `Buckettie-1.3.5.0-win-x64.zip` | Generated during release |
+| `Buckettie-1.3.5.0-win-x64.zip` | `426B43B5273FBD283988DD20C5C04C9232944712169AB33113C1A10892EFBC16` |
 
 - Runtime: Windows x64, self-contained
 - Display version: `1.3.5.0`
@@ -31,7 +31,7 @@ Release date: 2026-08-23
 
 - Automated tests: passed (218 tests)
 - MSI build and SHA-256 hash: passed
-- ZIP release build and SHA-256 hash: pending
+- ZIP release build and SHA-256 hash: passed
 - Physical-machine upgrade: passed (service running automatically, version `1.3.5.0`, configuration check passed)
 - HTTPS-only enforcement: passed by automated registration and existing-repository operation tests
 
