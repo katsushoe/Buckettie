@@ -217,6 +217,20 @@ public sealed class BuckettieMcpToolsTests
             "protected_branch", "保護ブランチへの直接pushは許可されていません。"));
     }
 
+    [Fact]
+    public async Task MapGitAsync_WhenRemoteUsesSsh_ReturnsMigrationGuidance()
+    {
+        GitGatewayResult gatewayResult = GitGatewayResult.Failure(
+            "fetch", "example", GitGatewayError.SshRemoteNotSupported);
+
+        BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
+            Task.FromResult(gatewayResult), "ja-JP");
+
+        result.Error.Should().Be(new BuckettieToolError(
+            "ssh_remote_not_supported",
+            "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。"));
+    }
+
     [Theory]
     [InlineData("pr_get", "pull_request_not_found")]
     [InlineData("pr_diff", "pull_request_not_found")]

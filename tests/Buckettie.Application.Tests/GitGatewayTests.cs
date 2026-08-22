@@ -95,6 +95,23 @@ public sealed class GitGatewayTests
     }
 
     [Fact]
+    public async Task FetchAsync_WhenRemoteUsesSsh_ReturnsDedicatedErrorWithoutFetching()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureLocalPath();
+        _git.GetRemoteUrlAsync(RepositoryRoot, "origin", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("git@bitbucket.org:example/buckettie.git"));
+
+        GitGatewayResult result = await gateway.FetchAsync(
+            "buckettie",
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.SshRemoteNotSupported);
+        await _git.DidNotReceiveWithAnyArgs().FetchAsync(
+            default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task PullAsync_WhenBranchIsAllowed_UsesFastForwardOnlyBoundary()
     {
         GitGateway gateway = CreateGateway();

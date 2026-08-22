@@ -74,6 +74,7 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.RepositoryNotAllowed => "repository_not_allowed",
         GitGatewayError.LocalRepositoryInvalid => "local_repository_invalid",
         GitGatewayError.RemoteMismatch => "remote_mismatch",
+        GitGatewayError.SshRemoteNotSupported => "ssh_remote_not_supported",
         GitGatewayError.GitNotFound => "git_not_found",
         GitGatewayError.GitFailed => "git_failed",
         GitGatewayError.WorkingTreeDirty => "working_tree_dirty",
@@ -117,6 +118,7 @@ internal static class BuckettieToolResultMapper
             RepositoryValidationError.RepositoryAlreadyRegistered => "repository_already_registered",
             RepositoryValidationError.RepositoryNotRegistered => "repository_not_registered",
             RepositoryValidationError.RemoteUrlInvalid => "remote_url_invalid",
+            RepositoryValidationError.SshRemoteNotSupported => "ssh_remote_not_supported",
             RepositoryValidationError.TagPatternInvalid => "tag_pattern_invalid",
             RepositoryValidationError.LocalRootNotFound
                 or RepositoryValidationError.GitMetadataNotFound
@@ -157,6 +159,7 @@ internal static class BuckettieToolResultMapper
         "repository_not_allowed" => "The repository is not allowed.",
         "local_repository_invalid" => "The local repository boundary is invalid.",
         "remote_mismatch" => "The configured Git remote does not match the repository.",
+        "ssh_remote_not_supported" => "SSH Git remotes are not supported. Change the remote to the Bitbucket HTTPS URL.",
         "git_not_found" => "Git was not found.",
         "git_failed" => "The Git operation failed.",
         "working_tree_dirty" => "The working tree must be clean.",
@@ -199,6 +202,7 @@ internal static class BuckettieToolResultMapper
         "repository_not_allowed" => "このリポジトリは許可されていません。",
         "local_repository_invalid" => "ローカルリポジトリの境界が無効です。",
         "remote_mismatch" => "設定されたGitリモートがリポジトリと一致しません。",
+        "ssh_remote_not_supported" => "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。",
         "git_not_found" => "Gitが見つかりません。",
         "git_failed" => "Git操作に失敗しました。",
         "working_tree_dirty" => "作業ツリーをクリーンな状態にしてください。",

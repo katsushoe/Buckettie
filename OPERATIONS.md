@@ -26,6 +26,7 @@ After changing configuration, run `config check`, restart the service, and run `
 Repository records live in a SQLite database (`data/repositories.db`), not `buckettie.json`. Register, unregister, and update all work against the *running* service — none of them need `stop`/`restart`:
 
 - **Register**: an MCP client calls `bitbucket_repository_register` (or `buckettie repo register <repository> <local-root>`); approve or deny the Dialog that appears on the server machine's own interactive desktop session. Workspace/Slug are derived from the local Git remote and branch policy is server-defaulted.
+- **HTTPS remote required**: Buckettie rejects SSH Git remotes before registration and before every local Git operation. Change an existing remote with `git remote set-url origin https://bitbucket.org/<workspace>/<repository>.git`, then retry.
 - **Update**: `bitbucket_repository_update` (or `buckettie repo update <repository> --direct-push-branches ... --pull-branches ... --protected-branches ... --tag-target-branch ... --tag-pattern ...`) changes an existing repository's branch policy and also requires Dialog approval, since it can widen what's allowed. Workspace/Slug/LocalRoot/Remote/DevelopBranch/MainBranch cannot be changed this way — unregister and re-register instead, so the binding is re-validated against the actual Git remote.
 - **Unregister**: `bitbucket_repository_unregister` (or `buckettie repo unregister <repository>`) removes a repository immediately, with no Dialog — it only revokes rights.
 

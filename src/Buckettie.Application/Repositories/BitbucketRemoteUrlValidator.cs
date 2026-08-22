@@ -16,6 +16,11 @@ public sealed class BitbucketRemoteUrlValidator
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(remoteUrl);
 
+        if (IsSshRemote(remoteUrl))
+        {
+            return RepositoryValidationResult.Invalid(RepositoryValidationError.SshRemoteNotSupported);
+        }
+
         if (!TryParse(remoteUrl, out BitbucketRemoteCoordinates? remote) || remote is null)
         {
             return RepositoryValidationResult.Invalid(RepositoryValidationError.RemoteUrlInvalid);
@@ -30,7 +35,7 @@ public sealed class BitbucketRemoteUrlValidator
     }
 
     /// <summary>
-    /// HTTPS/SSH形式のBitbucket Remote URLからWorkspace/Slugを取り出します。
+    /// HTTPS形式のBitbucket Remote URLからWorkspace/Slugを取り出します。
     /// </summary>
     public static bool TryParse(string remoteUrl, out BitbucketRemoteCoordinates? remote)
     {
@@ -40,11 +45,7 @@ public sealed class BitbucketRemoteUrlValidator
             return false;
         }
 
-        string normalized = remoteUrl.StartsWith("git@bitbucket.org:", StringComparison.OrdinalIgnoreCase)
-            ? $"ssh://git@bitbucket.org/{remoteUrl["git@bitbucket.org:".Length..]}"
-            : remoteUrl;
-
-        if (!Uri.TryCreate(normalized, UriKind.Absolute, out Uri? uri) || !IsAllowedUri(uri))
+        if (!Uri.TryCreate(remoteUrl, UriKind.Absolute, out Uri? uri) || !IsAllowedUri(uri))
         {
             return false;
         }
@@ -67,6 +68,15 @@ public sealed class BitbucketRemoteUrlValidator
         return true;
     }
 
+    /// <summary>SSH形式のRemote URLか判定します。</summary>
+    public static bool IsSshRemote(string remoteUrl)
+    {
+        if (string.IsNullOrWhiteSpace(remoteUrl)) return false;
+        if (remoteUrl.StartsWith("git@bitbucket.org:", StringComparison.OrdinalIgnoreCase)) return true;
+        return Uri.TryCreate(remoteUrl, UriKind.Absolute, out Uri? uri)
+            && string.Equals(uri.Scheme, Uri.UriSchemeSsh, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsAllowedUri(Uri uri)
     {
         if (!string.Equals(uri.Host, BitbucketHost, StringComparison.OrdinalIgnoreCase))
@@ -79,11 +89,9 @@ public sealed class BitbucketRemoteUrlValidator
             return false;
         }
 
-        bool isHttps = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            && string.IsNullOrEmpty(uri.UserInfo);
-        bool isSsh = string.Equals(uri.Scheme, Uri.UriSchemeSsh, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(uri.UserInfo, "git", StringComparison.Ordinal);
-        return (isHttps || isSsh) && uri.IsDefaultPort;
+        return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrEmpty(uri.UserInfo)
+            && uri.IsDefaultPort;
     }
 
     /// <summary>解析済みBitbucket Remoteの座標です。</summary>

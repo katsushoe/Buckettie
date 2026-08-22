@@ -234,11 +234,11 @@ public sealed class BuckettieMcpTools
     [Description("新しいリポジトリの許可リスト登録を提案し、サーバーのデスクトップで対話承認を要求します。 / " +
         "Proposes registering a new repository in the allowlist; requires interactive human approval " +
         "on the server's desktop session. Workspace/Slug are always derived from the local Git remote, never " +
-        "from caller input, and branch policy fields are server-defaulted.")]
+        "from caller input, branch policy fields are server-defaulted, and the Git remote must use HTTPS.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryRegistrationData>> RegisterRepositoryAsync(
         [Description("登録する新しいBuckettieリポジトリID。 / New Buckettie repository ID to register.")] string repository,
         [Description("登録する既存Gitリポジトリの絶対ローカルパス。 / Absolute local path of the existing Git repository to register.")] string localRoot,
-        [Description("検証して使用するGitリモート名。 / Git remote name to validate and use.")] string remote = "origin",
+        [Description("検証して使用するHTTPS Gitリモート名。 / HTTPS Git remote name to validate and use.")] string remote = "origin",
         [Description("開発ブランチ名。 / Development branch name.")] string developBranch = "develop",
         [Description("主要ブランチ名。 / Main branch name.")] string mainBranch = "main",
         CancellationToken cancellationToken = default)
