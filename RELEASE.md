@@ -1,6 +1,6 @@
-# Release 1.3.3.0
+# Release 1.3.4.0
 
-Release date: 2026-08-21
+Release date: 2026-08-22
 
 ## Highlights
 
@@ -11,26 +11,26 @@ Release date: 2026-08-21
 - Starts the Windows service automatically after installation and major upgrade
 - Localized the remaining MCP endpoint/tool labels and timeout messages
 - Added Japanese/English descriptions to every MCP tool argument
+- Requires Bitbucket Git remotes to use HTTPS and rejects SSH with migration guidance
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.3.3.0-win-x64.msi` | `4EB58ED5C49FA7A0DF36EE9BA984E4494AF599F9E168CDDF327DADA9CB06E740` |
-| `Buckettie-1.3.3.0-win-x64.zip` | `04E0C58811F91D552B40A62322FBA098836C1CD0DE71C8986556288782990329` |
+| `Buckettie-1.3.4.0-win-x64.msi` | `01F11ED8901DDA873433578BFA27D1860157CA2A5547EA1B823F996CD420CC01` |
+| `Buckettie-1.3.4.0-win-x64.zip` | `DE68DCC72E6671741FE2F78BA7578A34F46FC9F96990F78018CFA0F1187BE7B8` |
 
 - Runtime: Windows x64, self-contained
-- Display version: `1.3.3.0`
-- Windows Installer product version: `1.3.3`
-- Tag: `v1.3.3.0`
+- Display version: `1.3.4.0`
+- Windows Installer product version: `1.3.4`
+- Tag: `v1.3.4.0`
 
 ## Validation
 
-- Automated tests: 198 passed
-- MSI release build: 0 warnings, 0 errors
+- Automated tests: passed (200 tests)
+- MSI and ZIP release builds: passed
 - MSI and ZIP SHA-256 hashes: verified
-- Physical-machine uninstall with configuration/data/log retention: passed
-- English fresh install with automatic service start and English CLI output: passed
-- Original Japanese configuration SHA-256 restoration and final install: passed
+- Physical-machine upgrade: passed (service running automatically, version `1.3.4.0`, configuration check passed)
+- HTTPS-only enforcement: passed by automated registration and existing-repository operation tests
 
 Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.

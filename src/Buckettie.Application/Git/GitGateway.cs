@@ -286,12 +286,11 @@ public sealed class GitGateway : IGitGateway
             options.Workspace,
             options.Slug,
             remote.StandardOutput.Trim());
-        return remoteValidation.IsValid
-            ? BoundaryResult.Valid(options)
-            : BoundaryResult.Invalid(GitGatewayResult.Failure(
-                operation,
-                repository,
-                GitGatewayError.RemoteMismatch));
+        if (remoteValidation.IsValid) return BoundaryResult.Valid(options);
+        GitGatewayError error = remoteValidation.Error == RepositoryValidationError.SshRemoteNotSupported
+            ? GitGatewayError.SshRemoteNotSupported
+            : GitGatewayError.RemoteMismatch;
+        return BoundaryResult.Invalid(GitGatewayResult.Failure(operation, repository, error));
     }
 
     private static GitGatewayResult? MapCommandFailure(

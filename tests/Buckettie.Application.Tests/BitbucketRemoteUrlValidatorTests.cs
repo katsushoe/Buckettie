@@ -10,8 +10,6 @@ public sealed class BitbucketRemoteUrlValidatorTests
 
     [Theory]
     [InlineData("https://bitbucket.org/example-workspace/buckettie.git")]
-    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
-    [InlineData("ssh://git@bitbucket.org/example-workspace/buckettie.git")]
     public void Validate_WhenRemoteMatchesConfiguredRepository_ReturnsValid(string remoteUrl)
     {
         RepositoryValidationResult result = _validator.Validate("example-workspace", "buckettie", remoteUrl);
@@ -20,11 +18,21 @@ public sealed class BitbucketRemoteUrlValidatorTests
     }
 
     [Theory]
+    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
+    [InlineData("ssh://git@bitbucket.org/example-workspace/buckettie.git")]
+    [InlineData("ssh://other@bitbucket.org/example-workspace/buckettie.git")]
+    [InlineData("ssh://git@bitbucket.org:2222/example-workspace/buckettie.git")]
+    public void Validate_WhenRemoteUsesSsh_ReturnsDedicatedError(string remoteUrl)
+    {
+        RepositoryValidationResult result = _validator.Validate("example-workspace", "buckettie", remoteUrl);
+
+        result.Error.Should().Be(RepositoryValidationError.SshRemoteNotSupported);
+    }
+
+    [Theory]
     [InlineData("https://example.com/example-workspace/buckettie.git")]
     [InlineData("https://token@bitbucket.org/example-workspace/buckettie.git")]
     [InlineData("file:///example-workspace/buckettie.git")]
-    [InlineData("ssh://other@bitbucket.org/example-workspace/buckettie.git")]
-    [InlineData("ssh://git@bitbucket.org:2222/example-workspace/buckettie.git")]
     [InlineData("https://bitbucket.org/example-workspace/buckettie.git?token=secret")]
     [InlineData("not-a-url")]
     public void Validate_WhenRemoteFormatIsNotAllowed_ReturnsInvalidUrl(string remoteUrl)
@@ -47,8 +55,6 @@ public sealed class BitbucketRemoteUrlValidatorTests
 
     [Theory]
     [InlineData("https://bitbucket.org/example-workspace/buckettie.git")]
-    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
-    [InlineData("ssh://git@bitbucket.org/example-workspace/buckettie.git")]
     public void TryParse_WhenUrlIsValid_ReturnsWorkspaceAndSlug(string remoteUrl)
     {
         bool parsed = BitbucketRemoteUrlValidator.TryParse(
@@ -65,6 +71,8 @@ public sealed class BitbucketRemoteUrlValidatorTests
     [InlineData("   ")]
     [InlineData("not-a-url")]
     [InlineData("ssh://other@bitbucket.org/example-workspace/buckettie.git")]
+    [InlineData("git@bitbucket.org:example-workspace/buckettie.git")]
+    [InlineData("ssh://git@bitbucket.org/example-workspace/buckettie.git")]
     public void TryParse_WhenUrlIsNotAllowed_ReturnsFalse(string remoteUrl)
     {
         bool parsed = BitbucketRemoteUrlValidator.TryParse(

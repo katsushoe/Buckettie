@@ -92,8 +92,15 @@ public sealed class RepositoryRegistrationValidator
                 RepositoryValidationError.RemoteUrlInvalid);
         }
 
+        string remoteUrl = remoteResult.StandardOutput.Trim();
+        if (BitbucketRemoteUrlValidator.IsSshRemote(remoteUrl))
+        {
+            return RepositoryRegistrationValidationResult.Invalid(
+                RepositoryValidationError.SshRemoteNotSupported);
+        }
+
         if (!BitbucketRemoteUrlValidator.TryParse(
-                remoteResult.StandardOutput.Trim(),
+                remoteUrl,
                 out BitbucketRemoteUrlValidator.BitbucketRemoteCoordinates? coordinates)
             || coordinates is null)
         {
@@ -117,7 +124,7 @@ public sealed class RepositoryRegistrationValidator
         }
 
         return RepositoryRegistrationValidationResult.Valid(
-            coordinates.Workspace, coordinates.Slug, fullRoot, remoteResult.StandardOutput.Trim());
+            coordinates.Workspace, coordinates.Slug, fullRoot, remoteUrl);
     }
 }
 

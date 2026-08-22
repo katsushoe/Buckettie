@@ -11,6 +11,7 @@ public enum RepositoryValidationError
     LocalPathMismatch,
     LocalPathReparsePoint,
     RemoteUrlInvalid,
+    SshRemoteNotSupported,
     RemoteMismatch,
     RepositoryIdInvalid,
     RepositoryAlreadyRegistered,

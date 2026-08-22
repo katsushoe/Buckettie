@@ -36,7 +36,7 @@ public sealed class RepositoryRegistrationValidatorTests
     }
 
     [Fact]
-    public async Task ValidateAsync_WhenRemoteUsesBitbucketSsh_ReturnsDerivedCoordinates()
+    public async Task ValidateAsync_WhenRemoteUsesBitbucketSsh_ReturnsDedicatedError()
     {
         RepositoryRegistrationValidator validator = CreateValidator();
         ConfigureValidLocalRoot();
@@ -46,9 +46,8 @@ public sealed class RepositoryRegistrationValidatorTests
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
             "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
-        result.IsValid.Should().BeTrue();
-        result.Workspace.Should().Be("example-workspace");
-        result.Slug.Should().Be("new-repo");
+        result.IsValid.Should().BeFalse();
+        result.Error.Should().Be(RepositoryValidationError.SshRemoteNotSupported);
     }
 
     [Fact]
