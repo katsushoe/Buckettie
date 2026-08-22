@@ -107,6 +107,9 @@ internal static class CliApplication
                 ["config", "show"] => ShowConfig(services, output),
                 ["repo", "list"] => ListRepositories(services, output),
                 ["repo", "status", var repository] => await RepositoryStatusAsync(services, repository, output, japanese, cancellationToken).ConfigureAwait(false),
+                ["repo", "fetch", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_fetch", repository, [], cancellationToken).ConfigureAwait(false),
+                ["repo", "pull", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_pull", repository, [], cancellationToken).ConfigureAwait(false),
+                ["repo", "push", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_push", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "register", var repository, var localRoot, .. var rest] =>
                     await RegisterRepositoryAsync(services, repository, localRoot, rest, output, cancellationToken).ConfigureAwait(false),
                 ["repo", "unregister", var repository] =>
@@ -115,12 +118,23 @@ internal static class CliApplication
                         .ConfigureAwait(false),
                 ["repo", "update", var repository, .. var updateArgs] =>
                     await UpdateRepositoryAsync(services, repository, updateArgs, output, error, japanese, cancellationToken).ConfigureAwait(false),
+                ["branch", "list", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_list", repository, [], cancellationToken).ConfigureAwait(false),
+                ["branch", "get", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_get", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
+                ["pr", "list", var repository, .. var listArgs] => await ListPullRequestsAsync(services, repository, listArgs, output, cancellationToken).ConfigureAwait(false),
+                ["pr", "get", var repository, var pullRequestId] => await CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_get", repository, pullRequestId, [], cancellationToken).ConfigureAwait(false),
+                ["pr", "diff", var repository, var pullRequestId] => await CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_diff", repository, pullRequestId, [], cancellationToken).ConfigureAwait(false),
+                ["pr", "create", var repository, var title, var description, .. var createArgs] => await CallRepositoryToolAsync(services, output, "bitbucket_pr_create", repository, new() { ["title"] = title, ["description"] = description, ["draft"] = createArgs.Contains("--draft") }, cancellationToken).ConfigureAwait(false),
+                ["pr", "merge", var repository, var pullRequestId, .. var mergeArgs] => await MergePullRequestAsync(services, repository, pullRequestId, mergeArgs, output, error, japanese, cancellationToken).ConfigureAwait(false),
+                ["tag", "list", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_list", repository, [], cancellationToken).ConfigureAwait(false),
+                ["tag", "get", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_get", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
+                ["tag", "create", var repository, var tag, .. var tagArgs] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_create", repository, new() { ["tag"] = tag, ["message"] = GetOption(tagArgs, "--message") }, cancellationToken).ConfigureAwait(false),
                 ["auth", "test"] => TestAuthentication(services, output, japanese),
                 ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader, japanese),
                 ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output, japanese),
                 ["mcp", "status"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "test"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "tools"] => await TestMcpAsync(services, output, true, cancellationToken).ConfigureAwait(false),
+                ["mcp", "version"] => await CallToolAsync(services, output, "get_version", null, [], cancellationToken).ConfigureAwait(false),
                 ["doctor"] => await DoctorAsync(services, output, japanese, cancellationToken).ConfigureAwait(false),
                 _ => UnknownCommand(error, japanese),
             };
@@ -262,8 +276,16 @@ internal static class CliApplication
         string toolName, string repository, Dictionary<string, object?> arguments,
         CancellationToken cancellationToken)
     {
-        BuckettieOptions options = services.GetRequiredService<BuckettieOptions>();
         arguments["repository"] = repository;
+        return await CallToolAsync(services, output, toolName, repository, arguments, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<int> CallToolAsync(IServiceProvider services, TextWriter output,
+        string toolName, string? repository, Dictionary<string, object?> arguments,
+        CancellationToken cancellationToken)
+    {
+        BuckettieOptions options = services.GetRequiredService<BuckettieOptions>();
         using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(130) };
         using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{options.McpPort}{options.McpPath}");
         request.Headers.Accept.ParseAdd("application/json, text/event-stream");
@@ -278,23 +300,85 @@ internal static class CliApplication
         {
             using HttpResponseMessage response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
             string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            output.WriteLine($"[{(response.IsSuccessStatusCode ? "OK" : "NG")}] {toolName}: {repository}");
+            bool success = response.IsSuccessStatusCode && IsToolCallSuccessful(body);
+            string suffix = repository is null ? string.Empty : $": {repository}";
+            output.WriteLine($"[{(success ? "OK" : "NG")}] {toolName}{suffix}");
             output.WriteLine(body);
-            return response.IsSuccessStatusCode ? 0 : 1;
+            return success ? 0 : 1;
         }
         catch (HttpRequestException)
         {
             bool japanese = BuckettieLanguage.IsJapanese(options.Language);
-            output.WriteLine($"[NG] {toolName}: {repository} ({(japanese ? "サービスに接続できません。Buckettieが起動しているか確認してください。" : "service not reachable; is Buckettie running?")})");
+            string suffix = repository is null ? string.Empty : $": {repository}";
+            output.WriteLine($"[NG] {toolName}{suffix} ({(japanese ? "サービスに接続できません。Buckettieが起動しているか確認してください。" : "service not reachable; is Buckettie running?")})");
             return 1;
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             bool japanese = BuckettieLanguage.IsJapanese(options.Language);
-            output.WriteLine($"[NG] {toolName}: {repository} ({(japanese ? "タイムアウト" : "Timeout")})");
+            string suffix = repository is null ? string.Empty : $": {repository}";
+            output.WriteLine($"[NG] {toolName}{suffix} ({(japanese ? "タイムアウト" : "Timeout")})");
             return 1;
         }
     }
+
+    private static bool IsToolCallSuccessful(string body)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(body);
+            JsonElement root = document.RootElement;
+            if (root.TryGetProperty("error", out _)) return false;
+            if (!root.TryGetProperty("result", out JsonElement result)) return false;
+            if (result.TryGetProperty("isError", out JsonElement isError)
+                && isError.ValueKind is JsonValueKind.True) return false;
+            if (result.TryGetProperty("structuredContent", out JsonElement structured)
+                && structured.TryGetProperty("ok", out JsonElement structuredOk)
+                && structuredOk.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                return structuredOk.GetBoolean();
+            if (result.TryGetProperty("ok", out JsonElement ok)
+                && ok.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                return ok.GetBoolean();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static Task<int> ListPullRequestsAsync(IServiceProvider services, string repository,
+        string[] rest, TextWriter output, CancellationToken cancellationToken) =>
+        CallRepositoryToolAsync(services, output, "bitbucket_pr_list", repository, new()
+        {
+            ["state"] = GetOption(rest, "--state"),
+            ["source"] = GetOption(rest, "--source"),
+            ["destination"] = GetOption(rest, "--destination"),
+        }, cancellationToken);
+
+    private static async Task<int> CallPullRequestToolAsync(IServiceProvider services, TextWriter output,
+        TextWriter error, bool japanese, string toolName, string repository, string pullRequestId,
+        Dictionary<string, object?> arguments, CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(pullRequestId, out int id) || id <= 0)
+        {
+            error.WriteLine(japanese ? "プルリクエストIDには正の整数を指定してください。" : "Pull-request ID must be a positive integer.");
+            return 2;
+        }
+        arguments["pullRequestId"] = id;
+        return await CallRepositoryToolAsync(services, output, toolName, repository, arguments, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static Task<int> MergePullRequestAsync(IServiceProvider services, string repository,
+        string pullRequestId, string[] rest, TextWriter output, TextWriter error, bool japanese,
+        CancellationToken cancellationToken) =>
+        CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_merge", repository,
+            pullRequestId, new()
+            {
+                ["strategy"] = GetOption(rest, "--strategy") ?? "RepositoryDefault",
+                ["message"] = GetOption(rest, "--message"),
+            }, cancellationToken);
 
     private static string? GetOption(string[] args, string name)
     {
@@ -427,15 +511,25 @@ internal static class CliApplication
         buckettie service install|uninstall|status
         buckettie config check|show
         buckettie repo list|status <repository>
+        buckettie repo fetch|pull|push <repository>
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
+        buckettie branch list <repository>
+        buckettie branch get <repository> <branch>
+        buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
+        buckettie pr get|diff <repository> <pull-request-id>
+        buckettie pr create <repository> <title> <description> [--draft]
+        buckettie pr merge <repository> <pull-request-id> [--strategy X] [--message X]
+        buckettie tag list <repository>
+        buckettie tag get <repository> <tag>
+        buckettie tag create <repository> <tag> [--message X]
         repo register/unregister/updateは稼働中サービスのMCPエンドポイントを呼び出します。
         register/updateはサーバーのデスクトップに承認ダイアログを表示し、最大120秒待機します。
         buckettie auth test
         buckettie auth set|delete <repository>
-        buckettie mcp status|tools|test
+        buckettie mcp status|tools|test|version
         buckettie logs
         buckettie version
         共通オプション: --config <path>
@@ -445,15 +539,25 @@ internal static class CliApplication
         buckettie service install|uninstall|status
         buckettie config check|show
         buckettie repo list|status <repository>
+        buckettie repo fetch|pull|push <repository>
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
+        buckettie branch list <repository>
+        buckettie branch get <repository> <branch>
+        buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
+        buckettie pr get|diff <repository> <pull-request-id>
+        buckettie pr create <repository> <title> <description> [--draft]
+        buckettie pr merge <repository> <pull-request-id> [--strategy X] [--message X]
+        buckettie tag list <repository>
+        buckettie tag get <repository> <tag>
+        buckettie tag create <repository> <tag> [--message X]
         (repo register/unregister/update call the running service's MCP endpoint; register/update wait for
         interactive Dialog approval on the server's desktop, up to 120s)
         buckettie auth test
         buckettie auth set|delete <repository>
-        buckettie mcp status|tools|test
+        buckettie mcp status|tools|test|version
         buckettie logs
         buckettie version
         Global option: --config <path>
