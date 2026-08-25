@@ -11,6 +11,10 @@ public enum GitGatewayError
     SshRemoteNotSupported,
     GitNotFound,
     GitFailed,
+    AuthenticationFailed,
+    NetworkError,
+    PermissionDenied,
+    Conflict,
     WorkingTreeDirty,
     BranchNotAllowed,
     ProtectedBranch,
@@ -42,7 +46,8 @@ public sealed record GitGatewayResult(
     string Repository,
     string? Branch,
     GitRepositoryStatus? Status,
-    GitGatewayError? Error)
+    GitGatewayError? Error,
+    string? CorrelationId = null)
 {
     /// <summary>成功結果を生成します。</summary>
     public static GitGatewayResult Success(
@@ -58,5 +63,13 @@ public sealed record GitGatewayResult(
         string repository,
         GitGatewayError error,
         string? branch = null) =>
-        new(false, operation, repository, branch, null, error);
+        new(false, operation, repository, branch, null, error, Guid.NewGuid().ToString("N"));
+
+    /// <summary>診断相関IDを伴う失敗結果を生成します。</summary>
+    public static GitGatewayResult DiagnosticFailure(
+        string operation,
+        string repository,
+        GitGatewayError error,
+        string? branch = null) =>
+        Failure(operation, repository, error, branch);
 }

@@ -211,12 +211,14 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult));
 
-        result.Should().Be(new BuckettieToolResult<BuckettieGitData>(
-            false,
-            "push",
-            "example",
-            null,
-            new BuckettieToolError("protected_branch", "Direct push to the protected branch is not allowed.")));
+        result.Ok.Should().BeFalse();
+        result.Operation.Should().Be("push");
+        result.Repository.Should().Be("example");
+        result.Error.Should().NotBeNull();
+        result.Error!.Code.Should().Be("protected_branch");
+        result.Error.Message.Should().Be("Direct push to the protected branch is not allowed.");
+        result.Error.Summary.Should().Contain("Git push");
+        result.Error.SuggestedAction.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -228,8 +230,9 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult), "ja-JP");
 
-        result.Error.Should().Be(new BuckettieToolError(
-            "protected_branch", "保護ブランチへの直接pushは許可されていません。"));
+        result.Error!.Code.Should().Be("protected_branch");
+        result.Error.Message.Should().Be("保護ブランチへの直接pushは許可されていません。");
+        result.Error.SuggestedAction.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -241,9 +244,9 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult), "ja-JP");
 
-        result.Error.Should().Be(new BuckettieToolError(
-            "ssh_remote_not_supported",
-            "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。"));
+        result.Error!.Code.Should().Be("ssh_remote_not_supported");
+        result.Error.Message.Should().Be(
+            "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。");
     }
 
     [Theory]

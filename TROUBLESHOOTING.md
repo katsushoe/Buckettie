@@ -2,6 +2,10 @@
 
 Start with `buckettie status`, `buckettie doctor`, and `buckettie logs`. Exit codes are `0` for success, `1` for an operation or diagnostic failure, and `2` for invalid input or configuration.
 
+## Git Operation Failures
+
+For `repo fetch`, `repo pull`, and `repo push`, inspect `error.code`, `error.suggestedAction`, and `error.retryable` in the JSON output. Authentication, network, permission, conflict, non-fast-forward, dirty-working-tree, and remote mismatch failures have dedicated codes. If `error.code` is `git_failed`, use `error.correlationId` to locate the matching `correlation_id` in the Buckettie audit log. Raw Git stderr is intentionally not returned or logged because it can contain credentials, account identifiers, URLs, and local paths.
+
 ## Service Does Not Start
 
 - Run `service status` as an administrator.

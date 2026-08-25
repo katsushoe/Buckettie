@@ -173,6 +173,31 @@ public sealed class GitGatewayTests
         result.Error.Should().Be(GitGatewayError.WorkingTreeDirty);
     }
 
+    [Theory]
+    [InlineData("fatal: Authentication failed for 'https://user:secret@bitbucket.org/work/repo.git/'", GitGatewayError.AuthenticationFailed)]
+    [InlineData("fatal: unable to access 'https://bitbucket.org/work/repo.git/': Could not resolve host", GitGatewayError.NetworkError)]
+    [InlineData("remote: Permission denied to repository", GitGatewayError.PermissionDenied)]
+    [InlineData("CONFLICT (content): Merge conflict in file.cs", GitGatewayError.Conflict)]
+    [InlineData("fatal: Not possible to fast-forward, aborting. non-fast-forward", GitGatewayError.NonFastForward)]
+    [InlineData("fatal: unknown failure at C:\\Users\\person\\repo", GitGatewayError.GitFailed)]
+    public async Task FetchAsync_WhenGitFails_ClassifiesFailureWithoutExposingStandardError(
+        string standardError,
+        GitGatewayError expected)
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.FetchAsync(RepositoryRoot, "origin", "buckettie", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(GitCommandFailure.Failed, standardError));
+
+        GitGatewayResult result = await gateway.FetchAsync(
+            "buckettie",
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(expected);
+        result.CorrelationId.Should().MatchRegex("^[0-9a-f]{32}$");
+        result.ToString().Should().NotContain("secret").And.NotContain("C:\\Users");
+    }
+
     private GitGateway CreateGateway()
     {
         BuckettieOptions options = new()

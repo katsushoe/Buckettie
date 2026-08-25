@@ -106,7 +106,7 @@ public sealed class GitGateway : IGitGateway
 
         if (!TryParseAheadBehind(divergence.StandardOutput, out int ahead, out int behind))
         {
-            return GitGatewayResult.Failure(operation, repository, GitGatewayError.GitFailed);
+            return GitGatewayResult.DiagnosticFailure(operation, repository, GitGatewayError.GitFailed);
         }
 
         string branchName = branch.StandardOutput.Trim();
@@ -317,10 +317,30 @@ public sealed class GitGateway : IGitGateway
             GitCommandFailure.Cancelled => GitGatewayError.Cancelled,
             _ when result.StandardError.Contains("non-fast-forward", StringComparison.OrdinalIgnoreCase) =>
                 GitGatewayError.NonFastForward,
+            _ when ContainsAny(result.StandardError,
+                "authentication failed", "could not read Username", "terminal prompts disabled",
+                "invalid credentials", "Authentication failed") => GitGatewayError.AuthenticationFailed,
+            _ when ContainsAny(result.StandardError,
+                "Could not resolve host", "Failed to connect", "Connection timed out",
+                "Connection reset", "Network is unreachable") => GitGatewayError.NetworkError,
+            _ when ContainsAny(result.StandardError,
+                "Permission denied", "403 Forbidden", "access denied", "not permitted") =>
+                GitGatewayError.PermissionDenied,
+            _ when ContainsAny(result.StandardError,
+                "would be overwritten by merge", "Your local changes", "unstaged changes") =>
+                GitGatewayError.WorkingTreeDirty,
+            _ when ContainsAny(result.StandardError,
+                "CONFLICT (", "Automatic merge failed", "Merge conflict") => GitGatewayError.Conflict,
+            _ when ContainsAny(result.StandardError,
+                "does not appear to be a git repository", "No such remote", "remote origin already exists") =>
+                GitGatewayError.RemoteMismatch,
             _ => GitGatewayError.GitFailed,
         };
-        return GitGatewayResult.Failure(operation, repository, error, branch);
+        return GitGatewayResult.DiagnosticFailure(operation, repository, error, branch);
     }
+
+    private static bool ContainsAny(string value, params string[] patterns) =>
+        patterns.Any(pattern => value.Contains(pattern, StringComparison.OrdinalIgnoreCase));
 
     private static RepositoryPolicy CreatePolicy(string repository, RepositoryOptions options) => new(
         repository,
