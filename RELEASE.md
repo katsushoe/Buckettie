@@ -23,7 +23,7 @@ Release date: 2026-08-26
 
 ## Validation
 
-- Automated tests: passed (225 tests)
+- Automated tests: passed (233 tests)
 - MSI build and SHA-256 hash: passed
 - ZIP release build and SHA-256 hash: pending
 - Physical-machine upgrade: pending

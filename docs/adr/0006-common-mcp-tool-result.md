@@ -12,6 +12,8 @@ Every Buckettie MCP Tool returns the common structured shape `{ ok, operation, r
 
 Git command failures are classified, when recognizable, as `authentication_failed`, `network_error`, `permission_denied`, `conflict`, `non_fast_forward`, `working_tree_dirty`, or `remote_mismatch`. `git_failed` is reserved for unclassified failures. Every Git failure receives an opaque correlation ID which is returned to the client and written to the audit event. CLI repository commands call the same MCP tools and therefore expose the same structured contract.
 
+`bitbucket_pr_merge` uses the provider-neutral mergeability statuses `mergeable`, `conflicting`, `blocked`, `calculating_retryable`, and `unknown_retryable`. A synchronous or completed asynchronous merge preserves the existing Bitbucket Pull Request fields and adds `mergeability_status: mergeable`. Provider task status `PENDING` is polled at most three times at 250-millisecond intervals. If it remains pending, the Tool returns `mergeability_calculating`, `calculating_retryable`, `retryable: true`, and `retry_after_seconds: 2`. An unrecognized or malformed transient result returns `mergeability_unknown` with `unknown_retryable` and the same retry guidance. Conflicts and repository-rule rejections return `conflicting` and `blocked` respectively and are not retryable without an external change.
+
 ## Alternatives
 
 - Expose Gateway results unchanged: rejected because Git and REST output contracts differ and leak internal enum organization into MCP schemas.
@@ -26,6 +28,7 @@ All MCP output schemas share the same envelope while retaining typed success dat
 
 - Error messages, summaries, and suggested actions are fixed literals and never include command output, HTTP response bodies, exceptions, paths, URLs, Tokens, credentials, or caller-provided text.
 - Git stderr is used only for internal classification and is discarded before the Gateway result is created. It is not written to Tool responses, CLI output, or audit logs.
+- Bitbucket merge error bodies and asynchronous task links are used only for fixed classification. Provider messages and URLs are not returned to clients or written to audit logs.
 - Only stable snake_case codes are exposed for automated handling.
 - Policy failures remain normal structured Tool failures and do not bypass Gateway enforcement.
 

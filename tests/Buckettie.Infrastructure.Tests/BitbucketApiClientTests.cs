@@ -213,7 +213,8 @@ public sealed class BitbucketApiClientTests
     [Fact]
     public async Task MergePullRequestAsync_WhenConflict_ReturnsMergeConflict()
     {
-        RecordingHandler handler = new(HttpStatusCode.Conflict);
+        RecordingHandler handler = new((HttpStatusCode.Conflict,
+            "{\"error\":{\"message\":\"Merge conflict detected\"}}"));
         BitbucketApiClient client = CreateClient(handler);
 
         BitbucketResult<BitbucketPullRequestInfo> result = await client.MergePullRequestAsync(
@@ -225,6 +226,76 @@ public sealed class BitbucketApiClientTests
             TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(BitbucketError.PullRequestMergeConflict);
+    }
+
+    [Fact]
+    public async Task MergePullRequestAsync_WhenRepositoryRequirementsBlockMerge_ReturnsBlocked()
+    {
+        RecordingHandler handler = new((HttpStatusCode.Conflict,
+            "{\"error\":{\"message\":\"Required approval is missing\"}}"));
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await client.MergePullRequestAsync(
+            "allowed", "workspace", "repository", 7,
+            new BitbucketPullRequestMerge(BitbucketMergeStrategy.RepositoryDefault, null),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.PullRequestMergeBlocked);
+    }
+
+    [Fact]
+    public async Task MergePullRequestAsync_WhenTaskRemainsPending_ReturnsCalculatingAfterBoundedPolling()
+    {
+        string pending = MergeTaskJson("PENDING");
+        RecordingHandler handler = new(
+            (HttpStatusCode.Accepted, pending),
+            (HttpStatusCode.OK, pending),
+            (HttpStatusCode.OK, pending),
+            (HttpStatusCode.OK, pending));
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await client.MergePullRequestAsync(
+            "allowed", "workspace", "repository", 7,
+            new BitbucketPullRequestMerge(BitbucketMergeStrategy.RepositoryDefault, null),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.MergeabilityCalculating);
+        handler.Paths.Should().HaveCount(4);
+        handler.Paths[0].Should().EndWith("/merge?async=true");
+        handler.Paths.Skip(1).Should().OnlyContain(path => path.EndsWith("/merge/task-status/task-123"));
+    }
+
+    [Fact]
+    public async Task MergePullRequestAsync_WhenTaskCompletes_ReturnsExistingPullRequestData()
+    {
+        RecordingHandler handler = new(
+            (HttpStatusCode.Accepted, MergeTaskJson("PENDING")),
+            (HttpStatusCode.OK, MergeTaskJson("SUCCESS", PullRequestJson())));
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await client.MergePullRequestAsync(
+            "allowed", "workspace", "repository", 7,
+            new BitbucketPullRequestMerge(BitbucketMergeStrategy.RepositoryDefault, null),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Id.Should().Be(7);
+        result.Value.SourceBranch.Should().Be("develop");
+        result.Value.MergeabilityStatus.Should().Be("mergeable");
+    }
+
+    [Fact]
+    public async Task MergePullRequestAsync_WhenProviderStatusIsUnknown_ReturnsUnknown()
+    {
+        RecordingHandler handler = new((HttpStatusCode.Accepted, MergeTaskJson("MYSTERY")));
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketPullRequestInfo> result = await client.MergePullRequestAsync(
+            "allowed", "workspace", "repository", 7,
+            new BitbucketPullRequestMerge(BitbucketMergeStrategy.RepositoryDefault, null),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.MergeabilityUnknown);
     }
 
     [Fact]
@@ -280,6 +351,13 @@ public sealed class BitbucketApiClientTests
         {"id":7,"title":"Release","description":"Description","state":"OPEN","source":{"branch":{"name":"develop"}},"destination":{"branch":{"name":"main"}},"draft":false,"links":{"html":{"href":"https://bitbucket.org/workspace/repository/pull-requests/7"}},"created_on":"2026-08-16T00:00:00Z","updated_on":"2026-08-16T01:00:00Z","merge_commit":null}
         """;
 
+    private static string MergeTaskJson(string status, string? mergeResult = null) =>
+        "{\"task_status\":\"" + status
+        + "\",\"links\":{\"self\":{\"href\":\"https://api.bitbucket.org/2.0/repositories/"
+        + "workspace/repository/pullrequests/7/merge/task-status/task-123\"}}"
+        + (mergeResult is null ? string.Empty : ",\"merge_result\":" + mergeResult)
+        + "}";
+
     private sealed class StubTokenStore(ApiTokenStoreResult result) : IApiTokenStore
     {
         public ApiTokenStoreResult Save(string repositoryId, string token) => throw new NotSupportedException();
@@ -302,6 +380,11 @@ public sealed class BitbucketApiClientTests
         internal RecordingHandler(HttpStatusCode statusCode)
         {
             _responses = new Queue<(HttpStatusCode, string)>([(statusCode, string.Empty)]);
+        }
+
+        internal RecordingHandler(params (HttpStatusCode Status, string Content)[] responses)
+        {
+            _responses = new Queue<(HttpStatusCode, string)>(responses);
         }
 
         internal List<string> Paths { get; } = [];

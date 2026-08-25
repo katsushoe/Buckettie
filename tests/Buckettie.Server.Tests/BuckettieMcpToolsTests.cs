@@ -250,6 +250,30 @@ public sealed class BuckettieMcpToolsTests
     }
 
     [Theory]
+    [InlineData(BitbucketError.MergeabilityCalculating, "mergeability_calculating", "calculating_retryable", true, 2)]
+    [InlineData(BitbucketError.MergeabilityUnknown, "mergeability_unknown", "unknown_retryable", true, 2)]
+    [InlineData(BitbucketError.PullRequestMergeConflict, "pull_request_merge_conflict", "conflicting", false, null)]
+    [InlineData(BitbucketError.PullRequestMergeBlocked, "pull_request_merge_blocked", "blocked", false, null)]
+    public async Task MapBitbucketAsync_WhenMergeFails_ReturnsCommonMergeabilityContract(
+        BitbucketError gatewayError,
+        string code,
+        string status,
+        bool retryable,
+        int? retryAfterSeconds)
+    {
+        BuckettieToolResult<BitbucketPullRequestInfo> result = await BuckettieToolResultMapper.MapBitbucketAsync(
+            Task.FromResult(BitbucketResult<BitbucketPullRequestInfo>.Failure(gatewayError)),
+            "pr_merge",
+            "example");
+
+        result.Error.Should().NotBeNull();
+        result.Error!.Code.Should().Be(code);
+        result.Error.Status.Should().Be(status);
+        result.Error.Retryable.Should().Be(retryable);
+        result.Error.RetryAfterSeconds.Should().Be(retryAfterSeconds);
+    }
+
+    [Theory]
     [InlineData("pr_get", "pull_request_not_found")]
     [InlineData("pr_diff", "pull_request_not_found")]
     [InlineData("pr_merge", "pull_request_not_found")]

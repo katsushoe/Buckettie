@@ -3,17 +3,20 @@ using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
+using System.Text.Json.Serialization;
 
 namespace Buckettie.Server;
 
 /// <summary>MCP Toolの共通エラーです。</summary>
 public sealed record BuckettieToolError(
-    string Code,
+    [property: JsonPropertyName("code")] string Code,
     string Message,
     string? Summary = null,
     string? SuggestedAction = null,
-    bool Retryable = false,
-    string? CorrelationId = null);
+    [property: JsonPropertyName("retryable")] bool Retryable = false,
+    string? CorrelationId = null,
+    [property: JsonPropertyName("status")] string? Status = null,
+    [property: JsonPropertyName("retry_after_seconds")] int? RetryAfterSeconds = null);
 
 /// <summary>MCP Toolの共通構造化結果です。</summary>
 public sealed record BuckettieToolResult<T>(
@@ -73,7 +76,8 @@ internal static class BuckettieToolResultMapper
         }
 
         string code = BitbucketCode(result.Error ?? BitbucketError.ApiError, operationName);
-        return new(false, operationName, repository, default, CreateError(code, language));
+        return new(false, operationName, repository, default,
+            CreateBitbucketError(code, operationName, language));
     }
 
     internal static string GitCode(GitGatewayError error) => error switch
@@ -106,6 +110,9 @@ internal static class BuckettieToolResultMapper
         BitbucketError.PullRequestNotOpen => "pull_request_not_open",
         BitbucketError.PullRequestRouteNotAllowed => "pull_request_route_not_allowed",
         BitbucketError.PullRequestMergeConflict => "pull_request_merge_conflict",
+        BitbucketError.PullRequestMergeBlocked => "pull_request_merge_blocked",
+        BitbucketError.MergeabilityCalculating => "mergeability_calculating",
+        BitbucketError.MergeabilityUnknown => "mergeability_unknown",
         BitbucketError.InvalidTag => "tag_invalid",
         BitbucketError.TagAlreadyExists => "tag_already_exists",
         BitbucketError.TagTargetNotAllowed => "tag_target_not_allowed",
@@ -176,6 +183,30 @@ internal static class BuckettieToolResultMapper
     private static BuckettieToolError CreateError(string code, string language = "en-US") =>
         new(code, BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code));
 
+    private static BuckettieToolError CreateBitbucketError(
+        string code,
+        string operation,
+        string language)
+    {
+        string message = BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code);
+        if (!string.Equals(operation, "pr_merge", StringComparison.Ordinal))
+        {
+            return new(code, message);
+        }
+
+        return code switch
+        {
+            "mergeability_calculating" => new(
+                code, message, Retryable: true, Status: "calculating_retryable", RetryAfterSeconds: 2),
+            "mergeability_unknown" => new(
+                code, message, Retryable: true, Status: "unknown_retryable", RetryAfterSeconds: 2),
+            "pull_request_merge_conflict" => new(code, message, Status: "conflicting"),
+            "pull_request_merge_blocked" or "pull_request_route_not_allowed" or "pull_request_not_open" =>
+                new(code, message, Status: "blocked"),
+            _ => new(code, message),
+        };
+    }
+
     private static bool IsRetryable(string code) => code is "network_error" or "timeout" or "rate_limited";
 
     private static string EnglishAction(string code) => code switch
@@ -230,6 +261,9 @@ internal static class BuckettieToolResultMapper
         "pull_request_not_open" => "The pull request is not open.",
         "pull_request_route_not_allowed" => "The pull request route is not allowed.",
         "pull_request_merge_conflict" => "The pull request cannot be merged due to a conflict.",
+        "pull_request_merge_blocked" => "The pull request is blocked by repository requirements.",
+        "mergeability_calculating" => "Mergeability is still being calculated.",
+        "mergeability_unknown" => "Mergeability is temporarily unknown.",
         "tag_invalid" => "The tag is invalid.",
         "tag_already_exists" => "The tag already exists.",
         "tag_target_not_allowed" => "The tag target is not allowed.",
@@ -274,6 +308,9 @@ internal static class BuckettieToolResultMapper
         "pull_request_not_open" => "プルリクエストはオープン状態ではありません。",
         "pull_request_route_not_allowed" => "このプルリクエスト経路は許可されていません。",
         "pull_request_merge_conflict" => "競合があるためプルリクエストをマージできません。",
+        "pull_request_merge_blocked" => "リポジトリ要件によりプルリクエストのマージが拒否されました。",
+        "mergeability_calculating" => "マージ可能性を計算中です。",
+        "mergeability_unknown" => "マージ可能性を一時的に判定できません。",
         "tag_invalid" => "タグが無効です。",
         "tag_already_exists" => "タグは既に存在します。",
         "tag_target_not_allowed" => "タグの対象は許可されていません。",

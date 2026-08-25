@@ -6,6 +6,10 @@ Start with `buckettie status`, `buckettie doctor`, and `buckettie logs`. Exit co
 
 For `repo fetch`, `repo pull`, and `repo push`, inspect `error.code`, `error.suggestedAction`, and `error.retryable` in the JSON output. Authentication, network, permission, conflict, non-fast-forward, dirty-working-tree, and remote mismatch failures have dedicated codes. If `error.code` is `git_failed`, use `error.correlationId` to locate the matching `correlation_id` in the Buckettie audit log. Raw Git stderr is intentionally not returned or logged because it can contain credentials, account identifiers, URLs, and local paths.
 
+## Pull Request Mergeability
+
+`bitbucket_pr_merge` may return `calculating_retryable` or `unknown_retryable` after Buckettie performs at most three internal polls at 250-millisecond intervals. In both cases, wait for `error.retry_after_seconds` and retry. `conflicting` requires resolving source/destination conflicts; `blocked` requires satisfying approvals, checks, or repository rules. A successful merge retains the existing Bitbucket Pull Request fields and adds `mergeability_status: mergeable`.
+
 ## Service Does Not Start
 
 - Run `service status` as an administrator.
