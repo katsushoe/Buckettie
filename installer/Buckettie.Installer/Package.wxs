@@ -2,7 +2,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
     Name="Buckettie"
-    Manufacturer="Katsushoe"
+    Manufacturer="Akatsukisoft"
     Version="$(ProductVersion)"
     UpgradeCode="DE2DA1AB-8E53-4EFC-BE41-3675B713FB78"
     Language="1041"

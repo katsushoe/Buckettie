@@ -40,6 +40,21 @@ public sealed class BuckettieMcpToolsTests
     }
 
     [Fact]
+    public void McpGuidance_WhenInspected_ExposesUsagePromptAndServerInstructions()
+    {
+        McpServerPromptAttribute attribute = typeof(BuckettieMcpGuidance)
+            .GetMethod(nameof(BuckettieMcpGuidance.GetUsageGuide))!
+            .GetCustomAttributes(typeof(McpServerPromptAttribute), inherit: false)
+            .Cast<McpServerPromptAttribute>()
+            .Single();
+
+        attribute.Name.Should().Be("buckettie_usage");
+        BuckettieMcpGuidance.ServerInstructions.Should().Contain("localhost gateway");
+        BuckettieMcpGuidance.ServerInstructions.Should().Contain("bitbucket_*");
+        new BuckettieMcpGuidance().GetUsageGuide().Should().Be(BuckettieMcpGuidance.ServerInstructions);
+    }
+
+    [Fact]
     public void ToolMethods_WhenInspected_ExposeExactlyThePhaseOneToolSet()
     {
         McpServerToolAttribute[] attributes = typeof(BuckettieMcpTools)
@@ -196,12 +211,14 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult));
 
-        result.Should().Be(new BuckettieToolResult<BuckettieGitData>(
-            false,
-            "push",
-            "example",
-            null,
-            new BuckettieToolError("protected_branch", "Direct push to the protected branch is not allowed.")));
+        result.Ok.Should().BeFalse();
+        result.Operation.Should().Be("push");
+        result.Repository.Should().Be("example");
+        result.Error.Should().NotBeNull();
+        result.Error!.Code.Should().Be("protected_branch");
+        result.Error.Message.Should().Be("Direct push to the protected branch is not allowed.");
+        result.Error.Summary.Should().Contain("Git push");
+        result.Error.SuggestedAction.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -213,8 +230,9 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult), "ja-JP");
 
-        result.Error.Should().Be(new BuckettieToolError(
-            "protected_branch", "保護ブランチへの直接pushは許可されていません。"));
+        result.Error!.Code.Should().Be("protected_branch");
+        result.Error.Message.Should().Be("保護ブランチへの直接pushは許可されていません。");
+        result.Error.SuggestedAction.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -226,9 +244,33 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult), "ja-JP");
 
-        result.Error.Should().Be(new BuckettieToolError(
-            "ssh_remote_not_supported",
-            "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。"));
+        result.Error!.Code.Should().Be("ssh_remote_not_supported");
+        result.Error.Message.Should().Be(
+            "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。");
+    }
+
+    [Theory]
+    [InlineData(BitbucketError.MergeabilityCalculating, "mergeability_calculating", "calculating_retryable", true, 2)]
+    [InlineData(BitbucketError.MergeabilityUnknown, "mergeability_unknown", "unknown_retryable", true, 2)]
+    [InlineData(BitbucketError.PullRequestMergeConflict, "pull_request_merge_conflict", "conflicting", false, null)]
+    [InlineData(BitbucketError.PullRequestMergeBlocked, "pull_request_merge_blocked", "blocked", false, null)]
+    public async Task MapBitbucketAsync_WhenMergeFails_ReturnsCommonMergeabilityContract(
+        BitbucketError gatewayError,
+        string code,
+        string status,
+        bool retryable,
+        int? retryAfterSeconds)
+    {
+        BuckettieToolResult<BitbucketPullRequestInfo> result = await BuckettieToolResultMapper.MapBitbucketAsync(
+            Task.FromResult(BitbucketResult<BitbucketPullRequestInfo>.Failure(gatewayError)),
+            "pr_merge",
+            "example");
+
+        result.Error.Should().NotBeNull();
+        result.Error!.Code.Should().Be(code);
+        result.Error.Status.Should().Be(status);
+        result.Error.Retryable.Should().Be(retryable);
+        result.Error.RetryAfterSeconds.Should().Be(retryAfterSeconds);
     }
 
     [Theory]

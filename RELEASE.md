@@ -1,38 +1,31 @@
-# Release 1.3.5.0
+# Release 1.3.8.0
 
-Release date: 2026-08-23
+Release date: 2026-08-26
 
 ## Highlights
 
-- Applied the configured `ja-JP`, `en-US`, or `auto` language to CLI help, errors, and Windows service messages
-- Localized MCP error messages while preserving stable machine-readable error codes
-- Continued applying the installer-selected language to interactive approval dialogs
-- Added bilingual MCP tool descriptions and localized remaining CLI status labels
-- Starts the Windows service automatically after installation and major upgrade
-- Localized the remaining MCP endpoint/tool labels and timeout messages
-- Added Japanese/English descriptions to every MCP tool argument
-- Requires Bitbucket Git remotes to use HTTPS and rejects SSH with migration guidance
-- Adds CLI equivalents for Git, branch, pull-request, tag, and running-version MCP tools
-- Propagates structured MCP operation failures to the CLI exit code
+- Added diagnostic Git failure classifications, retry guidance, and audit correlation IDs
+- Added provider-neutral Pull Request mergeability states and retry contracts
+- Added bounded polling for asynchronous Bitbucket merge tasks
+- Preserved existing Pull Request response fields while adding `mergeability_status`
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.3.5.0-win-x64.msi` | `D6F7EB8BE528DA61BB353B02EEDEEA8737CCE5470FADD33AEAACCAAA8F03E7FE` |
-| `Buckettie-1.3.5.0-win-x64.zip` | `426B43B5273FBD283988DD20C5C04C9232944712169AB33113C1A10892EFBC16` |
+| `Buckettie-1.3.8.0-win-x64.msi` | `5D2F31DFEB2A8A87AE1D833B93A0A384318137F32F3BD8AA0B94511DB4FABE87` |
+| `Buckettie-1.3.8.0-win-x64.zip` | `E8502DEC2AA1C7F23BD761CE995F766208D257861F813F064591A64764C01167` |
 
 - Runtime: Windows x64, self-contained
-- Display version: `1.3.5.0`
-- Windows Installer product version: `1.3.5`
-- Tag: `v1.3.5.0`
+- Display version: `1.3.8.0`
+- Windows Installer product version: `1.3.8`
+- Tag: `v1.3.8.0`
 
 ## Validation
 
-- Automated tests: passed (218 tests)
+- Automated tests: passed (233 tests)
 - MSI build and SHA-256 hash: passed
 - ZIP release build and SHA-256 hash: passed
-- Physical-machine upgrade: passed (service running automatically, version `1.3.5.0`, configuration check passed)
-- HTTPS-only enforcement: passed by automated registration and existing-repository operation tests
+- Physical-machine upgrade: passed (service running, version `1.3.8.0`, configuration preserved)
 
 Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.

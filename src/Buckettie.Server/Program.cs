@@ -80,9 +80,11 @@ internal static class Program
                 buckettieServices.GetRequiredService<IRepositoryUpdateService>(),
                 provider.GetRequiredService<IBuckettieAuditLogger>()));
 
-        builder.Services.AddMcpServer()
+        builder.Services.AddMcpServer(options =>
+            options.ServerInstructions = BuckettieMcpGuidance.ServerInstructions)
             .WithHttpTransport(transport => transport.Stateless = true)
-            .WithTools<BuckettieMcpTools>(BuckettieMcpJson.CreateOptions());
+            .WithTools<BuckettieMcpTools>(BuckettieMcpJson.CreateOptions())
+            .WithPrompts<BuckettieMcpGuidance>(BuckettieMcpJson.CreateOptions());
 
         await using WebApplication app = builder.Build();
         app.Use(async (context, next) =>

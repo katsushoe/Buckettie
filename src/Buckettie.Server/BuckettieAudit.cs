@@ -13,7 +13,8 @@ internal sealed record BuckettieAuditEvent(
     string? Tag,
     bool IsSuccess,
     long DurationMilliseconds,
-    string? ErrorCode);
+    string? ErrorCode,
+    string? CorrelationId = null);
 
 internal interface IBuckettieAuditLogger
 {
@@ -23,7 +24,7 @@ internal interface IBuckettieAuditLogger
 internal sealed class BuckettieAuditLogger(ILogger<BuckettieAuditLogger> logger) : IBuckettieAuditLogger
 {
     public void Write(BuckettieAuditEvent auditEvent) => logger.LogInformation(
-        "client={Client} tool={Tool} repository={Repository} branch={Branch} pull_request_id={PullRequestId} tag={Tag} result={Result} duration_ms={DurationMilliseconds} error_code={ErrorCode}",
+        "client={Client} tool={Tool} repository={Repository} branch={Branch} pull_request_id={PullRequestId} tag={Tag} result={Result} duration_ms={DurationMilliseconds} error_code={ErrorCode} correlation_id={CorrelationId}",
         "mcp",
         auditEvent.Tool,
         auditEvent.Repository,
@@ -32,7 +33,8 @@ internal sealed class BuckettieAuditLogger(ILogger<BuckettieAuditLogger> logger)
         auditEvent.Tag ?? "-",
         auditEvent.IsSuccess ? "success" : "failure",
         auditEvent.DurationMilliseconds,
-        auditEvent.ErrorCode ?? "-");
+        auditEvent.ErrorCode ?? "-",
+        auditEvent.CorrelationId ?? "-");
 }
 
 internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger audit) : IGitGateway
@@ -54,7 +56,7 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
         Stopwatch stopwatch = Stopwatch.StartNew();
         GitGatewayResult result = await operation().ConfigureAwait(false);
         audit.Write(new(tool, repository, result.Branch, null, null, result.IsSuccess,
-            stopwatch.ElapsedMilliseconds, result.Error?.ToString()));
+            stopwatch.ElapsedMilliseconds, result.Error?.ToString(), result.CorrelationId));
         return result;
     }
 }

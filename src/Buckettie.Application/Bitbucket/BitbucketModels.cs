@@ -43,7 +43,9 @@ public sealed record BitbucketPullRequestInfo(
     string? Url,
     DateTimeOffset CreatedOn,
     DateTimeOffset UpdatedOn,
-    string? MergeCommitHash);
+    string? MergeCommitHash,
+    [property: System.Text.Json.Serialization.JsonPropertyName("mergeability_status")]
+    string? MergeabilityStatus = null);
 
 /// <summary>Pull Request作成入力です。</summary>
 public sealed record BitbucketPullRequestCreate(string Title, string Description, bool Draft);

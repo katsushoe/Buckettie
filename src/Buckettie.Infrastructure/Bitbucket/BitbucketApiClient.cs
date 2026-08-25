@@ -16,6 +16,8 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
     private const int PullRequestPageLength = 50;
     private const int MaximumPages = 100;
     private const int MaximumDiffCharacters = 5_000_000;
+    private const int MergeTaskPollAttempts = 3;
+    private static readonly TimeSpan MergeTaskPollDelay = TimeSpan.FromMilliseconds(250);
     private readonly HttpClient _httpClient;
     private readonly IApiTokenStore _tokenStore;
     private readonly string _atlassianEmail;
@@ -290,7 +292,7 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
     }
 
     /// <inheritdoc />
-    public Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
+    public async Task<BitbucketResult<BitbucketPullRequestInfo>> MergePullRequestAsync(
         string repositoryId,
         string workspace,
         string slug,
@@ -302,14 +304,191 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
             input.Message,
             MergeStrategyName(input.Strategy),
             false);
-        return SendJsonAsync<PullRequestMergeRequest, PullRequestResponse, BitbucketPullRequestInfo>(
+        string mergePath = $"{PullRequestPath(workspace, slug, pullRequestId)}/merge";
+        using HttpRequestMessage message = new(HttpMethod.Post, $"{mergePath}?async=true")
+        {
+            Content = JsonContent.Create(request),
+        };
+        BitbucketResult<HttpResponseMessage> sent = await SendAsync(
             repositoryId,
-            HttpMethod.Post,
-            $"{PullRequestPath(workspace, slug, pullRequestId)}/merge",
-            request,
-            IsValidPullRequest,
-            MapPullRequest,
-            cancellationToken);
+            message,
+            cancellationToken,
+            HttpStatusCode.Conflict).ConfigureAwait(false);
+        if (!sent.IsSuccess || sent.Value is null)
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(sent.Error ?? BitbucketError.ApiError);
+        }
+
+        using HttpResponseMessage response = sent.Value;
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(
+                await ClassifyMergeFailureAsync(response.Content, cancellationToken).ConfigureAwait(false));
+        }
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            return await ReadPullRequestAsync(response.Content, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (response.StatusCode != HttpStatusCode.Accepted)
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.MergeabilityUnknown);
+        }
+
+        MergeTaskResponse? task = await ReadJsonAsync<MergeTaskResponse>(
+            response.Content,
+            cancellationToken).ConfigureAwait(false);
+        if (task is null || !TryGetMergeTaskId(task, workspace, slug, pullRequestId, out string taskId))
+        {
+            return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.MergeabilityUnknown);
+        }
+
+        for (int attempt = 0; attempt < MergeTaskPollAttempts; attempt++)
+        {
+            BitbucketResult<BitbucketPullRequestInfo>? completed = MapMergeTask(task);
+            if (completed is not null)
+            {
+                return completed;
+            }
+
+            await Task.Delay(MergeTaskPollDelay, cancellationToken).ConfigureAwait(false);
+            using HttpRequestMessage pollRequest = new(
+                HttpMethod.Get,
+                $"{mergePath}/task-status/{Uri.EscapeDataString(taskId)}");
+            BitbucketResult<HttpResponseMessage> polled = await SendAsync(
+                repositoryId,
+                pollRequest,
+                cancellationToken,
+                HttpStatusCode.Conflict).ConfigureAwait(false);
+            if (!polled.IsSuccess || polled.Value is null)
+            {
+                return BitbucketResult<BitbucketPullRequestInfo>.Failure(
+                    polled.Error ?? BitbucketError.MergeabilityUnknown);
+            }
+
+            using HttpResponseMessage pollResponse = polled.Value;
+            if (pollResponse.StatusCode == HttpStatusCode.Conflict)
+            {
+                return BitbucketResult<BitbucketPullRequestInfo>.Failure(
+                    await ClassifyMergeFailureAsync(pollResponse.Content, cancellationToken).ConfigureAwait(false));
+            }
+
+            task = await ReadJsonAsync<MergeTaskResponse>(
+                pollResponse.Content,
+                cancellationToken).ConfigureAwait(false);
+            if (task is null)
+            {
+                return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.MergeabilityUnknown);
+            }
+        }
+
+        return BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.MergeabilityCalculating);
+    }
+
+    private static BitbucketResult<BitbucketPullRequestInfo>? MapMergeTask(MergeTaskResponse task)
+    {
+        if (string.Equals(task.TaskStatus, "PENDING", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (string.Equals(task.TaskStatus, "SUCCESS", StringComparison.OrdinalIgnoreCase))
+        {
+            return task.MergeResult is not null && IsValidPullRequest(task.MergeResult)
+                ? BitbucketResult<BitbucketPullRequestInfo>.Success(
+                    MapPullRequest(task.MergeResult) with { MergeabilityStatus = "mergeable" })
+                : BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.MergeabilityUnknown);
+        }
+
+        return BitbucketResult<BitbucketPullRequestInfo>.Failure(
+            ClassifyMergeFailure(task.Error?.Message));
+    }
+
+    private static async Task<BitbucketResult<BitbucketPullRequestInfo>> ReadPullRequestAsync(
+        HttpContent content,
+        CancellationToken cancellationToken)
+    {
+        PullRequestResponse? pullRequest = await ReadJsonAsync<PullRequestResponse>(
+            content,
+            cancellationToken).ConfigureAwait(false);
+        return pullRequest is not null && IsValidPullRequest(pullRequest)
+            ? BitbucketResult<BitbucketPullRequestInfo>.Success(
+                MapPullRequest(pullRequest) with { MergeabilityStatus = "mergeable" })
+            : BitbucketResult<BitbucketPullRequestInfo>.Failure(BitbucketError.MergeabilityUnknown);
+    }
+
+    private static async Task<BitbucketError> ClassifyMergeFailureAsync(
+        HttpContent content,
+        CancellationToken cancellationToken)
+    {
+        ProviderErrorResponse? error = await ReadJsonAsync<ProviderErrorResponse>(
+            content,
+            cancellationToken).ConfigureAwait(false);
+        return ClassifyMergeFailure(error?.Error?.Message);
+    }
+
+    private static BitbucketError ClassifyMergeFailure(string? message)
+    {
+        if (message?.Contains("conflict", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return BitbucketError.PullRequestMergeConflict;
+        }
+
+        if (ContainsAny(message, "approval", "build", "check", "branch restriction", "blocked", "not permitted"))
+        {
+            return BitbucketError.PullRequestMergeBlocked;
+        }
+
+        return BitbucketError.MergeabilityUnknown;
+    }
+
+    private static bool ContainsAny(string? value, params string[] patterns) =>
+        value is not null && patterns.Any(pattern => value.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+
+    private static bool TryGetMergeTaskId(
+        MergeTaskResponse task,
+        string workspace,
+        string slug,
+        int pullRequestId,
+        out string taskId)
+    {
+        taskId = string.Empty;
+        if (!Uri.TryCreate(task.Links?.Self?.Href, UriKind.Absolute, out Uri? uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(uri.Host, "api.bitbucket.org", StringComparison.OrdinalIgnoreCase)
+            || !uri.IsDefaultPort)
+        {
+            return false;
+        }
+
+        string prefix = $"/2.0/{PullRequestPath(workspace, slug, pullRequestId)}/merge/task-status/";
+        if (!uri.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string candidate = Uri.UnescapeDataString(uri.AbsolutePath[prefix.Length..]);
+        if (string.IsNullOrWhiteSpace(candidate) || candidate.Contains('/', StringComparison.Ordinal)
+            || candidate.Any(char.IsControl))
+        {
+            return false;
+        }
+
+        taskId = candidate;
+        return true;
+    }
+
+    private static async Task<T?> ReadJsonAsync<T>(HttpContent content, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await content.ReadFromJsonAsync<T>(cancellationToken).ConfigureAwait(false);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return default;
+        }
     }
 
     private async Task<BitbucketResult<TOutput>> GetAsync<TResponse, TOutput>(
@@ -396,7 +575,8 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
     private async Task<BitbucketResult<HttpResponseMessage>> SendAsync(
         string repositoryId,
         HttpRequestMessage request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        HttpStatusCode? acceptedStatus = null)
     {
         ApiTokenStoreResult token = _tokenStore.Read(repositoryId);
         if (!token.IsSuccess || token.Token is null)
@@ -413,7 +593,8 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken).ConfigureAwait(false);
-            if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect)
+            if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect
+                || response.StatusCode == acceptedStatus)
             {
                 return BitbucketResult<HttpResponseMessage>.Success(response);
             }
@@ -624,7 +805,7 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
 
     private sealed record PullRequestSideResponse(NamedResponse? Branch);
 
-    private sealed record LinkCollectionResponse(LinkResponse? Html);
+    private sealed record LinkCollectionResponse(LinkResponse? Html, LinkResponse? Self = null);
 
     private sealed record LinkResponse(string? Href);
 
@@ -644,4 +825,14 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
         [property: JsonPropertyName("merge_strategy")]
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MergeStrategy,
         [property: JsonPropertyName("close_source_branch")] bool CloseSourceBranch);
+
+    private sealed record MergeTaskResponse(
+        [property: JsonPropertyName("task_status")] string? TaskStatus,
+        [property: JsonPropertyName("merge_result")] PullRequestResponse? MergeResult,
+        LinkCollectionResponse? Links,
+        ErrorMessageResponse? Error);
+
+    private sealed record ProviderErrorResponse(ErrorMessageResponse? Error);
+
+    private sealed record ErrorMessageResponse(string? Message);
 }

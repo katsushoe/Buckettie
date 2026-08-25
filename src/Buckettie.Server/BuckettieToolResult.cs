@@ -3,11 +3,20 @@ using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
+using System.Text.Json.Serialization;
 
 namespace Buckettie.Server;
 
 /// <summary>MCP Toolの共通エラーです。</summary>
-public sealed record BuckettieToolError(string Code, string Message);
+public sealed record BuckettieToolError(
+    [property: JsonPropertyName("code")] string Code,
+    string Message,
+    string? Summary = null,
+    string? SuggestedAction = null,
+    [property: JsonPropertyName("retryable")] bool Retryable = false,
+    string? CorrelationId = null,
+    [property: JsonPropertyName("status")] string? Status = null,
+    [property: JsonPropertyName("retry_after_seconds")] int? RetryAfterSeconds = null);
 
 /// <summary>MCP Toolの共通構造化結果です。</summary>
 public sealed record BuckettieToolResult<T>(
@@ -50,7 +59,8 @@ internal static class BuckettieToolResultMapper
         }
 
         string code = GitCode(result.Error ?? GitGatewayError.GitFailed);
-        return new(false, result.Operation, result.Repository, null, CreateError(code, language));
+        return new(false, result.Operation, result.Repository, null,
+            CreateGitError(code, language, result.Operation, result.CorrelationId));
     }
 
     internal static async Task<BuckettieToolResult<T>> MapBitbucketAsync<T>(
@@ -66,7 +76,8 @@ internal static class BuckettieToolResultMapper
         }
 
         string code = BitbucketCode(result.Error ?? BitbucketError.ApiError, operationName);
-        return new(false, operationName, repository, default, CreateError(code, language));
+        return new(false, operationName, repository, default,
+            CreateBitbucketError(code, operationName, language));
     }
 
     internal static string GitCode(GitGatewayError error) => error switch
@@ -77,6 +88,10 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.SshRemoteNotSupported => "ssh_remote_not_supported",
         GitGatewayError.GitNotFound => "git_not_found",
         GitGatewayError.GitFailed => "git_failed",
+        GitGatewayError.AuthenticationFailed => "authentication_failed",
+        GitGatewayError.NetworkError => "network_error",
+        GitGatewayError.PermissionDenied => "permission_denied",
+        GitGatewayError.Conflict => "conflict",
         GitGatewayError.WorkingTreeDirty => "working_tree_dirty",
         GitGatewayError.BranchNotAllowed => "branch_not_allowed",
         GitGatewayError.ProtectedBranch => "protected_branch",
@@ -95,6 +110,9 @@ internal static class BuckettieToolResultMapper
         BitbucketError.PullRequestNotOpen => "pull_request_not_open",
         BitbucketError.PullRequestRouteNotAllowed => "pull_request_route_not_allowed",
         BitbucketError.PullRequestMergeConflict => "pull_request_merge_conflict",
+        BitbucketError.PullRequestMergeBlocked => "pull_request_merge_blocked",
+        BitbucketError.MergeabilityCalculating => "mergeability_calculating",
+        BitbucketError.MergeabilityUnknown => "mergeability_unknown",
         BitbucketError.InvalidTag => "tag_invalid",
         BitbucketError.TagAlreadyExists => "tag_already_exists",
         BitbucketError.TagTargetNotAllowed => "tag_target_not_allowed",
@@ -150,8 +168,74 @@ internal static class BuckettieToolResultMapper
     internal static BuckettieToolError Localize(BuckettieToolError error, string language) =>
         CreateError(error.Code, language);
 
+    private static BuckettieToolError CreateGitError(
+        string code,
+        string language,
+        string operation,
+        string? correlationId)
+    {
+        bool japanese = BuckettieLanguage.IsJapanese(language);
+        string message = japanese ? JapaneseMessage(code) : EnglishMessage(code);
+        return new(code, message, $"Git {operation}: {message}",
+            japanese ? JapaneseAction(code) : EnglishAction(code), IsRetryable(code), correlationId);
+    }
+
     private static BuckettieToolError CreateError(string code, string language = "en-US") =>
         new(code, BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code));
+
+    private static BuckettieToolError CreateBitbucketError(
+        string code,
+        string operation,
+        string language)
+    {
+        string message = BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code);
+        if (!string.Equals(operation, "pr_merge", StringComparison.Ordinal))
+        {
+            return new(code, message);
+        }
+
+        return code switch
+        {
+            "mergeability_calculating" => new(
+                code, message, Retryable: true, Status: "calculating_retryable", RetryAfterSeconds: 2),
+            "mergeability_unknown" => new(
+                code, message, Retryable: true, Status: "unknown_retryable", RetryAfterSeconds: 2),
+            "pull_request_merge_conflict" => new(code, message, Status: "conflicting"),
+            "pull_request_merge_blocked" or "pull_request_route_not_allowed" or "pull_request_not_open" =>
+                new(code, message, Status: "blocked"),
+            _ => new(code, message),
+        };
+    }
+
+    private static bool IsRetryable(string code) => code is "network_error" or "timeout" or "rate_limited";
+
+    private static string EnglishAction(string code) => code switch
+    {
+        "authentication_failed" => "Verify the repository credential, then retry.",
+        "network_error" => "Check DNS and network connectivity, then retry.",
+        "permission_denied" => "Verify repository permissions before retrying.",
+        "conflict" => "Resolve the Git conflict locally, then retry.",
+        "non_fast_forward" => "Fetch and integrate the remote changes before retrying.",
+        "working_tree_dirty" => "Commit or stash local changes before retrying.",
+        "remote_mismatch" => "Verify the configured remote and repository registration.",
+        "git_failed" => "Use the correlation ID to inspect the Buckettie audit log.",
+        "timeout" => "Check connectivity and retry the operation.",
+        _ => "Correct the reported condition before retrying.",
+    };
+
+    private static string JapaneseAction(string code) => code switch
+    {
+        "authentication_failed" => "リポジトリの認証情報を確認してから再試行してください。",
+        "network_error" => "DNSとネットワーク接続を確認してから再試行してください。",
+        "permission_denied" => "リポジトリ権限を確認してから再試行してください。",
+        "conflict" => "Git競合をローカルで解消してから再試行してください。",
+        "non_fast_forward" => "リモート変更をfetchして統合してから再試行してください。",
+        "working_tree_dirty" => "ローカル変更をcommitまたはstashしてから再試行してください。",
+        "remote_mismatch" => "設定済みリモートとリポジトリ登録を確認してください。",
+        "git_failed" => "相関IDを使用してBuckettie監査ログを確認してください。",
+        "timeout" => "接続状態を確認して操作を再試行してください。",
+        _ => "報告された状態を修正してから再試行してください。",
+    };
 
     private static string EnglishMessage(string code) => code switch
     {
@@ -162,6 +246,7 @@ internal static class BuckettieToolResultMapper
         "ssh_remote_not_supported" => "SSH Git remotes are not supported. Change the remote to the Bitbucket HTTPS URL.",
         "git_not_found" => "Git was not found.",
         "git_failed" => "The Git operation failed.",
+        "conflict" => "The Git operation encountered a conflict.",
         "working_tree_dirty" => "The working tree must be clean.",
         "branch_not_allowed" => "The branch is not allowed.",
         "branch_not_found" => "The branch was not found.",
@@ -176,6 +261,9 @@ internal static class BuckettieToolResultMapper
         "pull_request_not_open" => "The pull request is not open.",
         "pull_request_route_not_allowed" => "The pull request route is not allowed.",
         "pull_request_merge_conflict" => "The pull request cannot be merged due to a conflict.",
+        "pull_request_merge_blocked" => "The pull request is blocked by repository requirements.",
+        "mergeability_calculating" => "Mergeability is still being calculated.",
+        "mergeability_unknown" => "Mergeability is temporarily unknown.",
         "tag_invalid" => "The tag is invalid.",
         "tag_already_exists" => "The tag already exists.",
         "tag_target_not_allowed" => "The tag target is not allowed.",
@@ -205,6 +293,7 @@ internal static class BuckettieToolResultMapper
         "ssh_remote_not_supported" => "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。",
         "git_not_found" => "Gitが見つかりません。",
         "git_failed" => "Git操作に失敗しました。",
+        "conflict" => "Git操作で競合が発生しました。",
         "working_tree_dirty" => "作業ツリーをクリーンな状態にしてください。",
         "branch_not_allowed" => "このブランチは許可されていません。",
         "branch_not_found" => "ブランチが見つかりません。",
@@ -219,6 +308,9 @@ internal static class BuckettieToolResultMapper
         "pull_request_not_open" => "プルリクエストはオープン状態ではありません。",
         "pull_request_route_not_allowed" => "このプルリクエスト経路は許可されていません。",
         "pull_request_merge_conflict" => "競合があるためプルリクエストをマージできません。",
+        "pull_request_merge_blocked" => "リポジトリ要件によりプルリクエストのマージが拒否されました。",
+        "mergeability_calculating" => "マージ可能性を計算中です。",
+        "mergeability_unknown" => "マージ可能性を一時的に判定できません。",
         "tag_invalid" => "タグが無効です。",
         "tag_already_exists" => "タグは既に存在します。",
         "tag_target_not_allowed" => "タグの対象は許可されていません。",
