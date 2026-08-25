@@ -21,4 +21,4 @@ Packages exclude environment-specific data:
 
 The release is a self-contained Windows x64 package. Record SHA-256 hashes and run `buckettie version`, `config check`, and `doctor` after deployment.
 
-The MSI manages installation below `%ProgramFiles%\Buckettie` or `INSTALLROOT`, directory creation, Windows Service registration, major upgrades, and uninstall. It neither packages nor removes the effective configuration, application data, tokens, or audit logs.
+The MSI manages installation below `C:\Buckettie` or `INSTALLROOT`, system `PATH` registration for the installed `bin` directory, directory creation, Windows Service registration, major upgrades, and uninstall. It neither packages nor removes the effective configuration, application data, tokens, or audit logs.

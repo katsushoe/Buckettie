@@ -14,6 +14,7 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Buckettie is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <Property Id="BUCKETTIE_LANGUAGE" Value="ja-JP" Secure="yes" />
+    <Property Id="INSTALLROOT" Value="C:\Buckettie" Secure="yes" />
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLROOT" />
 
     <UI>
@@ -86,6 +87,9 @@
         <Exclude Files="$(PublishDir)\Buckettie.Server.exe" />
         <Exclude Files="$(PublishDir)\*.pdb" />
       </Files>
+      <Component Id="PathEnvironmentComponent" Guid="C3CEFC74-B760-44B4-B8E4-F8904C46C8E7">
+        <Environment Id="BuckettiePathEnvironment" Name="PATH" Value="[INSTALLROOT]bin" Action="set" Part="last" Permanent="no" System="yes" />
+      </Component>
     </ComponentGroup>
   </Fragment>
 
