@@ -4,7 +4,7 @@
 
 Buckettieは、許可したローカルGitリポジトリとBitbucket CloudをMCPクライアントから操作するWindows向けゲートウェイです。リポジトリAllowlist、ブランチ保護、監査ログ、DPAPIで保護したAPI Tokenにより、AIクライアントへ必要な操作だけを公開します。
 
-現在のリリース：`1.3.8.0`
+現在のリリース：`1.3.9.0`
 
 ## はじめに
 
@@ -19,10 +19,10 @@ CodexとClaude Codeの完全な登録手順は[MCPセットアップ](MCP_SETUP.
 
 ### インストーラ配布（推奨）
 
-リリースから`Buckettie-<version>-win-x64.msi`とSHA-256ファイルを取得し、ハッシュを検証してから管理者権限で実行します。既定のインストール先は`%ProgramFiles%\Buckettie`です。
+リリースから`Buckettie-<version>-win-x64.msi`とSHA-256ファイルを取得し、ハッシュを検証してから管理者権限で実行します。既定のインストール先は`C:\Buckettie`で、インストーラは`C:\Buckettie\bin`をシステム環境変数`PATH`へ追加します。
 
 ```powershell
-msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="F:\Buckettie"
+msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="D:\Buckettie"
 ```
 
 ### バイナリ配布

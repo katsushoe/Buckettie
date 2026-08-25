@@ -4,7 +4,7 @@
 
 Buckettie is a Windows gateway that lets MCP clients operate explicitly allowed local Git repositories and Bitbucket Cloud repositories. Repository allowlists, branch protection, audit logs, and DPAPI-protected API tokens expose only the operations an AI client needs.
 
-Current release: `1.3.8.0`
+Current release: `1.3.9.0`
 
 ## Getting Started
 
@@ -19,10 +19,10 @@ See [MCP Setup](MCP_SETUP.md) for complete Codex and Claude Code registration in
 
 ### Installer distribution (recommended)
 
-Download `Buckettie-<version>-win-x64.msi` and its SHA-256 file from the release. Verify the hash, then run the MSI as an administrator. The default installation root is `%ProgramFiles%\Buckettie`.
+Download `Buckettie-<version>-win-x64.msi` and its SHA-256 file from the release. Verify the hash, then run the MSI as an administrator. The default installation root is `C:\Buckettie`, and the installer adds `C:\Buckettie\bin` to the system `PATH`.
 
 ```powershell
-msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="F:\Buckettie"
+msiexec.exe /i Buckettie-<version>-win-x64.msi INSTALLROOT="D:\Buckettie"
 ```
 
 ### Binary archive

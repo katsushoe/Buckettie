@@ -10,7 +10,7 @@ The ZIP distribution requires users to place binaries, create directories, and r
 
 ## Decision
 
-Generate a per-machine Windows x64 MSI with WiX Toolset 6. The default root is `Buckettie` below `ProgramFiles64Folder`; public directory property `INSTALLROOT` selects another root. The MSI manages self-contained binaries, the configuration template, user documents, `logs` and `data` directories, and LocalSystem registration of the `Buckettie` service. It does not start the service before initial configuration and DPAPI token registration are complete.
+Generate a per-machine Windows x64 MSI with WiX Toolset 6. The default root is `C:\Buckettie`; public directory property `INSTALLROOT` selects another root. The MSI manages self-contained binaries, the configuration template, user documents, `logs` and `data` directories, system `PATH` registration for the installed `bin` directory, and LocalSystem registration of the `Buckettie` service. It does not start the service before initial configuration and DPAPI token registration are complete.
 
 Preserve configuration, tokens, and audit logs during upgrades and uninstall. Never include secrets in the MSI.
 
