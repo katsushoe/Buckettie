@@ -40,6 +40,21 @@ public sealed class BuckettieMcpToolsTests
     }
 
     [Fact]
+    public void McpGuidance_WhenInspected_ExposesUsagePromptAndServerInstructions()
+    {
+        McpServerPromptAttribute attribute = typeof(BuckettieMcpGuidance)
+            .GetMethod(nameof(BuckettieMcpGuidance.GetUsageGuide))!
+            .GetCustomAttributes(typeof(McpServerPromptAttribute), inherit: false)
+            .Cast<McpServerPromptAttribute>()
+            .Single();
+
+        attribute.Name.Should().Be("buckettie_usage");
+        BuckettieMcpGuidance.ServerInstructions.Should().Contain("localhost gateway");
+        BuckettieMcpGuidance.ServerInstructions.Should().Contain("bitbucket_*");
+        new BuckettieMcpGuidance().GetUsageGuide().Should().Be(BuckettieMcpGuidance.ServerInstructions);
+    }
+
+    [Fact]
     public void ToolMethods_WhenInspected_ExposeExactlyThePhaseOneToolSet()
     {
         McpServerToolAttribute[] attributes = typeof(BuckettieMcpTools)
