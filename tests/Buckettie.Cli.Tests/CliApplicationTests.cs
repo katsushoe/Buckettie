@@ -118,6 +118,53 @@ public sealed class CliApplicationTests : IDisposable
         executor.Arguments.Should().Equal("start", "Buckettie");
     }
 
+    [Fact]
+    public async Task RepositoryRegister_WhenNoInputOption_UsesGuiTokenPromptByDefault()
+    {
+        string path = WriteConfiguration();
+        string? promptedRepository = null;
+        string? promptedLanguage = null;
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "repo", "register", "newrepo", "C:\\repo"],
+            new StringWriter(),
+            new StringWriter(),
+            TestContext.Current.CancellationToken,
+            secretReader: () => throw new InvalidOperationException(),
+            tokenPrompt: (repository, language, _) =>
+            {
+                promptedRepository = repository;
+                promptedLanguage = language;
+                return Task.FromResult<string?>(null);
+            });
+
+        exitCode.Should().Be(1);
+        promptedRepository.Should().Be("newrepo");
+        promptedLanguage.Should().Be("en-US");
+    }
+
+    [Fact]
+    public async Task RepositoryRegister_WhenConsoleTokenOptionIsSpecified_UsesSecretReader()
+    {
+        string path = WriteConfiguration();
+        bool secretReaderCalled = false;
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "repo", "register", "newrepo", "C:\\repo", "--console-token"],
+            new StringWriter(),
+            new StringWriter(),
+            TestContext.Current.CancellationToken,
+            secretReader: () =>
+            {
+                secretReaderCalled = true;
+                return null;
+            },
+            tokenPrompt: (_, _, _) => throw new InvalidOperationException());
+
+        exitCode.Should().Be(1);
+        secretReaderCalled.Should().BeTrue();
+    }
+
     private string WriteConfiguration(string language = "en-US")
     {
         Directory.CreateDirectory(_directory);

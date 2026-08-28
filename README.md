@@ -55,6 +55,8 @@ The standard layout is `<install-root>\bin`, `config`, `logs`, and `data`. DPAPI
 
 For a ZIP deployment, run `service install` once before `start`. See [Configuration](CONFIG.md) for every setting and its constraints.
 
+`repo register` opens a topmost centered Token dialog by default. Use `--console-token` only when terminal input is required.
+
 ## Usage
 
 - Inspect repository state and run `fetch`, `pull`, or an allowed `push`.

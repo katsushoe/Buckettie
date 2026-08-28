@@ -17,6 +17,14 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 4 && string.Equals(args[0], "--token", StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(args[1])
+            && !string.IsNullOrWhiteSpace(args[2])
+            && !string.IsNullOrWhiteSpace(args[3]))
+        {
+            return RunTokenPromptAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
+        }
+
         if (args.Length != 1 || string.IsNullOrWhiteSpace(args[0]))
         {
             return InvalidArgsExitCode;
@@ -62,6 +70,48 @@ internal static class Program
             await ApprovalPipeProtocol
                 .WriteFrameAsync(pipe, new ApprovalPromptResponse(approved), CancellationToken.None)
                 .ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            return PipeUnavailableExitCode;
+        }
+
+        return 0;
+    }
+
+    private static async Task<int> RunTokenPromptAsync(
+        string pipeName,
+        string repository,
+        string language)
+    {
+        await using NamedPipeClientStream pipe = new(
+            ".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+        using CancellationTokenSource connectTimeout = new(ConnectTimeout);
+        try
+        {
+            await pipe.ConnectAsync(connectTimeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException)
+        {
+            return PipeUnavailableExitCode;
+        }
+
+        System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+
+        string? token;
+        using (TokenForm form = new(repository, language))
+        {
+            token = form.ShowDialog() == DialogResult.OK ? form.Token : null;
+        }
+
+        try
+        {
+            await ApprovalPipeProtocol.WriteFrameAsync(
+                pipe,
+                new TokenPromptResponse(string.IsNullOrWhiteSpace(token) ? null : token),
+                CancellationToken.None).ConfigureAwait(false);
         }
         catch (IOException)
         {

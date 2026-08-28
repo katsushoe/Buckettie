@@ -55,6 +55,8 @@ MSIは`.local\installer\output`配下へ出力されます。詳細は[インス
 
 ZIP版では`start`より前に`service install`を一度実行します。全設定項目と制約は[設定](CONFIG.ja.md)を参照してください。
 
+`repo register`は既定で最前面・画面中央のToken入力Dialogを表示します。Terminal入力が必要な場合だけ`--console-token`を使用します。
+
 ## 使い方
 
 - リポジトリ状態の確認と`fetch`、`pull`、許可された`push`

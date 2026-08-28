@@ -5,6 +5,9 @@ namespace Buckettie.Application.Interactive;
 /// <summary>承認Dialogからの応答です（Secretは含みません）。</summary>
 public sealed record ApprovalPromptResponse(bool Approved);
 
+/// <summary>Token入力Dialogからの応答です。</summary>
+public sealed record TokenPromptResponse(string? Token);
+
 /// <summary>
 /// Buckettie.ServerとBuckettie.ApprovalPromptが共有する、長さPrefix付きJSON Pipe Protocolです。
 /// 両者が同じ契約を参照することで、Wire Formatのずれを防ぎます。

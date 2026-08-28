@@ -14,7 +14,11 @@ namespace Buckettie.Cli;
 internal static class Program
 {
     private static Task<int> Main(string[] args) => CliApplication.RunAsync(
-        args, Console.Out, Console.Error, secretReader: ReadSecret);
+        args,
+        Console.Out,
+        Console.Error,
+        secretReader: ReadSecret,
+        tokenPrompt: TokenPromptClient.ReadTokenAsync);
 
     private static string? ReadSecret()
     {
@@ -37,7 +41,8 @@ internal static class CliApplication
     internal static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error,
         CancellationToken cancellationToken = default,
         IServiceCommandExecutor? serviceExecutor = null,
-        Func<string?>? secretReader = null)
+        Func<string?>? secretReader = null,
+        Func<string, string, CancellationToken, Task<string?>>? tokenPrompt = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         string configPath = GetConfigPath(args);
@@ -111,7 +116,9 @@ internal static class CliApplication
                 ["repo", "pull", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_pull", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "push", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_push", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "register", var repository, var localRoot, .. var rest] =>
-                    await RegisterRepositoryAsync(services, repository, localRoot, rest, output, cancellationToken).ConfigureAwait(false),
+                    await RegisterRepositoryAsync(
+                        services, repository, localRoot, rest, output, error, secretReader,
+                        tokenPrompt, japanese, cancellationToken).ConfigureAwait(false),
                 ["repo", "unregister", var repository] =>
                     await CallRepositoryToolAsync(
                         services, output, "bitbucket_repository_unregister", repository, [], cancellationToken)
@@ -229,9 +236,51 @@ internal static class CliApplication
         return 0;
     }
 
-    private static async Task<int> RegisterRepositoryAsync(IServiceProvider services, string repository,
-        string localRoot, string[] rest, TextWriter output, CancellationToken cancellationToken)
+    private static async Task<int> RegisterRepositoryAsync(
+        IServiceProvider services,
+        string repository,
+        string localRoot,
+        string[] rest,
+        TextWriter output,
+        TextWriter error,
+        Func<string?>? secretReader,
+        Func<string, string, CancellationToken, Task<string?>>? tokenPrompt,
+        bool japanese,
+        CancellationToken cancellationToken)
     {
+        bool consoleToken = rest.Contains("--console-token", StringComparer.Ordinal);
+        string? token;
+        if (consoleToken)
+        {
+            error.Write(japanese ? "トークン: " : "Token: ");
+            token = secretReader?.Invoke();
+        }
+        else
+        {
+            Func<string, string, CancellationToken, Task<string?>> prompt =
+                tokenPrompt ?? TokenPromptClient.ReadTokenAsync;
+            token = await prompt(repository, japanese ? "ja-JP" : "en-US", cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            error.WriteLine(japanese
+                ? "Repository登録はTokenが入力されなかったため中止しました。"
+                : "Repository registration was cancelled because no Token was entered.");
+            return 1;
+        }
+
+        IApiTokenStore tokenStore = services.GetRequiredService<IApiTokenStore>();
+        ApiTokenStoreResult saved = tokenStore.Save(repository, token);
+        if (!saved.IsSuccess)
+        {
+            error.WriteLine(japanese
+                ? $"Tokenを保存できませんでした。({saved.Error})"
+                : $"The Token could not be saved. ({saved.Error})");
+            return 1;
+        }
+
         Dictionary<string, object?> arguments = new()
         {
             ["localRoot"] = localRoot,
@@ -239,9 +288,15 @@ internal static class CliApplication
             ["developBranch"] = GetOption(rest, "--develop-branch") ?? "develop",
             ["mainBranch"] = GetOption(rest, "--main-branch") ?? "main",
         };
-        return await CallRepositoryToolAsync(
+        int result = await CallRepositoryToolAsync(
             services, output, "bitbucket_repository_register", repository, arguments, cancellationToken)
             .ConfigureAwait(false);
+        if (result != 0)
+        {
+            _ = tokenStore.Delete(repository);
+        }
+
+        return result;
     }
 
     private static async Task<int> UpdateRepositoryAsync(IServiceProvider services, string repository,
@@ -517,7 +572,7 @@ internal static class CliApplication
         buckettie config check|show
         buckettie repo list|status <repository>
         buckettie repo fetch|pull|push <repository>
-        buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X]
+        buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
@@ -548,7 +603,7 @@ internal static class CliApplication
         buckettie config check|show
         buckettie repo list|status <repository>
         buckettie repo fetch|pull|push <repository>
-        buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X]
+        buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]

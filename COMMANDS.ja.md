@@ -19,7 +19,8 @@
 | `buckettie repo list` | 設定済みRepository IDを一覧表示します。 |
 | `buckettie repo status <id>` | ローカルRepositoryを検証して状態を表示します。 |
 | `buckettie repo fetch\|pull\|push <id>` | MCPサービス経由でポリシー検証付きGit操作を実行します。 |
-| `buckettie repo register\|unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。 |
+| `buckettie repo register <id> <local-root> ...` | 最前面・画面中央のDialogでAPI Tokenを入力してからMCPサービス経由でRepositoryを登録します。`--console-token`では非表示のTerminal入力を使用します。 |
+| `buckettie repo unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。 |
 | `buckettie branch list\|get\|create\|delete ...` | Bitbucketブランチを一覧・取得・作成・削除します。新規ブランチは設定済みdevelopのHEADを起点とし、develop、main、保護ブランチは削除できません。 |
 | `buckettie pr list\|get\|diff\|create\|merge ...` | Bitbucketプルリクエストの一覧・詳細・差分・作成・マージを実行します。 |
 | `buckettie tag list\|get\|create\|delete\|push ...` | ポリシー準拠タグの一覧・取得・作成・削除・明示的pushを実行します。 |
