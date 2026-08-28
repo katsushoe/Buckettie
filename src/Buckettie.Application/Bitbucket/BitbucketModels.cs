@@ -11,6 +11,9 @@ public sealed record BitbucketRepositoryInfo(
 /// <summary>Bitbucket Branch情報です。</summary>
 public sealed record BitbucketBranchInfo(string Name, string TargetHash);
 
+/// <summary>Branch作成入力です。</summary>
+public sealed record BitbucketBranchCreate(string Name, string TargetHash);
+
 /// <summary>Bitbucket Tag情報です。</summary>
 public sealed record BitbucketTagInfo(
     string Name,
@@ -21,6 +24,11 @@ public sealed record BitbucketTagInfo(
 
 /// <summary>Tag作成入力です。</summary>
 public sealed record BitbucketTagCreate(string Name, string? Message);
+
+/// <summary>Repository Contractで公開するProvider能力です。</summary>
+public sealed record BitbucketProviderCapabilities(
+    string Provider,
+    IReadOnlyDictionary<string, bool> Operations);
 
 /// <summary>Pull Requestの状態です。</summary>
 public enum BitbucketPullRequestState

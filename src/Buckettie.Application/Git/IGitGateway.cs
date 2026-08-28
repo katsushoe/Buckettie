@@ -16,4 +16,8 @@ public interface IGitGateway
 
     /// <summary>許可された現在branchをpushします。</summary>
     public Task<GitGatewayResult> PushAsync(string repository, CancellationToken cancellationToken = default);
+
+    /// <summary>Policy準拠のローカルTagをpushします。</summary>
+    public Task<GitGatewayResult> PushTagAsync(
+        string repository, string tag, CancellationToken cancellationToken = default);
 }

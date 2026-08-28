@@ -66,6 +66,21 @@ public sealed class GitCommandClientTests
     }
 
     [Fact]
+    public async Task PushTagAsync_WhenCalled_UsesExactTagRefspec()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.PushTagAsync(
+            "repository-root", "origin", "v1.2.3", "buckettie",
+            TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root",
+            "-c", "credential.helper=", "-c", "http.extraHeader=",
+            "push", "--", "origin", "refs/tags/v1.2.3:refs/tags/v1.2.3");
+    }
+
+    [Fact]
     public async Task GetRemoteUrlAsync_WhenCalled_UsesFixedArguments()
     {
         GitCommandClient client = CreateClient();

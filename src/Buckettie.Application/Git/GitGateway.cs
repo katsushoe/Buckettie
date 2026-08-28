@@ -228,6 +228,37 @@ public sealed class GitGateway : IGitGateway
             ?? GitGatewayResult.Success(operation, repository, branch);
     }
 
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> PushTagAsync(
+        string repository,
+        string tag,
+        CancellationToken cancellationToken = default)
+    {
+        const string operation = "tag_push";
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken)
+            .ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null)
+        {
+            return boundary.Failure!;
+        }
+
+        RepositoryPolicy policy = CreatePolicy(repository, boundary.Repository);
+        PolicyResult policyResult = policy.ValidateTag(tag, boundary.Repository.TagTargetBranch);
+        if (!policyResult.IsAllowed)
+        {
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidReference, tag);
+        }
+
+        GitCommandResult result = await _git.PushTagAsync(
+            boundary.Repository.LocalRoot,
+            boundary.Repository.Remote,
+            tag,
+            repository,
+            cancellationToken).ConfigureAwait(false);
+        return MapCommandFailure(operation, repository, result, tag)
+            ?? GitGatewayResult.Success(operation, repository, tag);
+    }
+
     private async Task<BoundaryResult> ValidateBoundaryAsync(
         string repository,
         string operation,
@@ -331,6 +362,8 @@ public sealed class GitGateway : IGitGateway
                 GitGatewayError.WorkingTreeDirty,
             _ when ContainsAny(result.StandardError,
                 "CONFLICT (", "Automatic merge failed", "Merge conflict") => GitGatewayError.Conflict,
+            _ when ContainsAny(result.StandardError,
+                "src refspec", "does not match any", "unknown revision") => GitGatewayError.ReferenceNotFound,
             _ when ContainsAny(result.StandardError,
                 "does not appear to be a git repository", "No such remote", "remote origin already exists") =>
                 GitGatewayError.RemoteMismatch,

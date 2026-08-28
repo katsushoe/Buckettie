@@ -19,6 +19,14 @@ public interface IBitbucketRepositoryGateway
         string branch,
         CancellationToken cancellationToken = default);
 
+    /// <summary>設定済みdevelopのHEADへBranchを作成します。</summary>
+    public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
+        string repository, string branch, CancellationToken cancellationToken = default);
+
+    /// <summary>保護規則を適用してBranchを削除します。</summary>
+    public Task<BitbucketResult<bool>> DeleteBranchAsync(
+        string repository, string branch, CancellationToken cancellationToken = default);
+
     /// <summary>Tag一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
         string repository,
@@ -35,6 +43,10 @@ public interface IBitbucketRepositoryGateway
         string repository,
         BitbucketTagCreate input,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Policy検証後にTagを削除します。</summary>
+    public Task<BitbucketResult<bool>> DeleteTagAsync(
+        string repository, string tag, CancellationToken cancellationToken = default);
 
     /// <summary>Pull Request一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(

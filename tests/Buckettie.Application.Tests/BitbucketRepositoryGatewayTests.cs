@@ -66,6 +66,39 @@ public sealed class BitbucketRepositoryGatewayTests
     }
 
     [Fact]
+    public async Task CreateBranchAsync_WhenInputIsValid_TargetsConfiguredDevelopHead()
+    {
+        _client.GetBranchAsync(
+            "allowed", "workspace", "repository", "develop", Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("develop", "abcdef")));
+        _client.CreateBranchAsync(
+            "allowed", "workspace", "repository", new BitbucketBranchCreate("feature/test", "abcdef"),
+            Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("feature/test", "abcdef")));
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<BitbucketBranchInfo> result = await gateway.CreateBranchAsync(
+            "allowed", "feature/test", TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(new BitbucketBranchInfo("feature/test", "abcdef"));
+    }
+
+    [Theory]
+    [InlineData("develop")]
+    [InlineData("main")]
+    public async Task DeleteBranchAsync_WhenBranchIsProtected_DoesNotCallApi(string branch)
+    {
+        BitbucketRepositoryGateway gateway = CreateGateway();
+
+        BitbucketResult<bool> result = await gateway.DeleteBranchAsync(
+            "allowed", branch, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.BranchProtected);
+        await _client.DidNotReceiveWithAnyArgs().DeleteBranchAsync(
+            default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task CreateTagAsync_WhenInputIsValid_TargetsConfiguredBranchHead()
     {
         BitbucketTagCreate input = new("v1.2.3", "Release");

@@ -51,6 +51,10 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
     public Task<GitGatewayResult> PushAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_push", repository, () => inner.PushAsync(repository, cancellationToken));
 
+    public Task<GitGatewayResult> PushTagAsync(
+        string repository, string tag, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_tag_push", repository, () => inner.PushTagAsync(repository, tag, cancellationToken));
+
     private async Task<GitGatewayResult> RunAsync(string tool, string repository, Func<Task<GitGatewayResult>> operation)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -74,6 +78,12 @@ internal sealed class AuditedBitbucketRepositoryGateway(
     public Task<BitbucketResult<BitbucketBranchInfo>> GetBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_branch_get", repository, branch, null, null, () => inner.GetBranchAsync(repository, branch, cancellationToken));
 
+    public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_branch_create", repository, branch, null, null, () => inner.CreateBranchAsync(repository, branch, cancellationToken));
+
+    public Task<BitbucketResult<bool>> DeleteBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_branch_delete", repository, branch, null, null, () => inner.DeleteBranchAsync(repository, branch, cancellationToken));
+
     public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_tag_list", repository, null, null, null, () => inner.ListTagsAsync(repository, cancellationToken));
 
@@ -82,6 +92,9 @@ internal sealed class AuditedBitbucketRepositoryGateway(
 
     public Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(string repository, BitbucketTagCreate input, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_tag_create", repository, null, null, input.Name, () => inner.CreateTagAsync(repository, input, cancellationToken));
+
+    public Task<BitbucketResult<bool>> DeleteTagAsync(string repository, string tag, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_tag_delete", repository, null, null, tag, () => inner.DeleteTagAsync(repository, tag, cancellationToken));
 
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(string repository, BitbucketPullRequestState? state, string? source, string? destination, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_pr_list", repository, source, null, null, () => inner.ListPullRequestsAsync(repository, state, source, destination, cancellationToken));

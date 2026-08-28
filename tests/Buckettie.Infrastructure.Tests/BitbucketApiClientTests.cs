@@ -72,6 +72,53 @@ public sealed class BitbucketApiClientTests
     }
 
     [Fact]
+    public async Task CreateBranchAsync_WhenCalled_SendsNameAndTarget()
+    {
+        RecordingHandler handler = new("{\"name\":\"feature/test\",\"target\":{\"hash\":\"abcdef\"}}");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketBranchInfo> result = await client.CreateBranchAsync(
+            "allowed", "workspace", "repository", new("feature/test", "abcdef"),
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(new BitbucketBranchInfo("feature/test", "abcdef"));
+        handler.Methods.Should().Equal(HttpMethod.Post);
+        handler.Paths.Should().Equal("repositories/workspace/repository/refs/branches");
+        handler.Bodies.Should().ContainSingle().Which.Should().Contain("\"name\":\"feature/test\"")
+            .And.Contain("\"target\":{\"hash\":\"abcdef\"}");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Conflict, BitbucketError.BranchAlreadyExists)]
+    [InlineData(HttpStatusCode.Forbidden, BitbucketError.PermissionDenied)]
+    public async Task CreateBranchAsync_WhenProviderRejects_ReturnsClassifiedError(
+        HttpStatusCode statusCode, BitbucketError expected)
+    {
+        RecordingHandler handler = new(statusCode);
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketBranchInfo> result = await client.CreateBranchAsync(
+            "allowed", "workspace", "repository", new("feature/test", "abcdef"),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task DeleteBranchAsync_WhenMissing_ReturnsNotFound()
+    {
+        RecordingHandler handler = new(HttpStatusCode.NotFound);
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<bool> result = await client.DeleteBranchAsync(
+            "allowed", "workspace", "repository", "feature/test",
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.NotFound);
+        handler.Methods.Should().Equal(HttpMethod.Delete);
+    }
+
+    [Fact]
     public async Task ListTagsAsync_WhenResponseIsPaged_MapsTags()
     {
         RecordingHandler handler = new(
@@ -131,6 +178,21 @@ public sealed class BitbucketApiClientTests
         handler.Bodies.Should().ContainSingle().Which.Should().Contain("\"name\":\"v1.2.3\"")
             .And.Contain("\"target\":{\"hash\":\"abcdef\"}")
             .And.Contain("\"message\":\"Release\"");
+    }
+
+    [Fact]
+    public async Task DeleteTagAsync_WhenCalled_UsesEncodedTagPath()
+    {
+        RecordingHandler handler = new((HttpStatusCode.NoContent, string.Empty));
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<bool> result = await client.DeleteTagAsync(
+            "allowed", "workspace", "repository", "release/1",
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().BeTrue();
+        handler.Methods.Should().Equal(HttpMethod.Delete);
+        handler.Paths.Should().Equal("repositories/workspace/repository/refs/tags/release%2F1");
     }
 
     [Fact]

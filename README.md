@@ -59,7 +59,8 @@ For a ZIP deployment, run `service install` once before `start`. See [Configurat
 
 - Inspect repository state and run `fetch`, `pull`, or an allowed `push`.
 - List, inspect, create, and merge pull requests.
-- List and create tags.
+- Query Repository Contract capabilities; create or delete branches.
+- List, create, delete, and explicitly push tags.
 - Restrict Git and Bitbucket API operations by repository and branch.
 
 See [Commands](COMMANDS.md) for the CLI and MCP tool contracts.

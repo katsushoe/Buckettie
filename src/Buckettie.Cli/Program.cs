@@ -120,6 +120,8 @@ internal static class CliApplication
                     await UpdateRepositoryAsync(services, repository, updateArgs, output, error, japanese, cancellationToken).ConfigureAwait(false),
                 ["branch", "list", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_list", repository, [], cancellationToken).ConfigureAwait(false),
                 ["branch", "get", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_get", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
+                ["branch", "create", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_create", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
+                ["branch", "delete", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_delete", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
                 ["pr", "list", var repository, .. var listArgs] => await ListPullRequestsAsync(services, repository, listArgs, output, cancellationToken).ConfigureAwait(false),
                 ["pr", "get", var repository, var pullRequestId] => await CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_get", repository, pullRequestId, [], cancellationToken).ConfigureAwait(false),
                 ["pr", "diff", var repository, var pullRequestId] => await CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_diff", repository, pullRequestId, [], cancellationToken).ConfigureAwait(false),
@@ -128,6 +130,9 @@ internal static class CliApplication
                 ["tag", "list", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_list", repository, [], cancellationToken).ConfigureAwait(false),
                 ["tag", "get", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_get", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
                 ["tag", "create", var repository, var tag, .. var tagArgs] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_create", repository, new() { ["tag"] = tag, ["message"] = GetOption(tagArgs, "--message") }, cancellationToken).ConfigureAwait(false),
+                ["tag", "delete", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_delete", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
+                ["tag", "push", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_push", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
+                ["provider", "capabilities"] => await CallToolAsync(services, output, "bitbucket_provider_capabilities", null, [], cancellationToken).ConfigureAwait(false),
                 ["auth", "test"] => TestAuthentication(services, output, japanese),
                 ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader, japanese),
                 ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output, japanese),
@@ -518,6 +523,7 @@ internal static class CliApplication
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
+        buckettie branch create|delete <repository> <branch>
         buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
         buckettie pr get|diff <repository> <pull-request-id>
         buckettie pr create <repository> <title> <description> [--draft]
@@ -525,6 +531,8 @@ internal static class CliApplication
         buckettie tag list <repository>
         buckettie tag get <repository> <tag>
         buckettie tag create <repository> <tag> [--message X]
+        buckettie tag delete|push <repository> <tag>
+        buckettie provider capabilities
         repo register/unregister/updateは稼働中サービスのMCPエンドポイントを呼び出します。
         register/updateはサーバーのデスクトップに承認ダイアログを表示し、最大120秒待機します。
         buckettie auth test
@@ -546,6 +554,7 @@ internal static class CliApplication
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
+        buckettie branch create|delete <repository> <branch>
         buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
         buckettie pr get|diff <repository> <pull-request-id>
         buckettie pr create <repository> <title> <description> [--draft]
@@ -553,6 +562,8 @@ internal static class CliApplication
         buckettie tag list <repository>
         buckettie tag get <repository> <tag>
         buckettie tag create <repository> <tag> [--message X]
+        buckettie tag delete|push <repository> <tag>
+        buckettie provider capabilities
         (repo register/unregister/update call the running service's MCP endpoint; register/update wait for
         interactive Dialog approval on the server's desktop, up to 120s)
         buckettie auth test

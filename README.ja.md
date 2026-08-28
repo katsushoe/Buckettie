@@ -59,7 +59,8 @@ ZIP版では`start`より前に`service install`を一度実行します。全�
 
 - リポジトリ状態の確認と`fetch`、`pull`、許可された`push`
 - Pull Requestの一覧、取得、作成、merge
-- Tagの一覧と作成
+- Repository Contract能力の照会とBranchの作成・削除
+- Tagの一覧・作成・削除・明示的push
 - リポジトリおよびブランチ単位のGit／Bitbucket API操作制限
 
 CLIとMCP Toolの仕様は[コマンド](COMMANDS.ja.md)を参照してください。

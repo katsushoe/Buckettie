@@ -20,9 +20,10 @@
 | `buckettie repo status <id>` | ローカルRepositoryを検証して状態を表示します。 |
 | `buckettie repo fetch\|pull\|push <id>` | MCPサービス経由でポリシー検証付きGit操作を実行します。 |
 | `buckettie repo register\|unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。 |
-| `buckettie branch list <id>` / `branch get <id> <branch>` | Bitbucketブランチを一覧表示または取得します。 |
+| `buckettie branch list\|get\|create\|delete ...` | Bitbucketブランチを一覧・取得・作成・削除します。新規ブランチは設定済みdevelopのHEADを起点とし、develop、main、保護ブランチは削除できません。 |
 | `buckettie pr list\|get\|diff\|create\|merge ...` | Bitbucketプルリクエストの一覧・詳細・差分・作成・マージを実行します。 |
-| `buckettie tag list\|get\|create ...` | Bitbucketタグの一覧・詳細取得とポリシー準拠タグ作成を実行します。 |
+| `buckettie tag list\|get\|create\|delete\|push ...` | ポリシー準拠タグの一覧・取得・作成・削除・明示的pushを実行します。 |
+| `buckettie provider capabilities` | Repository Contract操作の対応可否を表示します。 |
 | `buckettie auth test` | 値を表示せず各Repositoryの認証情報を読めるか確認します。 |
 | `buckettie auth set <id>` | 非表示でTokenを読み、DPAPI LocalMachineで保護して保存します。 |
 | `buckettie auth delete <id>` | Repository単位の暗号化Tokenファイルを削除します。 |

@@ -42,7 +42,7 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
         string branch,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(branch) || branch.Length > 255 || branch.Any(char.IsControl))
+        if (!IsValidBranchInput(branch))
         {
             return Task.FromResult(BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.InvalidBranch));
         }
@@ -50,6 +50,65 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
         return TryGet(repository, out RepositoryOptions? options)
             ? _client.GetBranchAsync(repository, options!.Workspace, options.Slug, branch, cancellationToken)
             : Task.FromResult(BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.RepositoryNotAllowed));
+    }
+
+    /// <inheritdoc />
+    public async Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
+        string repository,
+        string branch,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsValidBranchInput(branch))
+        {
+            return BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.InvalidBranch);
+        }
+
+        if (!TryGet(repository, out RepositoryOptions? options) || options is null)
+        {
+            return BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.RepositoryNotAllowed);
+        }
+
+        BitbucketResult<BitbucketBranchInfo> source = await _client.GetBranchAsync(
+            repository, options.Workspace, options.Slug, options.DevelopBranch, cancellationToken)
+            .ConfigureAwait(false);
+        if (!source.IsSuccess || source.Value is null)
+        {
+            return BitbucketResult<BitbucketBranchInfo>.Failure(source.Error ?? BitbucketError.InvalidResponse);
+        }
+
+        return await _client.CreateBranchAsync(
+            repository,
+            options.Workspace,
+            options.Slug,
+            new BitbucketBranchCreate(branch, source.Value.TargetHash),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<bool>> DeleteBranchAsync(
+        string repository,
+        string branch,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsValidBranchInput(branch))
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.InvalidBranch));
+        }
+
+        if (!TryGet(repository, out RepositoryOptions? options) || options is null)
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.RepositoryNotAllowed));
+        }
+
+        if (string.Equals(branch, options.DevelopBranch, StringComparison.Ordinal)
+            || string.Equals(branch, options.MainBranch, StringComparison.Ordinal)
+            || options.ProtectedBranches.Contains(branch))
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.BranchProtected));
+        }
+
+        return _client.DeleteBranchAsync(
+            repository, options.Workspace, options.Slug, branch, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -124,6 +183,32 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
             branch.Value.TargetHash,
             input,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<bool>> DeleteTagAsync(
+        string repository,
+        string tag,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsValidTagInput(tag))
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.InvalidTag));
+        }
+
+        if (!TryGet(repository, out RepositoryOptions? options) || options is null)
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.RepositoryNotAllowed));
+        }
+
+        RepositoryPolicy policy = CreatePolicy(repository, options);
+        PolicyResult policyResult = policy.ValidateTag(tag, options.TagTargetBranch);
+        if (!policyResult.IsAllowed)
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.InvalidTag));
+        }
+
+        return _client.DeleteTagAsync(repository, options.Workspace, options.Slug, tag, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -299,6 +384,9 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
 
     private static bool IsValidTagInput(string tag) =>
         !string.IsNullOrWhiteSpace(tag) && tag.Length <= 255 && !tag.Any(char.IsControl);
+
+    private static bool IsValidBranchInput(string branch) =>
+        !string.IsNullOrWhiteSpace(branch) && branch.Length <= 255 && !branch.Any(char.IsControl);
 
     private static bool IsValidOptionalBranch(string? branch) =>
         branch is null || (!string.IsNullOrWhiteSpace(branch) && branch.Length <= 255 && !branch.Any(char.IsControl));
