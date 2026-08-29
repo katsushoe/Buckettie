@@ -63,6 +63,18 @@ public sealed class SqliteRepositoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task InsertAsync_WhenIdDiffersOnlyByCase_ReturnsFalse()
+    {
+        SqliteRepositoryStore store = CreateStore();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+
+        bool inserted = await store.InsertAsync(
+            "BUCKETTIE", CreateRepository(), TestContext.Current.CancellationToken);
+
+        inserted.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task UpdateAsync_WhenIdExists_ReplacesFields()
     {
         SqliteRepositoryStore store = CreateStore();
@@ -75,6 +87,19 @@ public sealed class SqliteRepositoryStoreTests : IDisposable
         IReadOnlyDictionary<string, RepositoryOptions> repositories = await store.LoadAllAsync(
             TestContext.Current.CancellationToken);
         repositories["buckettie"].TagTargetBranch.Should().Be("release");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenIdUsesDifferentCase_ReplacesFields()
+    {
+        SqliteRepositoryStore store = CreateStore();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+
+        bool result = await store.UpdateAsync(
+            "BUCKETTIE", CreateRepository() with { TagTargetBranch = "release" },
+            TestContext.Current.CancellationToken);
+
+        result.Should().BeTrue();
     }
 
     [Fact]
@@ -99,6 +124,17 @@ public sealed class SqliteRepositoryStoreTests : IDisposable
         IReadOnlyDictionary<string, RepositoryOptions> repositories = await store.LoadAllAsync(
             TestContext.Current.CancellationToken);
         repositories.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenIdUsesDifferentCase_RemovesIt()
+    {
+        SqliteRepositoryStore store = CreateStore();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+
+        bool result = await store.DeleteAsync("BUCKETTIE", TestContext.Current.CancellationToken);
+
+        result.Should().BeTrue();
     }
 
     [Fact]

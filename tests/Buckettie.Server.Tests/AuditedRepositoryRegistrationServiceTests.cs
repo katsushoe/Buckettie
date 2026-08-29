@@ -13,19 +13,19 @@ public sealed class AuditedRepositoryRegistrationServiceTests
     public async Task RegisterAsync_WhenSuccessful_WritesSuccessAuditEventWithoutBranchOrTagFields()
     {
         RepositoryRegistrationOutcome outcome = RepositoryRegistrationOutcome.Success(
-            "new-repo", "example-workspace", "new-repo");
+            "newrepo", "example-workspace", "new-repo");
         _inner.RegisterAsync(
-                "new-repo", "C:\\Repositories\\NewRepo", "origin", "develop", "main", Arg.Any<CancellationToken>())
+                "newrepo", "C:\\Repositories\\NewRepo", "origin", "develop", "main", Arg.Any<CancellationToken>())
             .Returns(outcome);
         AuditedRepositoryRegistrationService service = new(_inner, _audit);
 
         await service.RegisterAsync(
-            "new-repo", "C:\\Repositories\\NewRepo", "origin", "develop", "main",
+            "newrepo", "C:\\Repositories\\NewRepo", "origin", "develop", "main",
             TestContext.Current.CancellationToken);
 
         _audit.Received(1).Write(Arg.Is<BuckettieAuditEvent>(auditEvent =>
             auditEvent.Tool == "bitbucket_repository_register"
-            && auditEvent.Repository == "new-repo"
+            && auditEvent.Repository == "newrepo"
             && auditEvent.Branch == null
             && auditEvent.PullRequestId == null
             && auditEvent.Tag == null
@@ -39,12 +39,12 @@ public sealed class AuditedRepositoryRegistrationServiceTests
         RepositoryRegistrationOutcome outcome = RepositoryRegistrationOutcome.Failure(
             new BuckettieToolError("approval_denied", "The repository registration was denied."));
         _inner.RegisterAsync(
-                "new-repo", "C:\\Repositories\\NewRepo", "origin", "develop", "main", Arg.Any<CancellationToken>())
+                "newrepo", "C:\\Repositories\\NewRepo", "origin", "develop", "main", Arg.Any<CancellationToken>())
             .Returns(outcome);
         AuditedRepositoryRegistrationService service = new(_inner, _audit);
 
         await service.RegisterAsync(
-            "new-repo", "C:\\Repositories\\NewRepo", "origin", "develop", "main",
+            "newrepo", "C:\\Repositories\\NewRepo", "origin", "develop", "main",
             TestContext.Current.CancellationToken);
 
         _audit.Received(1).Write(Arg.Is<BuckettieAuditEvent>(auditEvent =>

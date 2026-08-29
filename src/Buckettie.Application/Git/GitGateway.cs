@@ -264,7 +264,7 @@ public sealed class GitGateway : IGitGateway
         string operation,
         CancellationToken cancellationToken)
     {
-        if (!RepositoryId.IsValid(repository))
+        if (!RepositoryId.IsLookupValid(repository))
         {
             return BoundaryResult.Invalid(GitGatewayResult.Failure(
                 operation,

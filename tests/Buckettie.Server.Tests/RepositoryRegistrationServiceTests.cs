@@ -1,4 +1,4 @@
-using Buckettie.Application.Configuration;
+﻿using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
@@ -33,13 +33,13 @@ public sealed class RepositoryRegistrationServiceTests
         _environment.DirectoryExists(LocalRoot).Returns(false);
 
         RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
-            "new-repo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
 
         outcome.IsSuccess.Should().BeFalse();
         outcome.Error!.Code.Should().Be("local_repository_invalid");
         await _approvalPrompt.DidNotReceive().RequestApprovalAsync(
             Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
-        allowlist.TryGet("new-repo", out _).Should().BeFalse();
+        allowlist.TryGet("newrepo", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -52,11 +52,11 @@ public sealed class RepositoryRegistrationServiceTests
             .Returns(ApprovalPromptOutcome.Denied());
 
         RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
-            "new-repo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
 
         outcome.IsSuccess.Should().BeFalse();
         outcome.Error!.Code.Should().Be("approval_denied");
-        allowlist.TryGet("new-repo", out _).Should().BeFalse();
+        allowlist.TryGet("newrepo", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -69,11 +69,11 @@ public sealed class RepositoryRegistrationServiceTests
             .Returns(ApprovalPromptOutcome.Failure(ApprovalOutcome.TimedOut));
 
         RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
-            "new-repo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
 
         outcome.IsSuccess.Should().BeFalse();
         outcome.Error!.Code.Should().Be("approval_timed_out");
-        allowlist.TryGet("new-repo", out _).Should().BeFalse();
+        allowlist.TryGet("newrepo", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -87,11 +87,11 @@ public sealed class RepositoryRegistrationServiceTests
             .Returns(ApprovalPromptOutcome.Approved());
 
         RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
-            "new-repo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
 
         outcome.IsSuccess.Should().BeFalse();
         outcome.Error!.Code.Should().Be("registration_write_failed");
-        allowlist.TryGet("new-repo", out _).Should().BeFalse();
+        allowlist.TryGet("newrepo", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -105,18 +105,18 @@ public sealed class RepositoryRegistrationServiceTests
             .Returns(ApprovalPromptOutcome.Approved());
 
         RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
-            "new-repo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
 
         outcome.IsSuccess.Should().BeTrue();
         outcome.Workspace.Should().Be("example-workspace");
         outcome.Slug.Should().Be("new-repo");
-        allowlist.TryGet("new-repo", out RepositoryOptions? registered).Should().BeTrue();
+        allowlist.TryGet("newrepo", out RepositoryOptions? registered).Should().BeTrue();
         registered!.ProtectedBranches.Should().BeEquivalentTo(["main"]);
         registered.DirectPushBranches.Should().BeEquivalentTo(["develop"]);
 
         IReadOnlyDictionary<string, RepositoryOptions> stored = await store.LoadAllAsync(
             TestContext.Current.CancellationToken);
-        stored.Should().ContainKey("new-repo");
+        stored.Should().ContainKey("newrepo");
     }
 
     [Fact]
@@ -130,14 +130,14 @@ public sealed class RepositoryRegistrationServiceTests
             .Returns(_ => pendingApproval.Task);
 
         Task<RepositoryRegistrationOutcome> firstCall = service.RegisterAsync(
-            "new-repo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
         while (!_approvalPrompt.ReceivedCalls().Any())
         {
             await Task.Delay(10, TestContext.Current.CancellationToken);
         }
 
         RepositoryRegistrationOutcome secondOutcome = await service.RegisterAsync(
-            "another-repo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+            "anotherrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
 
         secondOutcome.IsSuccess.Should().BeFalse();
         secondOutcome.Error!.Code.Should().Be("registration_in_progress");

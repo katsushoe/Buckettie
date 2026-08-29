@@ -118,7 +118,7 @@ public sealed class DpapiFileTokenStore : IApiTokenStore
     }
 
     private string GetPath(string repositoryId) => Path.Combine(_directory, $"{repositoryId}.token");
-    private static ApiTokenStoreResult? Validate(string repositoryId) => RepositoryId.IsValid(repositoryId)
+    private static ApiTokenStoreResult? Validate(string repositoryId) => RepositoryId.IsLookupValid(repositoryId)
         ? null : ApiTokenStoreResult.Failure(ApiTokenStoreError.InvalidRepositoryId);
 }
 

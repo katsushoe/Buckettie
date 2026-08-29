@@ -109,6 +109,19 @@ public sealed class JsonBuckettieOptionsLoaderTests
     }
 
     [Fact]
+    public async Task LoadAsync_WhenRepositoryIdsDifferOnlyByCase_ReturnsRepositoryIdError()
+    {
+        string json = CreateRootJson("\"buckettie\":" + ValidRepositoryJson
+            + ",\"BUCKETTIE\":" + ValidRepositoryJson);
+        await using MemoryStream stream = CreateStream(json);
+
+        ConfigurationLoadResult result = await _loader.LoadAsync(stream, TestContext.Current.CancellationToken);
+
+        result.Errors.Should().ContainSingle()
+            .Which.Code.Should().Be(ConfigurationErrorCode.InvalidRepositoryId);
+    }
+
+    [Fact]
     public async Task LoadAsync_WhenRepositoryIdIsInvalid_ReturnsRepositoryIdError()
     {
         string json = CreateRootJson("\"../repository\":" + ValidRepositoryJson);

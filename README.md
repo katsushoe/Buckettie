@@ -56,6 +56,7 @@ The standard layout is `<install-root>\bin`, `config`, `logs`, and `data`. DPAPI
 For a ZIP deployment, run `service install` once before `start`. See [Configuration](CONFIG.md) for every setting and its constraints.
 
 `repo register` opens a topmost centered Token dialog by default. Use `--console-token` only when terminal input is required.
+Repository IDs must match the Itoguruma Project Inbox ID rule `^[a-z][a-z0-9]*$`. Repository lookup is case-insensitive.
 
 ## Usage
 

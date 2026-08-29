@@ -379,7 +379,7 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
     private bool TryGet(string repository, out RepositoryOptions? options)
     {
         options = null;
-        return RepositoryId.IsValid(repository) && _allowlist.TryGet(repository, out options);
+        return RepositoryId.IsLookupValid(repository) && _allowlist.TryGet(repository, out options);
     }
 
     private static bool IsValidTagInput(string tag) =>

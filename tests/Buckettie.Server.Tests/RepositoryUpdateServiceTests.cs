@@ -36,6 +36,24 @@ public sealed class RepositoryUpdateServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_WhenRepositoryIdUsesDifferentCase_UpdatesRepository()
+    {
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        FakeRepositoryStore store = new();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+        _approvalPrompt.RequestApprovalAsync(
+                Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ApprovalPromptOutcome.Approved());
+        RepositoryUpdateService service = new(allowlist, store, _approvalPrompt, new RepositoryMutationGate());
+
+        RepositoryUpdateOutcome outcome = await service.UpdateAsync(
+            "BUCKETTIE", CreateRequest() with { TagTargetBranch = "release" },
+            TestContext.Current.CancellationToken);
+
+        outcome.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task UpdateAsync_WhenApprovalIsDenied_DoesNotMutate()
     {
         RepositoryAllowlist allowlist = CreateAllowlist();
