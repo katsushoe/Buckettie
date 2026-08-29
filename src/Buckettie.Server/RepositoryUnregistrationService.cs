@@ -37,7 +37,7 @@ internal sealed class RepositoryUnregistrationService : IRepositoryUnregistratio
     public async Task<RepositoryUnregistrationOutcome> UnregisterAsync(
         string repositoryId, CancellationToken cancellationToken)
     {
-        if (!RepositoryId.IsValid(repositoryId))
+        if (!RepositoryId.IsLookupValid(repositoryId))
         {
             return RepositoryUnregistrationOutcome.Failure(
                 BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.RepositoryIdInvalid));

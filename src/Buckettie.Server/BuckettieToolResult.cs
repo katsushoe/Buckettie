@@ -92,6 +92,8 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.NetworkError => "network_error",
         GitGatewayError.PermissionDenied => "permission_denied",
         GitGatewayError.Conflict => "conflict",
+        GitGatewayError.ReferenceNotFound => "tag_not_found",
+        GitGatewayError.InvalidReference => "tag_invalid",
         GitGatewayError.WorkingTreeDirty => "working_tree_dirty",
         GitGatewayError.BranchNotAllowed => "branch_not_allowed",
         GitGatewayError.ProtectedBranch => "protected_branch",
@@ -106,6 +108,8 @@ internal static class BuckettieToolResultMapper
     {
         BitbucketError.RepositoryNotAllowed => "repository_not_allowed",
         BitbucketError.InvalidBranch => "branch_not_allowed",
+        BitbucketError.BranchAlreadyExists => "branch_already_exists",
+        BitbucketError.BranchProtected => "protected_branch",
         BitbucketError.InvalidPullRequest => "pull_request_invalid",
         BitbucketError.PullRequestNotOpen => "pull_request_not_open",
         BitbucketError.PullRequestRouteNotAllowed => "pull_request_route_not_allowed",
@@ -159,9 +163,9 @@ internal static class BuckettieToolResultMapper
 
     private static string NotFoundCode(string operation) => operation switch
     {
-        "branch_get" => "branch_not_found",
+        "branch_get" or "branch_delete" => "branch_not_found",
         "pr_get" or "pr_diff" or "pr_merge" => "pull_request_not_found",
-        "tag_get" => "tag_not_found",
+        "tag_get" or "tag_delete" => "tag_not_found",
         _ => "repository_not_found",
     };
 
@@ -250,6 +254,7 @@ internal static class BuckettieToolResultMapper
         "working_tree_dirty" => "The working tree must be clean.",
         "branch_not_allowed" => "The branch is not allowed.",
         "branch_not_found" => "The branch was not found.",
+        "branch_already_exists" => "The branch already exists.",
         "protected_branch" => "Direct push to the protected branch is not allowed.",
         "nothing_to_push" => "There is nothing to push.",
         "non_fast_forward" => "The operation is not a fast-forward.",
@@ -297,6 +302,7 @@ internal static class BuckettieToolResultMapper
         "working_tree_dirty" => "作業ツリーをクリーンな状態にしてください。",
         "branch_not_allowed" => "このブランチは許可されていません。",
         "branch_not_found" => "ブランチが見つかりません。",
+        "branch_already_exists" => "ブランチは既に存在します。",
         "protected_branch" => "保護ブランチへの直接pushは許可されていません。",
         "nothing_to_push" => "pushする変更がありません。",
         "non_fast_forward" => "fast-forwardできないため操作を完了できません。",

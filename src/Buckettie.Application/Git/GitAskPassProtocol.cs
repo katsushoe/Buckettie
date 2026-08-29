@@ -34,7 +34,7 @@ public static class GitAskPassProtocol
             throw new ArgumentException("AskPass executable path must be absolute.", nameof(askPassExecutable));
         }
 
-        if (!RepositoryId.IsValid(repositoryId))
+        if (!RepositoryId.IsLookupValid(repositoryId))
         {
             throw new ArgumentException("Invalid repository ID.", nameof(repositoryId));
         }

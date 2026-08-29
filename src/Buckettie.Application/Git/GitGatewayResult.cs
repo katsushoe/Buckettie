@@ -15,6 +15,8 @@ public enum GitGatewayError
     NetworkError,
     PermissionDenied,
     Conflict,
+    ReferenceNotFound,
+    InvalidReference,
     WorkingTreeDirty,
     BranchNotAllowed,
     ProtectedBranch,

@@ -102,6 +102,41 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
             cancellationToken);
 
     /// <inheritdoc />
+    public async Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        BitbucketBranchCreate input,
+        CancellationToken cancellationToken = default)
+    {
+        BranchCreateRequest request = new(input.Name, new(input.TargetHash));
+        BitbucketResult<BitbucketBranchInfo> result = await SendJsonAsync<
+            BranchCreateRequest, BranchResponse, BitbucketBranchInfo>(
+            repositoryId,
+            HttpMethod.Post,
+            $"{RepositoryPath(workspace, slug)}/refs/branches",
+            request,
+            IsValidBranch,
+            MapBranch,
+            cancellationToken).ConfigureAwait(false);
+        return result.Error == BitbucketError.PullRequestMergeConflict
+            ? BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.BranchAlreadyExists)
+            : result;
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<bool>> DeleteBranchAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        string branch,
+        CancellationToken cancellationToken = default) =>
+        DeleteAsync(
+            repositoryId,
+            $"{RepositoryPath(workspace, slug)}/refs/branches/{Uri.EscapeDataString(branch)}",
+            cancellationToken);
+
+    /// <inheritdoc />
     public async Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
         string repositoryId,
         string workspace,
@@ -173,6 +208,18 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
             ? BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.TagAlreadyExists)
             : result;
     }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<bool>> DeleteTagAsync(
+        string repositoryId,
+        string workspace,
+        string slug,
+        string tag,
+        CancellationToken cancellationToken = default) =>
+        DeleteAsync(
+            repositoryId,
+            $"{RepositoryPath(workspace, slug)}/refs/tags/{Uri.EscapeDataString(tag)}",
+            cancellationToken);
 
     /// <inheritdoc />
     public async Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
@@ -572,6 +619,24 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
         }
     }
 
+    private async Task<BitbucketResult<bool>> DeleteAsync(
+        string repositoryId,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        BitbucketResult<HttpResponseMessage> sent = await SendAsync(
+            repositoryId,
+            new HttpRequestMessage(HttpMethod.Delete, path),
+            cancellationToken).ConfigureAwait(false);
+        if (!sent.IsSuccess || sent.Value is null)
+        {
+            return BitbucketResult<bool>.Failure(sent.Error ?? BitbucketError.ApiError);
+        }
+
+        using HttpResponseMessage response = sent.Value;
+        return BitbucketResult<bool>.Success(true);
+    }
+
     private async Task<BitbucketResult<HttpResponseMessage>> SendAsync(
         string repositoryId,
         HttpRequestMessage request,
@@ -771,6 +836,8 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
     private sealed record BranchPageResponse(IReadOnlyList<BranchResponse>? Values, string? Next);
 
     private sealed record BranchResponse(string? Name, TargetResponse? Target);
+
+    private sealed record BranchCreateRequest(string Name, TargetResponse Target);
 
     private sealed record TargetResponse(string? Hash);
 

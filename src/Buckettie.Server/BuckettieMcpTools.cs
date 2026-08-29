@@ -49,6 +49,28 @@ public sealed class BuckettieMcpTools
         Task.FromResult(new BuckettieToolResult<BuckettieVersionData>(
             true, "get_version", string.Empty, new BuckettieVersionData(ProductVersion), null));
 
+    /// <summary>Repository Contractで利用可能な操作を返します。</summary>
+    [McpServerTool(Name = "bitbucket_provider_capabilities", ReadOnly = true, Destructive = false,
+        Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Repository Contractの各操作についてBitbucket Providerの対応可否を返します。 / Returns support flags for Bitbucket Repository Contract operations.")]
+    public Task<BuckettieToolResult<BitbucketProviderCapabilities>> GetProviderCapabilitiesAsync()
+    {
+        Dictionary<string, bool> operations = new(StringComparer.Ordinal)
+        {
+            ["branch_create"] = true,
+            ["branch_delete"] = true,
+            ["tag_delete"] = true,
+            ["tag_push"] = true,
+            ["explicit_push"] = true,
+        };
+        return Task.FromResult(new BuckettieToolResult<BitbucketProviderCapabilities>(
+            true,
+            "provider_capabilities",
+            string.Empty,
+            new BitbucketProviderCapabilities("bitbucket", operations),
+            null));
+    }
+
     /// <summary>Repositoryのローカル状態を取得します。</summary>
     [McpServerTool(Name = "bitbucket_repository_status", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = true,
@@ -108,6 +130,30 @@ public sealed class BuckettieMcpTools
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetBranchAsync(repository, branch, cancellationToken), "branch_get", repository, _language);
+
+    /// <summary>設定済みdevelopのHEADへRemote Branchを作成します。</summary>
+    [McpServerTool(Name = "bitbucket_branch_create", Destructive = true, Idempotent = false,
+        OpenWorld = true, UseStructuredContent = true)]
+    [Description("設定済みdevelopブランチのHEADからBitbucketブランチを作成します。 / Creates a Bitbucket branch from the configured develop branch HEAD.")]
+    public Task<BuckettieToolResult<BitbucketBranchInfo>> CreateBranchAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("作成するブランチ名。 / Branch name to create.")] string branch,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.CreateBranchAsync(repository, branch, cancellationToken),
+            "branch_create", repository, _language);
+
+    /// <summary>保護規則を適用してRemote Branchを削除します。</summary>
+    [McpServerTool(Name = "bitbucket_branch_delete", Destructive = true, Idempotent = false,
+        OpenWorld = true, UseStructuredContent = true)]
+    [Description("develop、main、保護ブランチを除くBitbucketブランチを削除します。 / Deletes a Bitbucket branch except develop, main, and protected branches.")]
+    public Task<BuckettieToolResult<bool>> DeleteBranchAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("削除するブランチ名。 / Branch name to delete.")] string branch,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.DeleteBranchAsync(repository, branch, cancellationToken),
+            "branch_delete", repository, _language);
 
     /// <summary>Pull Request一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_pr_list", ReadOnly = true, Destructive = false,
@@ -227,6 +273,28 @@ public sealed class BuckettieMcpTools
             "tag_create",
             repository,
             _language);
+
+    /// <summary>Policy準拠のRemote Tagを削除します。</summary>
+    [McpServerTool(Name = "bitbucket_tag_delete", Destructive = true, Idempotent = false,
+        OpenWorld = true, UseStructuredContent = true)]
+    [Description("ポリシー準拠のBitbucketタグを削除します。 / Deletes a policy-compliant Bitbucket tag.")]
+    public Task<BuckettieToolResult<bool>> DeleteTagAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("削除するタグ名。 / Tag name to delete.")] string tag,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.DeleteTagAsync(repository, tag, cancellationToken),
+            "tag_delete", repository, _language);
+
+    /// <summary>Policy準拠のLocal Tagを明示的にpushします。</summary>
+    [McpServerTool(Name = "bitbucket_tag_push", Destructive = true, Idempotent = true,
+        OpenWorld = true, UseStructuredContent = true)]
+    [Description("ポリシー準拠のローカルタグを設定済みBitbucketリモートへ明示的にpushします。 / Explicitly pushes a policy-compliant local tag to the configured Bitbucket remote.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> PushTagAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("pushするタグ名。 / Tag name to push.")] string tag,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(_git.PushTagAsync(repository, tag, cancellationToken), _language);
 
     /// <summary>新規RepositoryをAllowlistへ登録します。対話Desktopでの人間承認が必須です。</summary>
     [McpServerTool(Name = "bitbucket_repository_register", ReadOnly = false, Destructive = true,

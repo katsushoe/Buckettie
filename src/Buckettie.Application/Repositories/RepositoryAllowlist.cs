@@ -17,7 +17,7 @@ public sealed class RepositoryAllowlist
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.Repositories);
-        _repositories = new Dictionary<string, RepositoryOptions>(options.Repositories, StringComparer.Ordinal);
+        _repositories = new Dictionary<string, RepositoryOptions>(options.Repositories, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -48,7 +48,7 @@ public sealed class RepositoryAllowlist
                 return false;
             }
 
-            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.Ordinal)
+            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.OrdinalIgnoreCase)
             {
                 [repositoryId] = options,
             };
@@ -70,7 +70,7 @@ public sealed class RepositoryAllowlist
                 return false;
             }
 
-            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.Ordinal);
+            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.OrdinalIgnoreCase);
             next.Remove(repositoryId);
             _repositories = next;
             return true;
@@ -91,7 +91,7 @@ public sealed class RepositoryAllowlist
                 return false;
             }
 
-            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.Ordinal)
+            Dictionary<string, RepositoryOptions> next = new(_repositories, StringComparer.OrdinalIgnoreCase)
             {
                 [repositoryId] = options,
             };

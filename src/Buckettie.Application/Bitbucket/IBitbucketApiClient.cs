@@ -25,6 +25,16 @@ public interface IBitbucketApiClient
         string branch,
         CancellationToken cancellationToken = default);
 
+    /// <summary>指定CommitへBranchを作成します。</summary>
+    public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
+        string repositoryId, string workspace, string slug, BitbucketBranchCreate input,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Branchを削除します。</summary>
+    public Task<BitbucketResult<bool>> DeleteBranchAsync(
+        string repositoryId, string workspace, string slug, string branch,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Tag一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketTagInfo>>> ListTagsAsync(
         string repositoryId,
@@ -47,6 +57,11 @@ public interface IBitbucketApiClient
         string slug,
         string targetHash,
         BitbucketTagCreate input,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Tagを削除します。</summary>
+    public Task<BitbucketResult<bool>> DeleteTagAsync(
+        string repositoryId, string workspace, string slug, string tag,
         CancellationToken cancellationToken = default);
 
     /// <summary>Pull Request一覧を取得します。</summary>

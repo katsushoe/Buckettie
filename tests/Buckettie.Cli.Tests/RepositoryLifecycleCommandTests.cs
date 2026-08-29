@@ -24,10 +24,14 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
 
         int exitCode = await CliApplication.RunAsync(
             ["--config", path, "repo", "register", "example", "C:\\repo"],
-            output, new StringWriter(), TestContext.Current.CancellationToken);
+            output,
+            new StringWriter(),
+            TestContext.Current.CancellationToken,
+            tokenPrompt: (_, _, _) => Task.FromResult<string?>("test-token"));
 
         exitCode.Should().Be(1);
-        output.ToString().Should().Contain("[NG] bitbucket_repository_register: example");
+        output.ToString().Should().Contain("[NG] bitbucket_repository_register: example")
+            .And.NotContain("test-token");
     }
 
     [Fact]

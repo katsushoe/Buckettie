@@ -1,4 +1,4 @@
-using Buckettie.Application.Configuration;
+﻿using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Repositories;
 using FluentAssertions;
@@ -27,7 +27,7 @@ public sealed class RepositoryRegistrationValidatorTests
             .Returns(GitCommandResult.Success("https://bitbucket.org/example-workspace/new-repo.git\n"));
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeTrue();
         result.Workspace.Should().Be("example-workspace");
@@ -44,7 +44,7 @@ public sealed class RepositoryRegistrationValidatorTests
             .Returns(GitCommandResult.Success("git@bitbucket.org:example-workspace/new-repo.git\n"));
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
         result.Error.Should().Be(RepositoryValidationError.SshRemoteNotSupported);
@@ -59,6 +59,21 @@ public sealed class RepositoryRegistrationValidatorTests
             "../escape", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
+        result.Error.Should().Be(RepositoryValidationError.RepositoryIdInvalid);
+    }
+
+    [Theory]
+    [InlineData("Buckettie")]
+    [InlineData("ai_prompt")]
+    [InlineData("obsidian-vault")]
+    public async Task ValidateAsync_WhenRepositoryIdViolatesProjectInboxRule_ReturnsRepositoryIdInvalid(
+        string repositoryId)
+    {
+        RepositoryRegistrationValidator validator = CreateValidator();
+
+        RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
+            repositoryId, LocalRoot, "origin", TestContext.Current.CancellationToken);
+
         result.Error.Should().Be(RepositoryValidationError.RepositoryIdInvalid);
     }
 
@@ -80,7 +95,7 @@ public sealed class RepositoryRegistrationValidatorTests
         _environment.DirectoryExists(LocalRoot).Returns(false);
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(RepositoryValidationError.LocalRootNotFound);
     }
@@ -93,7 +108,7 @@ public sealed class RepositoryRegistrationValidatorTests
         _environment.ContainsReparsePoint(LocalRoot).Returns(true);
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(RepositoryValidationError.LocalPathReparsePoint);
     }
@@ -107,7 +122,7 @@ public sealed class RepositoryRegistrationValidatorTests
         _environment.GitMetadataExists(LocalRoot).Returns(false);
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(RepositoryValidationError.GitMetadataNotFound);
     }
@@ -121,7 +136,7 @@ public sealed class RepositoryRegistrationValidatorTests
             .Returns(GitCommandResult.Failed(GitCommandFailure.Failed, "fatal: no such remote"));
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(RepositoryValidationError.RemoteUrlInvalid);
     }
@@ -135,7 +150,7 @@ public sealed class RepositoryRegistrationValidatorTests
             .Returns(GitCommandResult.Success("https://example.com/example-workspace/new-repo.git\n"));
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(RepositoryValidationError.RemoteUrlInvalid);
     }
@@ -153,7 +168,7 @@ public sealed class RepositoryRegistrationValidatorTests
             .Returns(GitCommandResult.Success("https://bitbucket.org/example-workspace/new-repo.git\n"));
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(RepositoryValidationError.RepositoryAlreadyRegistered);
     }
@@ -171,7 +186,7 @@ public sealed class RepositoryRegistrationValidatorTests
             .Returns(GitCommandResult.Success("https://bitbucket.org/example-workspace/new-repo.git\n"));
 
         RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
-            "new-repo", LocalRoot, "origin", TestContext.Current.CancellationToken);
+            "newrepo", LocalRoot, "origin", TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(RepositoryValidationError.RepositoryAlreadyRegistered);
     }
@@ -189,7 +204,7 @@ public sealed class RepositoryRegistrationValidatorTests
         string existingSlug = "buckettie",
         string existingLocalRoot = "C:\\Repositories\\Buckettie")
     {
-        Dictionary<string, RepositoryOptions> repositories = new(StringComparer.Ordinal);
+        Dictionary<string, RepositoryOptions> repositories = new(StringComparer.OrdinalIgnoreCase);
         if (existingRepositoryId is not null)
         {
             repositories[existingRepositoryId] = new RepositoryOptions

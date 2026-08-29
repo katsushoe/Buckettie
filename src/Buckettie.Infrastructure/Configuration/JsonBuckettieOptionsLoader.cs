@@ -100,7 +100,7 @@ public sealed class JsonBuckettieOptionsLoader : IBuckettieOptionsLoader
             return Required("repositories");
         }
 
-        HashSet<string> ids = new(StringComparer.Ordinal);
+        HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
         foreach (JsonProperty repository in repositories.EnumerateObject())
         {
             if (!RepositoryId.IsValid(repository.Name))

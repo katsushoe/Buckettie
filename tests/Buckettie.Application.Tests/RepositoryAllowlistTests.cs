@@ -43,15 +43,26 @@ public sealed class RepositoryAllowlistTests
     }
 
     [Fact]
+    public void TryGet_WhenRepositoryIdUsesDifferentCase_ReturnsSettings()
+    {
+        RepositoryAllowlist allowlist = new(CreateOptions());
+
+        bool found = allowlist.TryGet("BUCKETTIE", out RepositoryOptions? actual);
+
+        found.Should().BeTrue();
+        actual.Should().NotBeNull();
+    }
+
+    [Fact]
     public void Register_WhenRepositoryIdIsNew_AddsItAndReadersSeeIt()
     {
         RepositoryAllowlist allowlist = new(CreateOptions());
         RepositoryOptions repository = CreateRepository();
 
-        bool registered = allowlist.Register("new-repo", repository);
+        bool registered = allowlist.Register("newrepo", repository);
 
         registered.Should().BeTrue();
-        allowlist.TryGet("new-repo", out RepositoryOptions? actual).Should().BeTrue();
+        allowlist.TryGet("newrepo", out RepositoryOptions? actual).Should().BeTrue();
         actual.Should().BeSameAs(repository);
         allowlist.TryGet("buckettie", out _).Should().BeTrue();
     }
@@ -71,13 +82,23 @@ public sealed class RepositoryAllowlistTests
     }
 
     [Fact]
+    public void Register_WhenRepositoryIdDiffersOnlyByCase_ReturnsFalse()
+    {
+        RepositoryAllowlist allowlist = new(CreateOptions());
+
+        bool registered = allowlist.Register("BUCKETTIE", CreateRepository());
+
+        registered.Should().BeFalse();
+    }
+
+    [Fact]
     public void Snapshot_ReflectsRegisteredRepositories()
     {
         RepositoryAllowlist allowlist = new(CreateOptions());
 
-        allowlist.Register("new-repo", CreateRepository());
+        allowlist.Register("newrepo", CreateRepository());
 
-        allowlist.Snapshot().Keys.Should().Contain(["buckettie", "new-repo"]);
+        allowlist.Snapshot().Keys.Should().Contain(["buckettie", "newrepo"]);
     }
 
     [Fact]

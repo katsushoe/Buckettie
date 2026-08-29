@@ -4,7 +4,7 @@
 
 Buckettieは、許可したローカルGitリポジトリとBitbucket CloudをMCPクライアントから操作するWindows向けゲートウェイです。リポジトリAllowlist、ブランチ保護、監査ログ、DPAPIで保護したAPI Tokenにより、AIクライアントへ必要な操作だけを公開します。
 
-現在のリリース：`1.3.9.0`
+現在のリリース：`1.3.11.0`
 
 ## はじめに
 
@@ -55,11 +55,15 @@ MSIは`.local\installer\output`配下へ出力されます。詳細は[インス
 
 ZIP版では`start`より前に`service install`を一度実行します。全設定項目と制約は[設定](CONFIG.ja.md)を参照してください。
 
+`repo register`は既定で最前面・画面中央のToken入力Dialogを表示します。Terminal入力が必要な場合だけ`--console-token`を使用します。
+Repository IDはItoguruma Project Inbox ID規則`^[a-z][a-z0-9]*$`に従います。Repository検索では大文字・小文字を区別しません。
+
 ## 使い方
 
 - リポジトリ状態の確認と`fetch`、`pull`、許可された`push`
 - Pull Requestの一覧、取得、作成、merge
-- Tagの一覧と作成
+- Repository Contract能力の照会とBranchの作成・削除
+- Tagの一覧・作成・削除・明示的push
 - リポジトリおよびブランチ単位のGit／Bitbucket API操作制限
 
 CLIとMCP Toolの仕様は[コマンド](COMMANDS.ja.md)を参照してください。

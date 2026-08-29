@@ -35,7 +35,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         using SqliteCommand create = connection.CreateCommand();
         create.CommandText = """
             CREATE TABLE IF NOT EXISTS repositories (
-                repository_id TEXT PRIMARY KEY,
+                repository_id TEXT PRIMARY KEY COLLATE NOCASE,
                 workspace TEXT NOT NULL,
                 slug TEXT NOT NULL,
                 local_root TEXT NOT NULL,
@@ -49,6 +49,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 tag_pattern TEXT NOT NULL,
                 require_clean_working_tree INTEGER NOT NULL
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_repositories_repository_id_nocase
+                ON repositories(repository_id COLLATE NOCASE);
             """;
         create.ExecuteNonQuery();
     }
@@ -66,7 +68,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
             FROM repositories;
             """;
 
-        Dictionary<string, RepositoryOptions> repositories = new(StringComparer.Ordinal);
+        Dictionary<string, RepositoryOptions> repositories = new(StringComparer.OrdinalIgnoreCase);
         using SqliteDataReader reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -138,7 +140,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 tag_target_branch = @tagTargetBranch,
                 tag_pattern = @tagPattern,
                 require_clean_working_tree = @requireCleanWorkingTree
-            WHERE repository_id = @id;
+            WHERE repository_id = @id COLLATE NOCASE;
             """;
         BindOptions(update, repositoryId, options);
         int affected = await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -152,7 +154,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
 
         using SqliteConnection connection = OpenConnection();
         using SqliteCommand delete = connection.CreateCommand();
-        delete.CommandText = "DELETE FROM repositories WHERE repository_id = @id;";
+        delete.CommandText = "DELETE FROM repositories WHERE repository_id = @id COLLATE NOCASE;";
         delete.Parameters.AddWithValue("@id", repositoryId);
         int affected = await delete.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected == 1;

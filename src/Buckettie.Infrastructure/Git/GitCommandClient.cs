@@ -113,6 +113,19 @@ public sealed class GitCommandClient : IGitCommandClient
         CancellationToken cancellationToken) =>
         ExecuteNetworkAsync(repositoryRoot, ["push", "--", remote, branch], repositoryId, cancellationToken);
 
+    /// <inheritdoc />
+    public Task<GitCommandResult> PushTagAsync(
+        string repositoryRoot,
+        string remote,
+        string tag,
+        string repositoryId,
+        CancellationToken cancellationToken) =>
+        ExecuteNetworkAsync(
+            repositoryRoot,
+            ["push", "--", remote, $"refs/tags/{tag}:refs/tags/{tag}"],
+            repositoryId,
+            cancellationToken);
+
     private Task<GitCommandResult> ExecuteNetworkAsync(
         string repositoryRoot,
         IReadOnlyList<string> operationArguments,

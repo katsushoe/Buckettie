@@ -24,6 +24,20 @@ public sealed class RepositoryUnregistrationServiceTests
     }
 
     [Fact]
+    public async Task UnregisterAsync_WhenRepositoryIdUsesDifferentCase_RemovesRepository()
+    {
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        FakeRepositoryStore store = new();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+        RepositoryUnregistrationService service = new(allowlist, store, new RepositoryMutationGate());
+
+        RepositoryUnregistrationOutcome outcome = await service.UnregisterAsync(
+            "BUCKETTIE", TestContext.Current.CancellationToken);
+
+        outcome.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task UnregisterAsync_WhenRepositoryIsNotRegistered_ReturnsErrorAndDoesNotMutate()
     {
         RepositoryAllowlist allowlist = CreateAllowlist();

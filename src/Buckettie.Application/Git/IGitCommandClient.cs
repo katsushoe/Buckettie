@@ -56,4 +56,9 @@ public interface IGitCommandClient
         string branch,
         string repositoryId,
         CancellationToken cancellationToken);
+
+    /// <summary>指定Tagを設定済みRemoteへpushします。</summary>
+    public Task<GitCommandResult> PushTagAsync(
+        string repositoryRoot, string remote, string tag, string repositoryId,
+        CancellationToken cancellationToken);
 }

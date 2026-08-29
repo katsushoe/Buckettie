@@ -59,7 +59,7 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (!RepositoryId.IsValid(repositoryId))
+        if (!RepositoryId.IsLookupValid(repositoryId))
         {
             return RepositoryUpdateOutcome.Failure(
                 BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.RepositoryIdInvalid));

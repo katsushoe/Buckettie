@@ -173,6 +173,37 @@ public sealed class GitGatewayTests
         result.Error.Should().Be(GitGatewayError.WorkingTreeDirty);
     }
 
+    [Fact]
+    public async Task PushTagAsync_WhenTagIsValid_PushesExactTagReference()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.PushTagAsync(
+                RepositoryRoot, "origin", "v1.2.3", "buckettie", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+
+        GitGatewayResult result = await gateway.PushTagAsync(
+            "buckettie", "v1.2.3", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task PushTagAsync_WhenLocalTagDoesNotExist_ReturnsReferenceNotFound()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.PushTagAsync(
+                RepositoryRoot, "origin", "v1.2.3", "buckettie", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(
+                GitCommandFailure.Failed, "error: src refspec refs/tags/v1.2.3 does not match any"));
+
+        GitGatewayResult result = await gateway.PushTagAsync(
+            "buckettie", "v1.2.3", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.ReferenceNotFound);
+    }
+
     [Theory]
     [InlineData("fatal: Authentication failed for 'https://user:secret@bitbucket.org/work/repo.git/'", GitGatewayError.AuthenticationFailed)]
     [InlineData("fatal: unable to access 'https://bitbucket.org/work/repo.git/': Could not resolve host", GitGatewayError.NetworkError)]

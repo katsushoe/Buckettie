@@ -4,7 +4,7 @@
 
 Buckettie is a Windows gateway that lets MCP clients operate explicitly allowed local Git repositories and Bitbucket Cloud repositories. Repository allowlists, branch protection, audit logs, and DPAPI-protected API tokens expose only the operations an AI client needs.
 
-Current release: `1.3.9.0`
+Current release: `1.3.11.0`
 
 ## Getting Started
 
@@ -55,11 +55,15 @@ The standard layout is `<install-root>\bin`, `config`, `logs`, and `data`. DPAPI
 
 For a ZIP deployment, run `service install` once before `start`. See [Configuration](CONFIG.md) for every setting and its constraints.
 
+`repo register` opens a topmost centered Token dialog by default. Use `--console-token` only when terminal input is required.
+Repository IDs must match the Itoguruma Project Inbox ID rule `^[a-z][a-z0-9]*$`. Repository lookup is case-insensitive.
+
 ## Usage
 
 - Inspect repository state and run `fetch`, `pull`, or an allowed `push`.
 - List, inspect, create, and merge pull requests.
-- List and create tags.
+- Query Repository Contract capabilities; create or delete branches.
+- List, create, delete, and explicitly push tags.
 - Restrict Git and Bitbucket API operations by repository and branch.
 
 See [Commands](COMMANDS.md) for the CLI and MCP tool contracts.
