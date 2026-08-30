@@ -77,6 +77,21 @@ public sealed class GitCommandClient : IGitCommandClient
         ExecuteAsync(repositoryRoot, ["status", "--porcelain=v1"], cancellationToken);
 
     /// <inheritdoc />
+    public Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["diff", "--no-ext-diff", "--binary", "HEAD", "--"], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> StageAllAsync(string repositoryRoot, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["add", "--all", "--"], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> CommitAsync(
+        string repositoryRoot,
+        string message,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["commit", "--message", message, "--"], cancellationToken);
+
+    /// <inheritdoc />
     public Task<GitCommandResult> GetRemoteUrlAsync(
         string repositoryRoot,
         string remote,

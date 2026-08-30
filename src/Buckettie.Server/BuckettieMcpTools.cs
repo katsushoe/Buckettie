@@ -62,6 +62,8 @@ public sealed class BuckettieMcpTools
             ["tag_delete"] = true,
             ["tag_push"] = true,
             ["explicit_push"] = true,
+            ["repository_diff"] = true,
+            ["repository_commit"] = true,
         };
         return Task.FromResult(new BuckettieToolResult<BitbucketProviderCapabilities>(
             true,
@@ -80,6 +82,26 @@ public sealed class BuckettieMcpTools
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(_git.GetStatusAsync(repository, cancellationToken), _language);
+
+    /// <summary>RepositoryのHEADに対する作業ツリー差分を取得します。</summary>
+    [McpServerTool(Name = "bitbucket_repository_diff", ReadOnly = true, Destructive = false,
+        Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("登録済みリポジトリのHEADに対する作業ツリー差分を返します。 / Returns the working-tree diff against HEAD for an allowed repository.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> RepositoryDiffAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(_git.GetDiffAsync(repository, cancellationToken), _language);
+
+    /// <summary>Policyに従って作業ツリーの変更をlocal commitします。</summary>
+    [McpServerTool(Name = "bitbucket_repository_commit", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("許可された現在ブランチで作業ツリーの変更をすべてlocal commitします。 / Commits all working-tree changes locally on the current policy-allowed branch.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> RepositoryCommitAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("commitメッセージ。 / Commit message.")] string message,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(
+            _git.CommitAsync(repository, message, cancellationToken), _language);
 
     /// <summary>設定済みRemoteからfetchします。</summary>
     [McpServerTool(Name = "bitbucket_fetch", Destructive = false, Idempotent = true, OpenWorld = true,

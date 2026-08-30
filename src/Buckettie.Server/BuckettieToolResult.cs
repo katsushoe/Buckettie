@@ -27,7 +27,11 @@ public sealed record BuckettieToolResult<T>(
     BuckettieToolError? Error);
 
 /// <summary>Git Toolの成功データです。</summary>
-public sealed record BuckettieGitData(string? Branch, GitRepositoryStatus? Status);
+public sealed record BuckettieGitData(
+    string? Branch,
+    GitRepositoryStatus? Status,
+    string? Diff,
+    string? CommitHash);
 
 /// <summary>get_version Toolの成功データです。</summary>
 public sealed record BuckettieVersionData(string Version);
@@ -55,7 +59,8 @@ internal static class BuckettieToolResultMapper
         GitGatewayResult result = await operation.ConfigureAwait(false);
         if (result.IsSuccess)
         {
-            return new(true, result.Operation, result.Repository, new(result.Branch, result.Status), null);
+            return new(true, result.Operation, result.Repository,
+                new(result.Branch, result.Status, result.Diff, result.CommitHash), null);
         }
 
         string code = GitCode(result.Error ?? GitGatewayError.GitFailed);
@@ -98,6 +103,8 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.BranchNotAllowed => "branch_not_allowed",
         GitGatewayError.ProtectedBranch => "protected_branch",
         GitGatewayError.NothingToPush => "nothing_to_push",
+        GitGatewayError.NothingToCommit => "nothing_to_commit",
+        GitGatewayError.InvalidCommitMessage => "commit_message_invalid",
         GitGatewayError.NonFastForward => "non_fast_forward",
         GitGatewayError.Timeout => "timeout",
         GitGatewayError.Cancelled => "cancelled",
@@ -257,6 +264,8 @@ internal static class BuckettieToolResultMapper
         "branch_already_exists" => "The branch already exists.",
         "protected_branch" => "Direct push to the protected branch is not allowed.",
         "nothing_to_push" => "There is nothing to push.",
+        "nothing_to_commit" => "There are no changes to commit.",
+        "commit_message_invalid" => "The commit message is invalid.",
         "non_fast_forward" => "The operation is not a fast-forward.",
         "authentication_failed" => "Bitbucket authentication failed.",
         "permission_denied" => "Bitbucket denied permission for the operation.",
@@ -305,6 +314,8 @@ internal static class BuckettieToolResultMapper
         "branch_already_exists" => "ブランチは既に存在します。",
         "protected_branch" => "保護ブランチへの直接pushは許可されていません。",
         "nothing_to_push" => "pushする変更がありません。",
+        "nothing_to_commit" => "commitする変更がありません。",
+        "commit_message_invalid" => "commitメッセージが無効です。",
         "non_fast_forward" => "fast-forwardできないため操作を完了できません。",
         "authentication_failed" => "Bitbucketの認証に失敗しました。",
         "permission_denied" => "Bitbucketで操作権限が拒否されました。",

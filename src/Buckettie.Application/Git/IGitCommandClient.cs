@@ -28,6 +28,16 @@ public interface IGitCommandClient
     /// <summary>作業ツリー状態を取得します。</summary>
     public Task<GitCommandResult> GetStatusAsync(string repositoryRoot, CancellationToken cancellationToken);
 
+    /// <summary>HEADに対する作業ツリー差分を取得します。</summary>
+    public Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken);
+
+    /// <summary>作業ツリーの変更をすべてIndexへ追加します。</summary>
+    public Task<GitCommandResult> StageAllAsync(string repositoryRoot, CancellationToken cancellationToken);
+
+    /// <summary>Indexの変更を指定メッセージでcommitします。</summary>
+    public Task<GitCommandResult> CommitAsync(
+        string repositoryRoot, string message, CancellationToken cancellationToken);
+
     /// <summary>設定済みRemote URLを取得します。</summary>
     public Task<GitCommandResult> GetRemoteUrlAsync(
         string repositoryRoot,

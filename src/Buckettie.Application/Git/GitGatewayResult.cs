@@ -21,6 +21,8 @@ public enum GitGatewayError
     BranchNotAllowed,
     ProtectedBranch,
     NothingToPush,
+    NothingToCommit,
+    InvalidCommitMessage,
     NonFastForward,
     Timeout,
     Cancelled,
@@ -49,15 +51,19 @@ public sealed record GitGatewayResult(
     string? Branch,
     GitRepositoryStatus? Status,
     GitGatewayError? Error,
-    string? CorrelationId = null)
+    string? CorrelationId = null,
+    string? Diff = null,
+    string? CommitHash = null)
 {
     /// <summary>成功結果を生成します。</summary>
     public static GitGatewayResult Success(
         string operation,
         string repository,
         string? branch = null,
-        GitRepositoryStatus? status = null) =>
-        new(true, operation, repository, branch, status, null);
+        GitRepositoryStatus? status = null,
+        string? diff = null,
+        string? commitHash = null) =>
+        new(true, operation, repository, branch, status, null, null, diff, commitHash);
 
     /// <summary>失敗結果を生成します。</summary>
     public static GitGatewayResult Failure(
