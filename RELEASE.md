@@ -13,17 +13,18 @@ Release date: 2026-08-30
 | File | SHA-256 |
 | --- | --- |
 | `Buckettie-1.3.14.0-win-x64.msi` | `39B8891268ECD15315427010B3E6716C1920D77A4F786C48DD3E30D915B4B63D` |
-| `Buckettie-1.3.14.0-win-x64.zip` | Not built for this local installation |
+| `Buckettie-1.3.14.0-win-x64.zip` | `C9CF267152516BBE49BF910A5BAACDDB88407F92038AC7B97945294B6FA51ADB` |
 
 - Runtime: Windows x64, self-contained
 - Display version: `1.3.14.0`
 - Windows Installer product version: `1.3.14`
-- Tag: not created
+- Tag: `v1.3.14.0`
 
 ## Validation
 
 - Automated tests: passed (284 tests)
 - MSI build and SHA-256 hash: passed
+- ZIP release build and SHA-256 hash: passed
 - Physical-machine upgrade: passed after UAC elevation (service running, version `1.3.14.0`, configuration and 3 Token files preserved)
 
 Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.
