@@ -42,6 +42,13 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
     public Task<GitGatewayResult> GetStatusAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_repository_status", repository, () => inner.GetStatusAsync(repository, cancellationToken));
 
+    public Task<GitGatewayResult> GetDiffAsync(string repository, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_diff", repository, () => inner.GetDiffAsync(repository, cancellationToken));
+
+    public Task<GitGatewayResult> CommitAsync(
+        string repository, string message, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_commit", repository, () => inner.CommitAsync(repository, message, cancellationToken));
+
     public Task<GitGatewayResult> FetchAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_fetch", repository, () => inner.FetchAsync(repository, cancellationToken));
 

@@ -14,6 +14,8 @@ public sealed class BuckettieMcpToolsTests
         "get_version",
         "bitbucket_provider_capabilities",
         "bitbucket_repository_status",
+        "bitbucket_repository_diff",
+        "bitbucket_repository_commit",
         "bitbucket_fetch",
         "bitbucket_pull",
         "bitbucket_push",
@@ -89,6 +91,7 @@ public sealed class BuckettieMcpToolsTests
 
         destructive.Should().BeEquivalentTo(
             "bitbucket_push",
+            "bitbucket_repository_commit",
             "bitbucket_branch_create",
             "bitbucket_branch_delete",
             "bitbucket_pr_create",
@@ -115,6 +118,26 @@ public sealed class BuckettieMcpToolsTests
 
         descriptions.Should().NotBeEmpty().And.OnlyContain(description =>
             description.Description.Contains(" / ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RepositoryContractMethods_WhenInspected_ExposeRequiredInputs()
+    {
+        string[] diffInputs = typeof(BuckettieMcpTools)
+            .GetMethod(nameof(BuckettieMcpTools.RepositoryDiffAsync))!
+            .GetParameters()
+            .Where(parameter => parameter.ParameterType != typeof(CancellationToken))
+            .Select(parameter => parameter.Name!)
+            .ToArray();
+        string[] commitInputs = typeof(BuckettieMcpTools)
+            .GetMethod(nameof(BuckettieMcpTools.RepositoryCommitAsync))!
+            .GetParameters()
+            .Where(parameter => parameter.ParameterType != typeof(CancellationToken))
+            .Select(parameter => parameter.Name!)
+            .ToArray();
+
+        diffInputs.Should().Equal("repository");
+        commitInputs.Should().Equal("repository", "message");
     }
 
     [Fact]
@@ -335,12 +358,21 @@ public sealed class BuckettieMcpToolsTests
             new KeyValuePair<string, bool>("tag_delete", true),
             new KeyValuePair<string, bool>("tag_push", true),
             new KeyValuePair<string, bool>("explicit_push", true),
+            new KeyValuePair<string, bool>("repository_diff", true),
+            new KeyValuePair<string, bool>("repository_commit", true),
         ]);
     }
 
     private sealed class UnusedGitGateway : IGitGateway
     {
         public Task<GitGatewayResult> GetStatusAsync(string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> GetDiffAsync(string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> CommitAsync(
+            string repository, string message, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<GitGatewayResult> FetchAsync(string repository, CancellationToken cancellationToken = default) =>

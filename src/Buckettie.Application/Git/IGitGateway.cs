@@ -8,6 +8,13 @@ public interface IGitGateway
     /// <summary>Repository状態を取得します。</summary>
     public Task<GitGatewayResult> GetStatusAsync(string repository, CancellationToken cancellationToken = default);
 
+    /// <summary>RepositoryのHEADに対する作業ツリー差分を取得します。</summary>
+    public Task<GitGatewayResult> GetDiffAsync(string repository, CancellationToken cancellationToken = default);
+
+    /// <summary>Policyに従って作業ツリーの変更をlocal commitします。</summary>
+    public Task<GitGatewayResult> CommitAsync(
+        string repository, string message, CancellationToken cancellationToken = default);
+
     /// <summary>設定済みRemoteからfetchします。</summary>
     public Task<GitGatewayResult> FetchAsync(string repository, CancellationToken cancellationToken = default);
 

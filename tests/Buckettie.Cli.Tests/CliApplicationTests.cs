@@ -13,7 +13,10 @@ public sealed class CliApplicationTests : IDisposable
         StringWriter output = new();
         int exitCode = await CliApplication.RunAsync(["help"], output, new StringWriter(), TestContext.Current.CancellationToken);
         exitCode.Should().Be(0);
-        output.ToString().Should().Contain("buckettie doctor");
+        output.ToString().Should()
+            .Contain("buckettie doctor")
+            .And.Contain("buckettie repo diff <repository>")
+            .And.Contain("buckettie repo commit <repository> <message>");
     }
 
     [Fact]
@@ -65,6 +68,22 @@ public sealed class CliApplicationTests : IDisposable
 
         exitCode.Should().Be(1);
         output.ToString().Should().Contain("[NG] MCP エンドポイント");
+    }
+
+    [Fact]
+    public async Task RepositoryDiff_WhenProviderIsStopped_ReturnsFailureWithoutThrowing()
+    {
+        string path = WriteConfiguration();
+        StringWriter output = new();
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "repo", "diff", "example"],
+            output,
+            new StringWriter(),
+            TestContext.Current.CancellationToken);
+
+        exitCode.Should().Be(1);
+        output.ToString().Should().Contain("[NG] bitbucket_repository_diff");
     }
 
     [Fact]

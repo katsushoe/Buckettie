@@ -75,6 +75,112 @@ public sealed class GitGatewayTests
     }
 
     [Fact]
+    public async Task GetDiffAsync_WhenRepositoryIsValid_ReturnsWorkingTreeDiff()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.GetDiffAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("diff --git a/file.cs b/file.cs\n"));
+
+        GitGatewayResult result = await gateway.GetDiffAsync(
+            "buckettie", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Diff.Should().Be("diff --git a/file.cs b/file.cs\n");
+    }
+
+    [Fact]
+    public async Task GetDiffAsync_WhenRepositoryIsNotRegistered_ReturnsNotAllowed()
+    {
+        GitGateway gateway = CreateGateway();
+
+        GitGatewayResult result = await gateway.GetDiffAsync(
+            "unknown", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.RepositoryNotAllowed);
+    }
+
+    [Fact]
+    public async Task CommitAsync_WhenBranchIsAllowed_CommitsAllChangesAndReturnsHead()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("develop\n"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success(" M file.cs\n"));
+        _git.StageAllAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+        _git.CommitAsync(RepositoryRoot, "feat: change", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("abc123\n"));
+
+        GitGatewayResult result = await gateway.CommitAsync(
+            "buckettie", "feat: change", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Branch.Should().Be("develop");
+        result.CommitHash.Should().Be("abc123");
+    }
+
+    [Fact]
+    public async Task CommitAsync_WhenCurrentBranchIsProtected_ReturnsProtectedBranch()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("main"));
+
+        GitGatewayResult result = await gateway.CommitAsync(
+            "buckettie", "feat: change", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.ProtectedBranch);
+        await _git.DidNotReceiveWithAnyArgs().StageAllAsync(
+            default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task CommitAsync_WhenRepositoryIsNotRegistered_ReturnsNotAllowed()
+    {
+        GitGateway gateway = CreateGateway();
+
+        GitGatewayResult result = await gateway.CommitAsync(
+            "unknown", "feat: change", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.RepositoryNotAllowed);
+    }
+
+    [Fact]
+    public async Task CommitAsync_WhenWorkingTreeIsClean_ReturnsNothingToCommit()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("develop"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+
+        GitGatewayResult result = await gateway.CommitAsync(
+            "buckettie", "feat: change", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.NothingToCommit);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CommitAsync_WhenMessageIsInvalid_ReturnsCommitMessageInvalid(string message)
+    {
+        GitGateway gateway = CreateGateway();
+
+        GitGatewayResult result = await gateway.CommitAsync(
+            "buckettie", message, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.InvalidCommitMessage);
+    }
+
+    [Fact]
     public async Task FetchAsync_WhenRemoteDoesNotMatch_DoesNotFetch()
     {
         GitGateway gateway = CreateGateway();

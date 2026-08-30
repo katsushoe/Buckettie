@@ -112,6 +112,8 @@ internal static class CliApplication
                 ["config", "show"] => ShowConfig(services, output),
                 ["repo", "list"] => ListRepositories(services, output),
                 ["repo", "status", var repository] => await RepositoryStatusAsync(services, repository, output, japanese, cancellationToken).ConfigureAwait(false),
+                ["repo", "diff", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_repository_diff", repository, [], cancellationToken).ConfigureAwait(false),
+                ["repo", "commit", var repository, var message] => await CallRepositoryToolAsync(services, output, "bitbucket_repository_commit", repository, new() { ["message"] = message }, cancellationToken).ConfigureAwait(false),
                 ["repo", "fetch", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_fetch", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "pull", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_pull", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "push", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_push", repository, [], cancellationToken).ConfigureAwait(false),
@@ -571,6 +573,8 @@ internal static class CliApplication
         buckettie service install|uninstall|status
         buckettie config check|show
         buckettie repo list|status <repository>
+        buckettie repo diff <repository>
+        buckettie repo commit <repository> <message>
         buckettie repo fetch|pull|push <repository>
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
         buckettie repo unregister <repository>
@@ -602,6 +606,8 @@ internal static class CliApplication
         buckettie service install|uninstall|status
         buckettie config check|show
         buckettie repo list|status <repository>
+        buckettie repo diff <repository>
+        buckettie repo commit <repository> <message>
         buckettie repo fetch|pull|push <repository>
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
         buckettie repo unregister <repository>

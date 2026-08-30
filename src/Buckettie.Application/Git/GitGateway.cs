@@ -123,6 +123,95 @@ public sealed class GitGateway : IGitGateway
     }
 
     /// <inheritdoc />
+    public async Task<GitGatewayResult> GetDiffAsync(
+        string repository,
+        CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_diff";
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken)
+            .ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null)
+        {
+            return boundary.Failure!;
+        }
+
+        GitCommandResult result = await _git.GetDiffAsync(
+            boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        return MapCommandFailure(operation, repository, result)
+            ?? GitGatewayResult.Success(operation, repository, diff: result.StandardOutput);
+    }
+
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> CommitAsync(
+        string repository,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_commit";
+        if (string.IsNullOrWhiteSpace(message) || message.Length > 4096)
+        {
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidCommitMessage);
+        }
+
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken)
+            .ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null)
+        {
+            return boundary.Failure!;
+        }
+
+        GitCommandResult branchResult = await _git.GetCurrentBranchAsync(
+            boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? branchError = MapCommandFailure(operation, repository, branchResult);
+        if (branchError is not null)
+        {
+            return branchError;
+        }
+
+        string branch = branchResult.StandardOutput.Trim();
+        PolicyResult policyResult = CreatePolicy(repository, boundary.Repository).ValidatePush(branch, true);
+        if (!policyResult.IsAllowed)
+        {
+            return GitGatewayResult.Failure(
+                operation, repository, MapPolicyError(policyResult.ErrorCode), branch);
+        }
+
+        GitCommandResult statusResult = await _git.GetStatusAsync(
+            boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? statusError = MapCommandFailure(operation, repository, statusResult, branch);
+        if (statusError is not null)
+        {
+            return statusError;
+        }
+        if (string.IsNullOrWhiteSpace(statusResult.StandardOutput))
+        {
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.NothingToCommit, branch);
+        }
+
+        GitCommandResult stageResult = await _git.StageAllAsync(
+            boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? stageError = MapCommandFailure(operation, repository, stageResult, branch);
+        if (stageError is not null)
+        {
+            return stageError;
+        }
+
+        GitCommandResult commitResult = await _git.CommitAsync(
+            boundary.Repository.LocalRoot, message, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? commitError = MapCommandFailure(operation, repository, commitResult, branch);
+        if (commitError is not null)
+        {
+            return commitError;
+        }
+
+        GitCommandResult headResult = await _git.GetHeadAsync(
+            boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? headError = MapCommandFailure(operation, repository, headResult, branch);
+        return headError ?? GitGatewayResult.Success(
+            operation, repository, branch, commitHash: headResult.StandardOutput.Trim());
+    }
+
+    /// <inheritdoc />
     public async Task<GitGatewayResult> FetchAsync(
         string repository,
         CancellationToken cancellationToken = default)

@@ -170,6 +170,44 @@ public sealed class GitCommandClientTests
         _executor.Request!.Environment.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task GetDiffAsync_WhenCalled_UsesHeadAndDisablesExternalDiff()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.GetDiffAsync("repository-root", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root",
+            "diff", "--no-ext-diff", "--binary", "HEAD", "--");
+        _executor.Request.Environment.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task StageAllAsync_WhenCalled_UsesFixedArguments()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.StageAllAsync("repository-root", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "add", "--all", "--");
+    }
+
+    [Fact]
+    public async Task CommitAsync_WhenCalled_PassesMessageAsSingleArgument()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.CommitAsync(
+            "repository-root", "feat: add provider contract", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root",
+            "commit", "--message", "feat: add provider contract", "--");
+        _executor.Request.Environment.Should().BeEmpty();
+    }
+
     private GitCommandClient CreateClient() => new(
         _executor,
         TimeSpan.FromSeconds(10),
