@@ -18,7 +18,7 @@ internal interface IApprovalPipeServer : IAsyncDisposable
     Task<bool> WaitForClientAsync(TimeSpan timeout, CancellationToken cancellationToken);
 
     /// <summary>要求を送信し、応答を待ちます。</summary>
-    Task<ApprovalOutcome> ExchangeAsync(
+    Task<ApprovalPromptOutcome> ExchangeAsync(
         ApprovalPromptRequest request,
         TimeSpan responseTimeout,
         CancellationToken cancellationToken);
@@ -94,7 +94,7 @@ internal sealed class NamedPipeApprovalServer(string pipeName, Stream stream) : 
     }
 
     /// <inheritdoc />
-    public async Task<ApprovalOutcome> ExchangeAsync(
+    public async Task<ApprovalPromptOutcome> ExchangeAsync(
         ApprovalPromptRequest request,
         TimeSpan responseTimeout,
         CancellationToken cancellationToken)
@@ -115,19 +115,21 @@ internal sealed class NamedPipeApprovalServer(string pipeName, Stream stream) : 
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                return ApprovalOutcome.TimedOut;
+                return ApprovalPromptOutcome.Failure(ApprovalOutcome.TimedOut);
             }
 
             if (response is null)
             {
-                return ApprovalOutcome.ProtocolError;
+                return ApprovalPromptOutcome.Failure(ApprovalOutcome.ProtocolError);
             }
 
-            return response.Approved ? ApprovalOutcome.Approved : ApprovalOutcome.Denied;
+            return response.Approved
+                ? ApprovalPromptOutcome.Approved(response.Token)
+                : ApprovalPromptOutcome.Denied();
         }
         catch (Exception exception) when (exception is IOException or ObjectDisposedException)
         {
-            return ApprovalOutcome.ProtocolError;
+            return ApprovalPromptOutcome.Failure(ApprovalOutcome.ProtocolError);
         }
     }
 

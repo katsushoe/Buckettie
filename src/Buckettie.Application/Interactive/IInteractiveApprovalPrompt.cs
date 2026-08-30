@@ -34,13 +34,14 @@ public sealed record ApprovalPromptRequest(
     string Slug,
     string LocalRoot,
     string RemoteUrl,
+    bool TokenRequired = false,
     string Language = "auto");
 
 /// <summary>承認要求の結果です。</summary>
-public sealed record ApprovalPromptOutcome(ApprovalOutcome Outcome)
+public sealed record ApprovalPromptOutcome(ApprovalOutcome Outcome, string? Token = null)
 {
     /// <summary>承認済み結果を生成します。</summary>
-    public static ApprovalPromptOutcome Approved() => new(ApprovalOutcome.Approved);
+    public static ApprovalPromptOutcome Approved(string? token = null) => new(ApprovalOutcome.Approved, token);
 
     /// <summary>拒否済み結果を生成します。</summary>
     public static ApprovalPromptOutcome Denied() => new(ApprovalOutcome.Denied);

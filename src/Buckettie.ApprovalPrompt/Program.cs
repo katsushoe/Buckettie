@@ -65,10 +65,18 @@ internal static class Program
             approved = form.ShowDialog() == DialogResult.Yes;
         }
 
+        string? token = null;
+        if (approved && request.TokenRequired)
+        {
+            using TokenForm tokenForm = new(request.RepositoryId, request.Language);
+            approved = tokenForm.ShowDialog() == DialogResult.OK;
+            token = approved ? tokenForm.Token : null;
+        }
+
         try
         {
             await ApprovalPipeProtocol
-                .WriteFrameAsync(pipe, new ApprovalPromptResponse(approved), CancellationToken.None)
+                .WriteFrameAsync(pipe, new ApprovalPromptResponse(approved, token), CancellationToken.None)
                 .ConfigureAwait(false);
         }
         catch (IOException)

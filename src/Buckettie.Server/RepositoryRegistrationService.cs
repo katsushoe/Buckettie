@@ -1,4 +1,5 @@
 using Buckettie.Application.Configuration;
+using Buckettie.Application.Credentials;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
 
@@ -29,6 +30,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
     private readonly RepositoryRegistrationValidator _validator;
     private readonly RepositoryAllowlist _allowlist;
     private readonly IRepositoryStore _repositoryStore;
+    private readonly IApiTokenStore _tokenStore;
     private readonly IInteractiveApprovalPrompt _approvalPrompt;
     private readonly RepositoryMutationGate _gate;
 
@@ -37,17 +39,20 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
         RepositoryRegistrationValidator validator,
         RepositoryAllowlist allowlist,
         IRepositoryStore repositoryStore,
+        IApiTokenStore tokenStore,
         IInteractiveApprovalPrompt approvalPrompt,
         RepositoryMutationGate gate)
     {
         ArgumentNullException.ThrowIfNull(validator);
         ArgumentNullException.ThrowIfNull(allowlist);
         ArgumentNullException.ThrowIfNull(repositoryStore);
+        ArgumentNullException.ThrowIfNull(tokenStore);
         ArgumentNullException.ThrowIfNull(approvalPrompt);
         ArgumentNullException.ThrowIfNull(gate);
         _validator = validator;
         _allowlist = allowlist;
         _repositoryStore = repositoryStore;
+        _tokenStore = tokenStore;
         _approvalPrompt = approvalPrompt;
         _gate = gate;
     }
@@ -78,12 +83,14 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
                     BuckettieToolResultMapper.RegistrationValidationError(validation.Error!.Value));
             }
 
+            bool tokenRequired = !_tokenStore.Read(repositoryId).IsSuccess;
             ApprovalPromptRequest promptRequest = new(
                 repositoryId,
                 validation.Workspace!,
                 validation.Slug!,
                 validation.LocalRoot!,
-                validation.RemoteUrl!);
+                validation.RemoteUrl!,
+                tokenRequired);
 
             ApprovalPromptOutcome approval = await _approvalPrompt
                 .RequestApprovalAsync(promptRequest, ApprovalTimeout, cancellationToken)
@@ -94,6 +101,25 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
                     BuckettieToolResultMapper.RegistrationApprovalError(approval.Outcome));
             }
 
+            bool tokenSaved = false;
+            if (tokenRequired)
+            {
+                if (string.IsNullOrWhiteSpace(approval.Token))
+                {
+                    return RepositoryRegistrationOutcome.Failure(
+                        BuckettieToolResultMapper.RegistrationTokenFailedError());
+                }
+
+                ApiTokenStoreResult tokenResult = _tokenStore.Save(repositoryId, approval.Token);
+                if (!tokenResult.IsSuccess)
+                {
+                    return RepositoryRegistrationOutcome.Failure(
+                        BuckettieToolResultMapper.RegistrationTokenFailedError());
+                }
+
+                tokenSaved = true;
+            }
+
             RepositoryOptions newRepository = CreateServerDefaultedOptions(
                 validation.Workspace!, validation.Slug!, validation.LocalRoot!, remote, developBranch, mainBranch);
 
@@ -101,6 +127,10 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
                 .ConfigureAwait(false);
             if (!written)
             {
+                if (tokenSaved)
+                {
+                    _ = _tokenStore.Delete(repositoryId);
+                }
                 return RepositoryRegistrationOutcome.Failure(BuckettieToolResultMapper.RegistrationWriteFailedError());
             }
 
