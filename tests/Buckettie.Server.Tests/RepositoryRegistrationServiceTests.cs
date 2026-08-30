@@ -1,5 +1,6 @@
 ﻿using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
+using Buckettie.Application.Credentials;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
 using FluentAssertions;
@@ -14,6 +15,7 @@ public sealed class RepositoryRegistrationServiceTests
     private readonly IRepositoryEnvironment _environment = Substitute.For<IRepositoryEnvironment>();
     private readonly IGitCommandClient _git = Substitute.For<IGitCommandClient>();
     private readonly IInteractiveApprovalPrompt _approvalPrompt = Substitute.For<IInteractiveApprovalPrompt>();
+    private readonly IApiTokenStore _tokenStore = Substitute.For<IApiTokenStore>();
 
     public RepositoryRegistrationServiceTests()
     {
@@ -23,6 +25,7 @@ public sealed class RepositoryRegistrationServiceTests
         _environment.GitMetadataExists(LocalRoot).Returns(true);
         _git.GetRemoteUrlAsync(LocalRoot, "origin", Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success("https://bitbucket.org/example-workspace/new-repo.git\n"));
+        _tokenStore.Read(Arg.Any<string>()).Returns(ApiTokenStoreResult.Success("existing-token"));
     }
 
     [Fact]
@@ -120,6 +123,25 @@ public sealed class RepositoryRegistrationServiceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_WhenTokenIsMissing_SavesTokenFromApproval()
+    {
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        RepositoryRegistrationService service = CreateService(allowlist);
+        _tokenStore.Read("newrepo").Returns(ApiTokenStoreResult.Failure(ApiTokenStoreError.TokenNotFound));
+        _tokenStore.Save("newrepo", "new-token").Returns(ApiTokenStoreResult.Success());
+        _approvalPrompt.RequestApprovalAsync(
+                Arg.Is<ApprovalPromptRequest>(request => request.TokenRequired),
+                Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ApprovalPromptOutcome.Approved("new-token"));
+
+        RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken);
+
+        outcome.IsSuccess.Should().BeTrue();
+        _tokenStore.Received(1).Save("newrepo", "new-token");
+    }
+
+    [Fact]
     public async Task RegisterAsync_WhenAnotherRegistrationIsInProgress_ReturnsRegistrationInProgress()
     {
         RepositoryAllowlist allowlist = CreateAllowlist();
@@ -160,6 +182,7 @@ public sealed class RepositoryRegistrationServiceTests
             validator,
             allowlist,
             store ?? new FakeRepositoryStore(),
+            _tokenStore,
             _approvalPrompt,
             new RepositoryMutationGate());
     }

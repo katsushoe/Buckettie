@@ -2,8 +2,8 @@ using System.Text.Json;
 
 namespace Buckettie.Application.Interactive;
 
-/// <summary>承認Dialogからの応答です（Secretは含みません）。</summary>
-public sealed record ApprovalPromptResponse(bool Approved);
+/// <summary>承認Dialogからの応答です。TokenはACL制限付き使い捨てPipeだけで返します。</summary>
+public sealed record ApprovalPromptResponse(bool Approved, string? Token = null);
 
 /// <summary>Token入力Dialogからの応答です。</summary>
 public sealed record TokenPromptResponse(string? Token);

@@ -81,15 +81,10 @@ public sealed class WindowsInteractiveApprovalPrompt : IInteractiveApprovalPromp
                 return ApprovalPromptOutcome.Failure(ApprovalOutcome.TimedOut);
             }
 
-            ApprovalOutcome outcome = await server.ExchangeAsync(
+            ApprovalPromptOutcome outcome = await server.ExchangeAsync(
                     request with { Language = _language }, timeout, cancellationToken)
                 .ConfigureAwait(false);
-            return outcome switch
-            {
-                ApprovalOutcome.Approved => ApprovalPromptOutcome.Approved(),
-                ApprovalOutcome.Denied => ApprovalPromptOutcome.Denied(),
-                _ => ApprovalPromptOutcome.Failure(outcome),
-            };
+            return outcome;
         }
     }
 }

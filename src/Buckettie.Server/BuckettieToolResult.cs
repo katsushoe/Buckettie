@@ -173,6 +173,8 @@ internal static class BuckettieToolResultMapper
 
     internal static BuckettieToolError RegistrationWriteFailedError() => CreateError("registration_write_failed");
 
+    internal static BuckettieToolError RegistrationTokenFailedError() => CreateError("registration_token_failed");
+
     private static string NotFoundCode(string operation) => operation switch
     {
         "branch_get" or "branch_delete" => "branch_not_found",
@@ -302,6 +304,7 @@ internal static class BuckettieToolResultMapper
         "approval_launch_failed" => "The approval prompt could not be launched.",
         "registration_in_progress" => "Another repository registration is already in progress.",
         "registration_write_failed" => "The repository could not be persisted to the configuration file.",
+        "registration_token_failed" => "The repository API Token could not be saved.",
         _ => "The Bitbucket API operation failed.",
     };
 
@@ -352,6 +355,7 @@ internal static class BuckettieToolResultMapper
         "approval_launch_failed" => "承認ダイアログを起動できませんでした。",
         "registration_in_progress" => "別のリポジトリ登録が進行中です。",
         "registration_write_failed" => "リポジトリを設定ファイルへ保存できませんでした。",
+        "registration_token_failed" => "リポジトリのAPI Tokenを保存できませんでした。",
         _ => "Bitbucket API操作に失敗しました。",
     };
 }

@@ -20,6 +20,8 @@ Workspace and Slug are always derived from the local repository's actual Git rem
 
 `RepositoryAllowlist` becomes a copy-on-write structure guarded by a lock for the single `Register` writer; existing lock-free readers (`TryGet`) are unaffected. On approval the service writes the updated configuration to a temporary file and moves it over `buckettie.json` (the same pattern `DpapiFileTokenStore` already uses for its own file writes) before mutating the in-memory allowlist, so a disk failure never leaves memory ahead of what a restart would reload. A `SemaphoreSlim(1,1)` rejects a second concurrent registration request outright rather than stacking a second Dialog on the same desktop.
 
+When no Token already exists for the proposed Repository ID, the interactive approval process collects it locally after approval and returns it only through the ACL-restricted one-shot Named Pipe. The MCP Tool schema never accepts or returns the Token. The service saves the Token before the repository record and deletes the newly saved Token if repository persistence fails; an existing Token is preserved unchanged.
+
 ## Alternatives
 
 - Chat-mediated confirmation only: rejected as described above — it does not add an independent trust boundary.
