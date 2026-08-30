@@ -15,6 +15,7 @@ internal sealed class ApprovalForm : Form
     private readonly System.Windows.Forms.Timer _countdownTimer;
     private readonly Label _countdownLabel;
     private readonly ApprovalFormText _text;
+    private readonly TextBox? _tokenTextBox;
     private int _remainingSeconds = TimeoutSeconds;
 
     /// <summary>承認Dialogを構築します。</summary>
@@ -29,7 +30,7 @@ internal sealed class ApprovalForm : Form
         MinimizeBox = false;
         MaximizeBox = false;
         TopMost = true;
-        ClientSize = new Size(640, 480);
+        ClientSize = new Size(640, request.TokenRequired ? 540 : 480);
 
         AddField(_text.RepositoryId, request.RepositoryId, 16);
         AddField(_text.Workspace, request.Workspace, 76);
@@ -37,10 +38,28 @@ internal sealed class ApprovalForm : Form
         AddField(_text.LocalRoot, request.LocalRoot, 196);
         AddField(_text.RemoteUrl, request.RemoteUrl, 256);
 
+        if (request.TokenRequired)
+        {
+            Controls.Add(new Label
+            {
+                Text = _text.Token,
+                Location = new Point(16, 316),
+                AutoSize = true,
+                Font = new Font(Font, FontStyle.Bold),
+            });
+            _tokenTextBox = new TextBox
+            {
+                Location = new Point(16, 338),
+                Size = new Size(606, 27),
+                UseSystemPasswordChar = true,
+            };
+            Controls.Add(_tokenTextBox);
+        }
+
         _countdownLabel = new Label
         {
             AutoSize = true,
-            Location = new Point(16, 400),
+            Location = new Point(16, request.TokenRequired ? 460 : 400),
             Text = FormatCountdown(_remainingSeconds),
         };
         Controls.Add(_countdownLabel);
@@ -49,18 +68,24 @@ internal sealed class ApprovalForm : Form
         {
             Text = _text.Approve,
             DialogResult = DialogResult.Yes,
-            Location = new Point(392, 428),
+            Location = new Point(392, request.TokenRequired ? 488 : 428),
             Size = new Size(110, 32),
         };
         Button denyButton = new()
         {
             Text = _text.Deny,
             DialogResult = DialogResult.No,
-            Location = new Point(512, 428),
+            Location = new Point(512, request.TokenRequired ? 488 : 428),
             Size = new Size(110, 32),
         };
         Controls.Add(approveButton);
         Controls.Add(denyButton);
+        if (_tokenTextBox is not null)
+        {
+            approveButton.Enabled = false;
+            _tokenTextBox.TextChanged += (_, _) =>
+                approveButton.Enabled = !string.IsNullOrWhiteSpace(_tokenTextBox.Text);
+        }
         AcceptButton = approveButton;
         CancelButton = denyButton;
 
@@ -68,6 +93,9 @@ internal sealed class ApprovalForm : Form
         _countdownTimer.Tick += OnCountdownTick;
         _countdownTimer.Start();
     }
+
+    /// <summary>登録時に入力されたTokenです。入力不要な場合はnullです。</summary>
+    internal string? Token => string.IsNullOrWhiteSpace(_tokenTextBox?.Text) ? null : _tokenTextBox.Text;
 
     private void OnCountdownTick(object? sender, EventArgs e)
     {

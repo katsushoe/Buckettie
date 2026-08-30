@@ -60,17 +60,11 @@ internal static class Program
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
 
         bool approved;
+        string? token;
         using (ApprovalForm form = new(request))
         {
             approved = form.ShowDialog() == DialogResult.Yes;
-        }
-
-        string? token = null;
-        if (approved && request.TokenRequired)
-        {
-            using TokenForm tokenForm = new(request.RepositoryId, request.Language);
-            approved = tokenForm.ShowDialog() == DialogResult.OK;
-            token = approved ? tokenForm.Token : null;
+            token = approved ? form.Token : null;
         }
 
         try
