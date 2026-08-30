@@ -22,6 +22,8 @@ Separately, while verifying the Dialog on a host running an agent sandbox layer,
 
 **CLI commands call the running service, they don't duplicate its logic.** `buckettie repo register/unregister/update` are added, implemented as MCP `tools/call` HTTP requests against the service's own local endpoint (`http://127.0.0.1:<mcp_port><mcp_path>`), the same pattern `buckettie mcp status/tools/test` already use. This keeps exactly one code path that can mutate the store and allowlist — the running service — rather than letting the CLI process (which builds its own separate composition root for `repo list`/`config show`/etc.) write to the SQLite file directly and risk the in-memory allowlist going stale until the next restart.
 
+**Project discovery.** The read-only MCP `list_projects` tool exposes the same registered repository IDs as CLI `repo list`, using the live allowlist snapshot. Server instructions require clients to call it before every push and choose the intended ID from its candidates. If a push uses an unregistered ID, the structured `repository_not_allowed` error includes `project_candidates`; it never guesses or silently substitutes the target.
+
 ## Alternatives
 
 - Keep repositories in `buckettie.json`, extend the same atomic-write pattern to unregister/update: rejected because the user explicitly asked for SQLite storage, and a single-table SQLite store is a smaller, more direct fit for row-level insert/update/delete than rewriting a whole JSON document per mutation.

@@ -16,7 +16,8 @@ public sealed record BuckettieToolError(
     [property: JsonPropertyName("retryable")] bool Retryable = false,
     string? CorrelationId = null,
     [property: JsonPropertyName("status")] string? Status = null,
-    [property: JsonPropertyName("retry_after_seconds")] int? RetryAfterSeconds = null);
+    [property: JsonPropertyName("retry_after_seconds")] int? RetryAfterSeconds = null,
+    [property: JsonPropertyName("project_candidates")] IReadOnlyList<string>? ProjectCandidates = null);
 
 /// <summary>MCP Toolの共通構造化結果です。</summary>
 public sealed record BuckettieToolResult<T>(
@@ -36,6 +37,9 @@ public sealed record BuckettieGitData(
 /// <summary>get_version Toolの成功データです。</summary>
 public sealed record BuckettieVersionData(string Version);
 
+/// <summary>list_projects Toolの成功データです。</summary>
+public sealed record BuckettieProjectListData(IReadOnlyList<string> Projects);
+
 /// <summary>bitbucket_repository_register Toolの成功データです。</summary>
 public sealed record BuckettieRepositoryRegistrationData(
     string RepositoryId,
@@ -54,7 +58,8 @@ internal static class BuckettieToolResultMapper
 {
     internal static async Task<BuckettieToolResult<BuckettieGitData>> MapGitAsync(
         Task<GitGatewayResult> operation,
-        string language = "en-US")
+        string language = "en-US",
+        IReadOnlyList<string>? projectCandidates = null)
     {
         GitGatewayResult result = await operation.ConfigureAwait(false);
         if (result.IsSuccess)
@@ -65,7 +70,7 @@ internal static class BuckettieToolResultMapper
 
         string code = GitCode(result.Error ?? GitGatewayError.GitFailed);
         return new(false, result.Operation, result.Repository, null,
-            CreateGitError(code, language, result.Operation, result.CorrelationId));
+            CreateGitError(code, language, result.Operation, result.CorrelationId, projectCandidates));
     }
 
     internal static async Task<BuckettieToolResult<T>> MapBitbucketAsync<T>(
@@ -183,12 +188,14 @@ internal static class BuckettieToolResultMapper
         string code,
         string language,
         string operation,
-        string? correlationId)
+        string? correlationId,
+        IReadOnlyList<string>? projectCandidates)
     {
         bool japanese = BuckettieLanguage.IsJapanese(language);
         string message = japanese ? JapaneseMessage(code) : EnglishMessage(code);
         return new(code, message, $"Git {operation}: {message}",
-            japanese ? JapaneseAction(code) : EnglishAction(code), IsRetryable(code), correlationId);
+            japanese ? JapaneseAction(code) : EnglishAction(code), IsRetryable(code), correlationId,
+            ProjectCandidates: code == "repository_not_allowed" ? projectCandidates : null);
     }
 
     private static BuckettieToolError CreateError(string code, string language = "en-US") =>

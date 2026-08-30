@@ -30,6 +30,12 @@ public sealed class RepositoryAllowlist
     }
 
     /// <summary>
+    /// 現在登録されているRepository IDを順序付きSnapshotとして返します。
+    /// </summary>
+    public IReadOnlyList<string> ListIds() =>
+        _repositories.Keys.Order(StringComparer.Ordinal).ToArray();
+
+    /// <summary>
     /// 現在のAllowlist内容のSnapshotを返します（衝突検証・永続化用）。
     /// </summary>
     internal IReadOnlyDictionary<string, RepositoryOptions> Snapshot() => _repositories;

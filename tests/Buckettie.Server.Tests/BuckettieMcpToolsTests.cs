@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Buckettie.Application.Bitbucket;
+using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
+using Buckettie.Application.Repositories;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
 using Xunit;
@@ -12,6 +14,7 @@ public sealed class BuckettieMcpToolsTests
     private static readonly string[] ExpectedToolNames =
     [
         "get_version",
+        "list_projects",
         "bitbucket_provider_capabilities",
         "bitbucket_repository_status",
         "bitbucket_repository_diff",
@@ -58,6 +61,8 @@ public sealed class BuckettieMcpToolsTests
         attribute.Name.Should().Be("buckettie_usage");
         BuckettieMcpGuidance.ServerInstructions.Should().Contain("localhost gateway");
         BuckettieMcpGuidance.ServerInstructions.Should().Contain("bitbucket_*");
+        BuckettieMcpGuidance.ServerInstructions.Should().Contain(
+            "Before every push in every conversation, call list_projects");
         new BuckettieMcpGuidance().GetUsageGuide().Should().Be(BuckettieMcpGuidance.ServerInstructions);
     }
 
@@ -335,6 +340,61 @@ public sealed class BuckettieMcpToolsTests
         result.Should().Be(new BuckettieToolResult<BuckettieVersionData>(
             true, "get_version", string.Empty, new BuckettieVersionData(expectedVersion), null));
     }
+
+    [Fact]
+    public async Task ListProjectsAsync_WhenCalled_ReturnsSortedRegisteredIds()
+    {
+        BuckettieOptions options = new()
+        {
+            AtlassianEmail = "developer@example.com",
+            BitbucketUsername = "developer",
+            Repositories = new Dictionary<string, RepositoryOptions>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["zeta"] = CreateRepository("zeta"),
+                ["alpha"] = CreateRepository("alpha"),
+            },
+        };
+        BuckettieMcpTools tools = new(
+            new UnusedGitGateway(),
+            new UnusedBitbucketRepositoryGateway(),
+            new UnusedRepositoryRegistrationService(),
+            new UnusedRepositoryUnregistrationService(),
+            new UnusedRepositoryUpdateService(),
+            options,
+            new RepositoryAllowlist(options));
+
+        BuckettieToolResult<BuckettieProjectListData> result = await tools.ListProjectsAsync();
+
+        result.Ok.Should().BeTrue();
+        result.Data!.Projects.Should().Equal("alpha", "zeta");
+    }
+
+    [Fact]
+    public async Task MapGitAsync_WhenPushRepositoryIsUnknown_ReturnsProjectCandidates()
+    {
+        GitGatewayResult gatewayResult = GitGatewayResult.Failure(
+            "push", "unknown", GitGatewayError.RepositoryNotAllowed);
+
+        BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
+            Task.FromResult(gatewayResult), projectCandidates: ["alpha", "zeta"]);
+
+        result.Error!.ProjectCandidates.Should().Equal("alpha", "zeta");
+    }
+
+    private static RepositoryOptions CreateRepository(string slug) => new()
+    {
+        Workspace = "example-workspace",
+        Slug = slug,
+        LocalRoot = "repository-root",
+        Remote = "origin",
+        DevelopBranch = "develop",
+        MainBranch = "main",
+        DirectPushBranches = new HashSet<string> { "develop" },
+        PullBranches = new HashSet<string> { "develop", "main" },
+        ProtectedBranches = new HashSet<string> { "main" },
+        TagTargetBranch = "main",
+        TagPattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+.*$",
+    };
 
     [Fact]
     public async Task GetProviderCapabilitiesAsync_WhenCalled_MatchesImplementedContractTools()

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
+using Buckettie.Application.Repositories;
 using ModelContextProtocol.Server;
 
 namespace Buckettie.Server;
@@ -17,6 +18,7 @@ public sealed class BuckettieMcpTools
     private readonly IRepositoryRegistrationService _registration;
     private readonly IRepositoryUnregistrationService _unregistration;
     private readonly IRepositoryUpdateService _update;
+    private readonly RepositoryAllowlist? _allowlist;
     private readonly string _language;
 
     /// <summary>MCP Toolを初期化します。</summary>
@@ -26,7 +28,8 @@ public sealed class BuckettieMcpTools
         IRepositoryRegistrationService registration,
         IRepositoryUnregistrationService unregistration,
         IRepositoryUpdateService update,
-        BuckettieOptions? options = null)
+        BuckettieOptions? options = null,
+        RepositoryAllowlist? allowlist = null)
     {
         ArgumentNullException.ThrowIfNull(git);
         ArgumentNullException.ThrowIfNull(bitbucket);
@@ -38,6 +41,7 @@ public sealed class BuckettieMcpTools
         _registration = registration;
         _unregistration = unregistration;
         _update = update;
+        _allowlist = allowlist;
         _language = options?.Language ?? "en-US";
     }
 
@@ -48,6 +52,17 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieVersionData>> GetVersionAsync() =>
         Task.FromResult(new BuckettieToolResult<BuckettieVersionData>(
             true, "get_version", string.Empty, new BuckettieVersionData(ProductVersion), null));
+
+    /// <summary>登録済みProject IDを一覧します。</summary>
+    [McpServerTool(Name = "list_projects", ReadOnly = true, Destructive = false, Idempotent = true,
+        OpenWorld = false, UseStructuredContent = true)]
+    [Description("登録済みBuckettieプロジェクトIDを一覧し、操作対象名の候補を返します。 / Lists registered Buckettie project IDs as candidate names for operations.")]
+    public Task<BuckettieToolResult<BuckettieProjectListData>> ListProjectsAsync()
+    {
+        IReadOnlyList<string> projects = _allowlist?.ListIds() ?? [];
+        return Task.FromResult(new BuckettieToolResult<BuckettieProjectListData>(
+            true, "list_projects", string.Empty, new BuckettieProjectListData(projects), null));
+    }
 
     /// <summary>Repository Contractで利用可能な操作を返します。</summary>
     [McpServerTool(Name = "bitbucket_provider_capabilities", ReadOnly = true, Destructive = false,
@@ -128,7 +143,8 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieGitData>> PushAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.PushAsync(repository, cancellationToken), _language);
+        BuckettieToolResultMapper.MapGitAsync(
+            _git.PushAsync(repository, cancellationToken), _language, _allowlist?.ListIds());
 
     /// <summary>Remote Branch一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_branch_list", ReadOnly = true, Destructive = false,

@@ -21,6 +21,7 @@ The management executable is `buckettie.exe`. Its default configuration is `..\c
 | `buckettie repo diff <id>` | Return the working-tree diff against `HEAD`. |
 | `buckettie repo commit <id> <message>` | Stage all working-tree changes and create a local commit on the current policy-allowed branch. |
 | `buckettie repo fetch\|pull\|push <id>` | Run the corresponding policy-checked Git operation through the MCP service. |
+| `buckettie repo list` / MCP `list_projects` | List registered repository IDs to select the project name before operations. MCP clients must call `list_projects` before every push. |
 | `buckettie repo register <id> <local-root> ...` | Enter the API Token in a topmost centered dialog, then register the repository through the MCP service. Use `--console-token` to read the Token from the terminal without echo. |
 | `buckettie repo unregister\|update ...` | Manage the repository allowlist and branch policy through the MCP service. |
 | `buckettie branch list|get|create|delete ...` | List, inspect, create, or delete Bitbucket branches. New branches start at the configured develop HEAD; develop, main, and protected branches cannot be deleted. |
