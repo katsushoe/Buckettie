@@ -10,6 +10,7 @@ internal sealed record ApprovalFormText(
     string Slug,
     string LocalRoot,
     string RemoteUrl,
+    string Token,
     string Approve,
     string Deny,
     string CountdownFormat)
@@ -34,6 +35,7 @@ internal sealed record ApprovalFormText(
                 "スラッグ",
                 "ローカルルート",
                 "リモートURL",
+                "API Token",
                 "承認(&A)",
                 "拒否(&D)",
                 "応答がない場合、{0}秒後に自動的に拒否します。")
@@ -44,6 +46,7 @@ internal sealed record ApprovalFormText(
                 "Slug",
                 "Local Root",
                 "Remote URL",
+                "API Token",
                 "&Approve",
                 "&Deny",
                 "Auto-deny in {0}s if no response.");
