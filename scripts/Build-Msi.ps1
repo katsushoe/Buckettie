@@ -1,6 +1,6 @@
 param(
-    [string]$DisplayVersion = '1.3.17.0',
-    [string]$ProductVersion = '1.3.17',
+    [string]$DisplayVersion = '1.3.18.0',
+    [string]$ProductVersion = '1.3.18',
     [string]$RuntimeIdentifier = 'win-x64',
     [switch]$NoRestore
 )
