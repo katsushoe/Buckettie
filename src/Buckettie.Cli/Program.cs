@@ -42,7 +42,7 @@ internal static class CliApplication
         CancellationToken cancellationToken = default,
         IServiceCommandExecutor? serviceExecutor = null,
         Func<string?>? secretReader = null,
-        Func<string, string, CancellationToken, Task<string?>>? tokenPrompt = null)
+        Func<string, string, string, CancellationToken, Task<string?>>? tokenPrompt = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         string configPath = GetConfigPath(args);
@@ -246,7 +246,7 @@ internal static class CliApplication
         TextWriter output,
         TextWriter error,
         Func<string?>? secretReader,
-        Func<string, string, CancellationToken, Task<string?>>? tokenPrompt,
+        Func<string, string, string, CancellationToken, Task<string?>>? tokenPrompt,
         bool japanese,
         CancellationToken cancellationToken)
     {
@@ -259,9 +259,24 @@ internal static class CliApplication
         }
         else
         {
-            Func<string, string, CancellationToken, Task<string?>> prompt =
+            string remote = GetOption(rest, "--remote") ?? "origin";
+            GitCommandResult remoteResult = await services.GetRequiredService<IGitCommandClient>()
+                .GetRemoteUrlAsync(localRoot, remote, cancellationToken).ConfigureAwait(false);
+            if (!remoteResult.IsSuccess || string.IsNullOrWhiteSpace(remoteResult.StandardOutput))
+            {
+                error.WriteLine(japanese
+                    ? "登録対象リポジトリURLを取得できませんでした。"
+                    : "The target repository URL could not be resolved.");
+                return 1;
+            }
+
+            Func<string, string, string, CancellationToken, Task<string?>> prompt =
                 tokenPrompt ?? TokenPromptClient.ReadTokenAsync;
-            token = await prompt(repository, japanese ? "ja-JP" : "en-US", cancellationToken)
+            token = await prompt(
+                    repository,
+                    remoteResult.StandardOutput.Trim(),
+                    japanese ? "ja-JP" : "en-US",
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
 
