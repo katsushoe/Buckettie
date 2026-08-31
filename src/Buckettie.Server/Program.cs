@@ -1,6 +1,7 @@
 using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
+using Buckettie.Application.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -60,6 +61,8 @@ internal static class Program
         builder.Logging.AddProvider(new DailyFileLoggerProvider(paths.LogDirectory));
         builder.Services.AddWindowsService(service => service.ServiceName = "Buckettie");
         builder.WebHost.ConfigureKestrel(server => server.ListenLocalhost(options.McpPort));
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton(buckettieServices.GetRequiredService<RepositoryAllowlist>());
         builder.Services.AddSingleton<IBuckettieAuditLogger, BuckettieAuditLogger>();
         builder.Services.AddSingleton<IGitGateway>(provider => new AuditedGitGateway(
             buckettieServices.GetRequiredService<IGitGateway>(),
