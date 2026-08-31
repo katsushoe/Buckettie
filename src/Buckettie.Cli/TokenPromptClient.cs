@@ -12,10 +12,12 @@ internal static class TokenPromptClient
     /// <summary>Token入力Dialogを表示します。Cancelまたは起動失敗ではnullを返します。</summary>
     internal static async Task<string?> ReadTokenAsync(
         string repository,
+        string remoteUrl,
         string language,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repository);
+        ArgumentException.ThrowIfNullOrWhiteSpace(remoteUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(language);
 
         string pipeName = $"Buckettie-Token-{Guid.NewGuid():N}";
@@ -35,6 +37,7 @@ internal static class TokenPromptClient
         startInfo.ArgumentList.Add("--token");
         startInfo.ArgumentList.Add(pipeName);
         startInfo.ArgumentList.Add(repository);
+        startInfo.ArgumentList.Add(remoteUrl);
         startInfo.ArgumentList.Add(language);
 
         try

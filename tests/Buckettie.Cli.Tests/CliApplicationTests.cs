@@ -141,24 +141,28 @@ public sealed class CliApplicationTests : IDisposable
     public async Task RepositoryRegister_WhenNoInputOption_UsesGuiTokenPromptByDefault()
     {
         string path = WriteConfiguration();
+        WriteGitRepository(_directory);
         string? promptedRepository = null;
+        string? promptedRemoteUrl = null;
         string? promptedLanguage = null;
 
         int exitCode = await CliApplication.RunAsync(
-            ["--config", path, "repo", "register", "newrepo", "C:\\repo"],
+            ["--config", path, "repo", "register", "newrepo", _directory],
             new StringWriter(),
             new StringWriter(),
             TestContext.Current.CancellationToken,
             secretReader: () => throw new InvalidOperationException(),
-            tokenPrompt: (repository, language, _) =>
+            tokenPrompt: (repository, remoteUrl, language, _) =>
             {
                 promptedRepository = repository;
+                promptedRemoteUrl = remoteUrl;
                 promptedLanguage = language;
                 return Task.FromResult<string?>(null);
             });
 
         exitCode.Should().Be(1);
         promptedRepository.Should().Be("newrepo");
+        promptedRemoteUrl.Should().Be("https://bitbucket.org/workspace/repository.git");
         promptedLanguage.Should().Be("en-US");
     }
 
@@ -178,7 +182,7 @@ public sealed class CliApplicationTests : IDisposable
                 secretReaderCalled = true;
                 return null;
             },
-            tokenPrompt: (_, _, _) => throw new InvalidOperationException());
+            tokenPrompt: (_, _, _, _) => throw new InvalidOperationException());
 
         exitCode.Should().Be(1);
         secretReaderCalled.Should().BeTrue();
@@ -206,6 +210,21 @@ public sealed class CliApplicationTests : IDisposable
             }
             """.Replace("LANGUAGE_VALUE", language, StringComparison.Ordinal));
         return path;
+    }
+
+    private static void WriteGitRepository(string root)
+    {
+        string gitDirectory = Path.Combine(root, ".git");
+        Directory.CreateDirectory(gitDirectory);
+        Directory.CreateDirectory(Path.Combine(gitDirectory, "objects"));
+        Directory.CreateDirectory(Path.Combine(gitDirectory, "refs", "heads"));
+        File.WriteAllText(Path.Combine(gitDirectory, "HEAD"), "ref: refs/heads/develop\n");
+        File.WriteAllText(Path.Combine(gitDirectory, "config"), """
+            [core]
+                bare = false
+            [remote "origin"]
+                url = https://bitbucket.org/workspace/repository.git
+            """);
     }
 
     public void Dispose()

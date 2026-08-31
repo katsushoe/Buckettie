@@ -17,12 +17,13 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length == 4 && string.Equals(args[0], "--token", StringComparison.Ordinal)
+        if (args.Length == 5 && string.Equals(args[0], "--token", StringComparison.Ordinal)
             && !string.IsNullOrWhiteSpace(args[1])
             && !string.IsNullOrWhiteSpace(args[2])
-            && !string.IsNullOrWhiteSpace(args[3]))
+            && !string.IsNullOrWhiteSpace(args[3])
+            && !string.IsNullOrWhiteSpace(args[4]))
         {
-            return RunTokenPromptAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
+            return RunTokenPromptAsync(args[1], args[2], args[3], args[4]).GetAwaiter().GetResult();
         }
 
         if (args.Length != 1 || string.IsNullOrWhiteSpace(args[0]))
@@ -84,6 +85,7 @@ internal static class Program
     private static async Task<int> RunTokenPromptAsync(
         string pipeName,
         string repository,
+        string remoteUrl,
         string language)
     {
         await using NamedPipeClientStream pipe = new(
@@ -103,7 +105,7 @@ internal static class Program
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
 
         string? token;
-        using (TokenForm form = new(repository, language))
+        using (TokenForm form = new(repository, remoteUrl, language))
         {
             token = form.ShowDialog() == DialogResult.OK ? form.Token : null;
         }

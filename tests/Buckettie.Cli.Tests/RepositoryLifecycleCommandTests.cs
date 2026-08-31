@@ -20,14 +20,15 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
     public async Task RepoRegister_WhenServiceIsNotRunning_ReturnsNgAndDoesNotThrow()
     {
         string path = WriteConfiguration(GetFreePort());
+        WriteGitRepository(_directory);
         StringWriter output = new();
 
         int exitCode = await CliApplication.RunAsync(
-            ["--config", path, "repo", "register", "example", "C:\\repo"],
+            ["--config", path, "repo", "register", "example", _directory],
             output,
             new StringWriter(),
             TestContext.Current.CancellationToken,
-            tokenPrompt: (_, _, _) => Task.FromResult<string?>("test-token"));
+            tokenPrompt: (_, _, _, _) => Task.FromResult<string?>("test-token"));
 
         exitCode.Should().Be(1);
         output.ToString().Should().Contain("[NG] bitbucket_repository_register: example")
@@ -198,5 +199,20 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
             }
             """);
         return path;
+    }
+
+    private static void WriteGitRepository(string root)
+    {
+        string gitDirectory = Path.Combine(root, ".git");
+        Directory.CreateDirectory(gitDirectory);
+        Directory.CreateDirectory(Path.Combine(gitDirectory, "objects"));
+        Directory.CreateDirectory(Path.Combine(gitDirectory, "refs", "heads"));
+        File.WriteAllText(Path.Combine(gitDirectory, "HEAD"), "ref: refs/heads/develop\n");
+        File.WriteAllText(Path.Combine(gitDirectory, "config"), """
+            [core]
+                bare = false
+            [remote "origin"]
+                url = https://bitbucket.org/workspace/repository.git
+            """);
     }
 }

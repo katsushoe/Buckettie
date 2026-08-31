@@ -6,9 +6,10 @@ namespace Buckettie.ApprovalPrompt;
 internal sealed partial class TokenForm : Form
 {
     /// <summary>Token入力Dialogを初期化します。</summary>
-    internal TokenForm(string repository, string language)
+    internal TokenForm(string repository, string remoteUrl, string language)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repository);
+        ArgumentException.ThrowIfNullOrWhiteSpace(remoteUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(language);
         InitializeComponent();
 
@@ -19,6 +20,10 @@ internal sealed partial class TokenForm : Form
         instructionLabel.Text = japanese
             ? $"Repository「{repository}」のAPI Tokenを入力してください。"
             : $"Enter the API Token for repository '{repository}'.";
+        sourceProjectLabel.Text = japanese ? "登録元プロジェクト名" : "Source project";
+        sourceProjectTextBox.Text = repository;
+        targetUrlLabel.Text = japanese ? "登録対象リポジトリURL" : "Target repository URL";
+        targetUrlTextBox.Text = remoteUrl;
         tokenLabel.Text = japanese ? "Token" : "Token";
         okButton.Text = japanese ? "OK" : "OK";
         cancelButton.Text = japanese ? "キャンセル" : "Cancel";
