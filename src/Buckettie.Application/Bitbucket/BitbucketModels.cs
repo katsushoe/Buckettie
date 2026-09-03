@@ -9,7 +9,8 @@ public sealed record BitbucketRepositoryInfo(
     string? MainBranch);
 
 /// <summary>Bitbucket Branch情報です。</summary>
-public sealed record BitbucketBranchInfo(string Name, string TargetHash);
+public sealed record BitbucketBranchInfo(string Name, string TargetHash,
+    string? Source = null, string? SourceKind = null, string? SourceHash = null);
 
 /// <summary>Branch作成入力です。</summary>
 public sealed record BitbucketBranchCreate(string Name, string TargetHash);
@@ -28,7 +29,10 @@ public sealed record BitbucketTagCreate(string Name, string? Message);
 /// <summary>Repository Contractで公開するProvider能力です。</summary>
 public sealed record BitbucketProviderCapabilities(
     string Provider,
-    IReadOnlyDictionary<string, bool> Operations);
+    IReadOnlyDictionary<string, bool> Operations,
+    int ContractVersion = 2,
+    bool BranchSourceRequired = true,
+    bool RepositoryStatusNullable = true);
 
 /// <summary>Pull Requestの状態です。</summary>
 public enum BitbucketPullRequestState

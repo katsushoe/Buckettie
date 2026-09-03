@@ -35,8 +35,62 @@ public sealed class GitGatewayTests
             "buckettie",
             TestContext.Current.CancellationToken);
 
-        result.Status.Should().Be(new GitRepositoryStatus(
-            "buckettie", "develop", "abc123", "def456", "fed987", 2, 3, true));
+        result.Status.Should().BeEquivalentTo(new GitRepositoryStatus(
+            "buckettie", "develop", "abc123", "def456", "fed987", 2, 3, true,
+            "refs/remotes/origin/develop", null, []));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task GetStatusAsync_WhenRemoteReferencesAreMissing_ReturnsLocalStatus(bool missingDevelop, bool missingMain)
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("main"));
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("abc123"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(" M file.txt"));
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>())
+            .Returns(missingDevelop ? GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound) : GitCommandResult.Success("def456"));
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", "main", Arg.Any<CancellationToken>())
+            .Returns(missingMain ? GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound) : GitCommandResult.Success("abc123"));
+        _git.GetAheadBehindAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("1\t2"));
+
+        GitGatewayResult result = await CreateGateway().GetStatusAsync("buckettie", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Status!.LocalBranch.Should().Be("main");
+        result.Status.LocalHead.Should().Be("abc123");
+        result.Status.WorkingTreeClean.Should().BeFalse();
+        result.Status.RemoteDevelopHead.Should().Be(missingDevelop ? null : "def456");
+        result.Status.RemoteMainHead.Should().Be(missingMain ? null : "abc123");
+        result.Status.Ahead.Should().Be(missingDevelop ? null : 1);
+        result.Status.Behind.Should().Be(missingDevelop ? null : 2);
+        result.Status.ComparisonReference.Should().Be("refs/remotes/origin/develop");
+        result.Status.ComparisonUnavailableReason.Should().Be(missingDevelop ? "remote_tracking_ref_missing_or_not_fetched" : null);
+        result.Status.MissingRemoteReferences.Should().HaveCount((missingDevelop ? 1 : 0) + (missingMain ? 1 : 0));
+        await _git.Received(missingDevelop ? 0 : 1).GetAheadBehindAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>());
+        await _git.DidNotReceiveWithAnyArgs().FetchAsync(default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(GitCommandFailure.Failed, "Permission denied", GitGatewayError.PermissionDenied)]
+    [InlineData(GitCommandFailure.Failed, "fatal: broken repository", GitGatewayError.GitFailed)]
+    [InlineData(GitCommandFailure.TimedOut, "", GitGatewayError.Timeout)]
+    [InlineData(GitCommandFailure.Cancelled, "", GitGatewayError.Cancelled)]
+    public async Task GetStatusAsync_WhenReferenceReadFails_DoesNotHideFailure(GitCommandFailure failure, string message, GitGatewayError expected)
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("main"));
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("abc123"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(failure, message));
+
+        GitGatewayResult result = await CreateGateway().GetStatusAsync("buckettie", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be(expected);
     }
 
     [Fact]

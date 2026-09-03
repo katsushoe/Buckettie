@@ -129,7 +129,7 @@ internal static class CliApplication
                     await UpdateRepositoryAsync(services, repository, updateArgs, output, error, japanese, cancellationToken).ConfigureAwait(false),
                 ["branch", "list", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_list", repository, [], cancellationToken).ConfigureAwait(false),
                 ["branch", "get", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_get", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
-                ["branch", "create", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_create", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
+                ["branch", "create", var repository, var branch, var source] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_create", repository, new() { ["branch"] = branch, ["source"] = source }, cancellationToken).ConfigureAwait(false),
                 ["branch", "delete", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_delete", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
                 ["pr", "list", var repository, .. var listArgs] => await ListPullRequestsAsync(services, repository, listArgs, output, cancellationToken).ConfigureAwait(false),
                 ["pr", "get", var repository, var pullRequestId] => await CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_get", repository, pullRequestId, [], cancellationToken).ConfigureAwait(false),
@@ -597,7 +597,8 @@ internal static class CliApplication
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
-        buckettie branch create|delete <repository> <branch>
+        buckettie branch create <repository> <branch> <source-branch-or-full-sha>
+        buckettie branch delete <repository> <branch>
         buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
         buckettie pr get|diff <repository> <pull-request-id>
         buckettie pr create <repository> <title> <description> [--draft]
@@ -630,7 +631,8 @@ internal static class CliApplication
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
-        buckettie branch create|delete <repository> <branch>
+        buckettie branch create <repository> <branch> <source-branch-or-full-sha>
+        buckettie branch delete <repository> <branch>
         buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
         buckettie pr get|diff <repository> <pull-request-id>
         buckettie pr create <repository> <title> <description> [--draft]

@@ -143,6 +143,10 @@ public sealed class BuckettieMcpToolsTests
 
         diffInputs.Should().Equal("repository");
         commitInputs.Should().Equal("repository", "message");
+        var branchInputs = typeof(BuckettieMcpTools).GetMethod(nameof(BuckettieMcpTools.CreateBranchAsync))!
+            .GetParameters().Where(parameter => parameter.ParameterType != typeof(CancellationToken)).ToArray();
+        branchInputs.Select(parameter => parameter.Name).Should().Equal("repository", "branch", "source");
+        branchInputs.Should().OnlyContain(parameter => !parameter.IsOptional);
     }
 
     [Fact]
@@ -319,6 +323,7 @@ public sealed class BuckettieMcpToolsTests
     [InlineData("branch_get", "branch_not_found")]
     [InlineData("branch_delete", "branch_not_found")]
     [InlineData("branch_list", "repository_not_found")]
+    [InlineData("branch_create", "branch_source_not_found")]
     public void BitbucketCode_WhenApiReturnsNotFound_UsesOperationContext(string operation, string expected)
     {
         BuckettieToolResultMapper.BitbucketCode(BitbucketError.NotFound, operation).Should().Be(expected);
@@ -464,7 +469,7 @@ public sealed class BuckettieMcpToolsTests
             throw new NotSupportedException();
 
         public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
-            string repository, string branch, CancellationToken cancellationToken = default) =>
+            string repository, string branch, string source, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<BitbucketResult<bool>> DeleteBranchAsync(

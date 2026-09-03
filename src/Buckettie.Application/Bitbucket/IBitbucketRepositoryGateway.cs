@@ -19,9 +19,9 @@ public interface IBitbucketRepositoryGateway
         string branch,
         CancellationToken cancellationToken = default);
 
-    /// <summary>設定済みdevelopのHEADへBranchを作成します。</summary>
+    /// <summary>明示したBranchまたは完全コミットSHAからRemote Branchを作成します。</summary>
     public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
-        string repository, string branch, CancellationToken cancellationToken = default);
+        string repository, string branch, string source, CancellationToken cancellationToken = default);
 
     /// <summary>保護規則を適用してBranchを削除します。</summary>
     public Task<BitbucketResult<bool>> DeleteBranchAsync(

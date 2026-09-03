@@ -5,6 +5,9 @@ public enum BitbucketError
 {
     RepositoryNotAllowed,
     InvalidBranch,
+    InvalidBranchSource,
+    SourceBranchNotFound,
+    SourceCommitNotFound,
     BranchAlreadyExists,
     BranchProtected,
     InvalidPullRequest,

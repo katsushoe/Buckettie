@@ -1,6 +1,7 @@
 # ADR 0002: Fixed Git command gateway
 
 - Status: Accepted
+- Missing remote-tracking references in status are handled as partial data by [ADR 0014](0014-explicit-branch-source-and-partial-status.md); other command failures remain errors.
 
 ## Context
 

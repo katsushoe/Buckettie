@@ -169,16 +169,17 @@ public sealed class BuckettieMcpTools
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetBranchAsync(repository, branch, cancellationToken), "branch_get", repository, _language);
 
-    /// <summary>設定済みdevelopのHEADへRemote Branchを作成します。</summary>
+    /// <summary>明示した作成元からRemote Branchを作成します。ローカル切替は行いません。</summary>
     [McpServerTool(Name = "bitbucket_branch_create", Destructive = true, Idempotent = false,
         OpenWorld = true, UseStructuredContent = true)]
-    [Description("設定済みdevelopブランチのHEADからBitbucketブランチを作成します。 / Creates a Bitbucket branch from the configured develop branch HEAD.")]
+    [Description("明示した作成元からBitbucketブランチを作成します。省略・暗黙補完・ローカル切替はありません。 / Creates a remote branch from an explicit source branch or full commit SHA; no default source or local checkout.")]
     public Task<BuckettieToolResult<BitbucketBranchInfo>> CreateBranchAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         [Description("作成するブランチ名。 / Branch name to create.")] string branch,
+        [Description("必須の作成元Branch名または完全40桁コミットSHA。 / Required source branch name or full 40-character commit SHA.")] string source,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.CreateBranchAsync(repository, branch, cancellationToken),
+            _bitbucket.CreateBranchAsync(repository, branch, source, cancellationToken),
             "branch_create", repository, _language);
 
     /// <summary>保護規則を適用してRemote Branchを削除します。</summary>

@@ -35,11 +35,14 @@ public sealed record GitRepositoryStatus(
     string Repository,
     string LocalBranch,
     string LocalHead,
-    string RemoteDevelopHead,
-    string RemoteMainHead,
-    int Ahead,
-    int Behind,
-    bool WorkingTreeClean);
+    string? RemoteDevelopHead,
+    string? RemoteMainHead,
+    int? Ahead,
+    int? Behind,
+    bool WorkingTreeClean,
+    string? ComparisonReference = null,
+    string? ComparisonUnavailableReason = null,
+    IReadOnlyList<string>? MissingRemoteReferences = null);
 
 /// <summary>
 /// Git Gateway操作の結果を表します。

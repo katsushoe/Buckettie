@@ -126,7 +126,20 @@ public sealed class GitCommandClientTests
 
         _executor.Request!.Arguments.Should().Equal(
             "-c", "safe.directory=repository-root",
-            "rev-parse", "--verify", "--end-of-options", "refs/remotes/origin/develop");
+            "rev-parse", "--verify", "--quiet", "--end-of-options", "refs/remotes/origin/develop");
+    }
+
+    [Theory]
+    [InlineData(1, "", GitCommandFailure.ReferenceNotFound)]
+    [InlineData(1, "Permission denied", GitCommandFailure.Failed)]
+    [InlineData(128, "fatal: not a repository", GitCommandFailure.Failed)]
+    public async Task GetRemoteHeadAsync_WhenCommandFails_OnlyQuietMissingRefIsOptional(
+        int exitCode, string standardError, GitCommandFailure expected)
+    {
+        _executor.Result = new(exitCode, string.Empty, standardError, false, false, false);
+        GitCommandResult result = await CreateClient().GetRemoteHeadAsync(
+            "repository-root", "origin", "develop", TestContext.Current.CancellationToken);
+        result.Failure.Should().Be(expected);
     }
 
     [Fact]

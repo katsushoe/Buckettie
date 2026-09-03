@@ -125,6 +125,16 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
     }
 
     /// <inheritdoc />
+    public Task<BitbucketResult<string>> GetCommitAsync(
+        string repositoryId, string workspace, string slug, string hash,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<TargetResponse, string>(repositoryId,
+            $"{RepositoryPath(workspace, slug)}/commit/{Uri.EscapeDataString(hash)}",
+            commit => BranchSource.IsCommit(commit.Hash)
+                && string.Equals(commit.Hash, hash, StringComparison.OrdinalIgnoreCase),
+            commit => commit.Hash!, cancellationToken);
+
+    /// <inheritdoc />
     public Task<BitbucketResult<bool>> DeleteBranchAsync(
         string repositoryId,
         string workspace,

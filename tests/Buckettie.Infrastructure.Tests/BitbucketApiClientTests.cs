@@ -105,6 +105,42 @@ public sealed class BitbucketApiClientTests
     }
 
     [Fact]
+    public async Task GetCommitAsync_WhenFullHashIsRequested_UsesFixedRepositoryEndpoint()
+    {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
+        RecordingHandler handler = new("{\"hash\":\"" + hash + "\"}");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<string> result = await client.GetCommitAsync(
+            "allowed", "workspace", "repository", hash, TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(hash);
+        handler.Paths.Should().Equal("repositories/workspace/repository/commit/" + hash);
+        handler.Methods.Should().Equal(HttpMethod.Get);
+    }
+
+    [Fact]
+    public async Task GetCommitAsync_WhenHashDoesNotMatch_ReturnsInvalidResponse()
+    {
+        RecordingHandler handler = new("{\"hash\":\"ffffffffffffffffffffffffffffffffffffffff\"}");
+        BitbucketResult<string> result = await CreateClient(handler).GetCommitAsync(
+            "allowed", "workspace", "repository", "0123456789abcdef0123456789abcdef01234567",
+            TestContext.Current.CancellationToken);
+        result.Error.Should().Be(BitbucketError.InvalidResponse);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, BitbucketError.NotFound)]
+    [InlineData(HttpStatusCode.Forbidden, BitbucketError.PermissionDenied)]
+    public async Task GetCommitAsync_WhenProviderRejects_PreservesError(HttpStatusCode status, BitbucketError expected)
+    {
+        BitbucketResult<string> result = await CreateClient(new RecordingHandler(status)).GetCommitAsync(
+            "allowed", "workspace", "repository", "0123456789abcdef0123456789abcdef01234567",
+            TestContext.Current.CancellationToken);
+        result.Error.Should().Be(expected);
+    }
+
+    [Fact]
     public async Task DeleteBranchAsync_WhenMissing_ReturnsNotFound()
     {
         RecordingHandler handler = new(HttpStatusCode.NotFound);

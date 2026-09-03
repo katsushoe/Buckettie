@@ -77,7 +77,7 @@ public sealed class GitGateway : IGitGateway
             boundary.Repository.DevelopBranch,
             cancellationToken).ConfigureAwait(false);
         GitGatewayResult? developHeadError = MapCommandFailure(operation, repository, developHead);
-        if (developHeadError is not null)
+        if (developHeadError is not null && developHead.Failure != GitCommandFailure.ReferenceNotFound)
         {
             return developHeadError;
         }
@@ -88,25 +88,40 @@ public sealed class GitGateway : IGitGateway
             boundary.Repository.MainBranch,
             cancellationToken).ConfigureAwait(false);
         GitGatewayResult? mainHeadError = MapCommandFailure(operation, repository, mainHead);
-        if (mainHeadError is not null)
+        if (mainHeadError is not null && mainHead.Failure != GitCommandFailure.ReferenceNotFound)
         {
             return mainHeadError;
         }
 
-        GitCommandResult divergence = await _git.GetAheadBehindAsync(
-            boundary.Repository.LocalRoot,
-            boundary.Repository.Remote,
-            boundary.Repository.DevelopBranch,
-            cancellationToken).ConfigureAwait(false);
-        GitGatewayResult? divergenceError = MapCommandFailure(operation, repository, divergence);
-        if (divergenceError is not null)
+        string comparisonReference = $"refs/remotes/{boundary.Repository.Remote}/{boundary.Repository.DevelopBranch}";
+        List<string> missingReferences = [];
+        int? ahead = null;
+        int? behind = null;
+        if (!developHead.IsSuccess)
         {
-            return divergenceError;
+            missingReferences.Add(comparisonReference);
         }
-
-        if (!TryParseAheadBehind(divergence.StandardOutput, out int ahead, out int behind))
+        else
         {
-            return GitGatewayResult.DiagnosticFailure(operation, repository, GitGatewayError.GitFailed);
+            GitCommandResult divergence = await _git.GetAheadBehindAsync(
+                boundary.Repository.LocalRoot, boundary.Repository.Remote,
+                boundary.Repository.DevelopBranch, cancellationToken).ConfigureAwait(false);
+            GitGatewayResult? divergenceError = MapCommandFailure(operation, repository, divergence);
+            if (divergenceError is not null)
+            {
+                return divergenceError;
+            }
+
+            if (!TryParseAheadBehind(divergence.StandardOutput, out int aheadCount, out int behindCount))
+            {
+                return GitGatewayResult.DiagnosticFailure(operation, repository, GitGatewayError.GitFailed);
+            }
+            ahead = aheadCount;
+            behind = behindCount;
+        }
+        if (!mainHead.IsSuccess)
+        {
+            missingReferences.Add($"refs/remotes/{boundary.Repository.Remote}/{boundary.Repository.MainBranch}");
         }
 
         string branchName = branch.StandardOutput.Trim();
@@ -114,11 +129,14 @@ public sealed class GitGateway : IGitGateway
             repository,
             branchName,
             head.StandardOutput.Trim(),
-            developHead.StandardOutput.Trim(),
-            mainHead.StandardOutput.Trim(),
+            developHead.IsSuccess ? developHead.StandardOutput.Trim() : null,
+            mainHead.IsSuccess ? mainHead.StandardOutput.Trim() : null,
             ahead,
             behind,
-            string.IsNullOrWhiteSpace(status.StandardOutput));
+            string.IsNullOrWhiteSpace(status.StandardOutput),
+            comparisonReference,
+            developHead.IsSuccess ? null : "remote_tracking_ref_missing_or_not_fetched",
+            missingReferences.Distinct(StringComparer.Ordinal).ToArray());
         return GitGatewayResult.Success(operation, repository, branchName, repositoryStatus);
     }
 

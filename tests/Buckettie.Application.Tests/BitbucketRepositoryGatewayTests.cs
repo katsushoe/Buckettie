@@ -65,22 +65,137 @@ public sealed class BitbucketRepositoryGatewayTests
             TestContext.Current.CancellationToken);
     }
 
-    [Fact]
-    public async Task CreateBranchAsync_WhenInputIsValid_TargetsConfiguredDevelopHead()
+    [Theory]
+    [InlineData("main", "develop")]
+    [InlineData("release/stable", "feature/test")]
+    public async Task CreateBranchAsync_WhenSourceIsExplicit_UsesOnlyThatBranch(string source, string destination)
     {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
         _client.GetBranchAsync(
-            "allowed", "workspace", "repository", "develop", Arg.Any<CancellationToken>())
-            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("develop", "abcdef")));
+            "allowed", "workspace", "repository", source, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new(source, hash)));
         _client.CreateBranchAsync(
-            "allowed", "workspace", "repository", new BitbucketBranchCreate("feature/test", "abcdef"),
+            "allowed", "workspace", "repository", new BitbucketBranchCreate(destination, hash),
             Arg.Any<CancellationToken>())
-            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("feature/test", "abcdef")));
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new(destination, hash)));
         BitbucketRepositoryGateway gateway = CreateGateway();
 
         BitbucketResult<BitbucketBranchInfo> result = await gateway.CreateBranchAsync(
-            "allowed", "feature/test", TestContext.Current.CancellationToken);
+            "allowed", destination, source, TestContext.Current.CancellationToken);
 
-        result.Value.Should().Be(new BitbucketBranchInfo("feature/test", "abcdef"));
+        result.Value.Should().Be(new BitbucketBranchInfo(destination, hash, source, "branch", hash));
+        await _client.DidNotReceive().GetBranchAsync(
+            "allowed", "workspace", "repository", "develop", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateBranchAsync_WhenFullCommitIsExplicit_ResolvesCommitWithoutBranchLookup()
+    {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
+        _client.GetCommitAsync("allowed", "workspace", "repository", hash, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<string>.Success(hash));
+        _client.CreateBranchAsync("allowed", "workspace", "repository", new("feature/test", hash), Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("feature/test", hash)));
+
+        BitbucketResult<BitbucketBranchInfo> result = await CreateGateway().CreateBranchAsync(
+            "allowed", "feature/test", hash, TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(new BitbucketBranchInfo("feature/test", hash, hash, "commit", hash));
+        await _client.DidNotReceiveWithAnyArgs().GetBranchAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("main~1")]
+    [InlineData("main^{commit}")]
+    [InlineData("-main")]
+    [InlineData("main\n")]
+    [InlineData("refs//main")]
+    [InlineData("HEAD")]
+    [InlineData("main.lock")]
+    public async Task CreateBranchAsync_WhenSourceIsInvalid_DoesNotCallApi(string? source)
+    {
+        BitbucketResult<BitbucketBranchInfo> result = await CreateGateway().CreateBranchAsync(
+            "allowed", "feature/test", source!, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.InvalidBranchSource);
+        _client.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(BitbucketError.NotFound, BitbucketError.SourceBranchNotFound)]
+    [InlineData(BitbucketError.PermissionDenied, BitbucketError.PermissionDenied)]
+    [InlineData(BitbucketError.AuthenticationFailed, BitbucketError.AuthenticationFailed)]
+    [InlineData(BitbucketError.Timeout, BitbucketError.Timeout)]
+    public async Task CreateBranchAsync_WhenSourceLookupFails_DoesNotCreate(BitbucketError failure, BitbucketError expected)
+    {
+        _client.GetBranchAsync("allowed", "workspace", "repository", "main", Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Failure(failure));
+
+        BitbucketResult<BitbucketBranchInfo> result = await CreateGateway().CreateBranchAsync(
+            "allowed", "develop", "main", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(expected);
+        await _client.DidNotReceiveWithAnyArgs().CreateBranchAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task CreateBranchAsync_WhenCommitIsMissing_ReturnsSourceNotFound()
+    {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
+        _client.GetCommitAsync("allowed", "workspace", "repository", hash, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<string>.Failure(BitbucketError.NotFound));
+
+        BitbucketResult<BitbucketBranchInfo> result = await CreateGateway().CreateBranchAsync(
+            "allowed", "develop", hash, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.SourceCommitNotFound);
+        await _client.DidNotReceiveWithAnyArgs().CreateBranchAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task CreateBranchAsync_WhenRepositoryIsUnknown_DoesNotCallApi()
+    {
+        BitbucketResult<BitbucketBranchInfo> result = await CreateGateway().CreateBranchAsync(
+            "unknown", "develop", "main", TestContext.Current.CancellationToken);
+        result.Error.Should().Be(BitbucketError.RepositoryNotAllowed);
+        _client.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(BitbucketError.BranchAlreadyExists)]
+    [InlineData(BitbucketError.PermissionDenied)]
+    public async Task CreateBranchAsync_WhenPostFails_PreservesErrorWithoutRetry(BitbucketError failure)
+    {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
+        _client.GetBranchAsync("allowed", "workspace", "repository", "main", Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("main", hash)));
+        _client.CreateBranchAsync("allowed", "workspace", "repository", new("develop", hash), Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Failure(failure));
+
+        BitbucketResult<BitbucketBranchInfo> result = await CreateGateway().CreateBranchAsync(
+            "allowed", "develop", "main", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(failure);
+        await _client.Received(1).CreateBranchAsync("allowed", "workspace", "repository", new("develop", hash), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateBranchAsync_WhenProviderReturnsDifferentTarget_RejectsResponseWithoutRetry()
+    {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
+        _client.GetBranchAsync("allowed", "workspace", "repository", "main", Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("main", hash)));
+        _client.CreateBranchAsync("allowed", "workspace", "repository", new("develop", hash), Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Success(new("develop", new string('f', 40))));
+
+        BitbucketResult<BitbucketBranchInfo> result = await CreateGateway().CreateBranchAsync(
+            "allowed", "develop", "main", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.InvalidResponse);
+        await _client.Received(1).CreateBranchAsync("allowed", "workspace", "repository", new("develop", hash), Arg.Any<CancellationToken>());
     }
 
     [Theory]

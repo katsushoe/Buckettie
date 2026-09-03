@@ -30,6 +30,11 @@ public interface IBitbucketApiClient
         string repositoryId, string workspace, string slug, BitbucketBranchCreate input,
         CancellationToken cancellationToken = default);
 
+    /// <summary>同一Repository内の明示コミットを完全SHAへ解決します。</summary>
+    public Task<BitbucketResult<string>> GetCommitAsync(
+        string repositoryId, string workspace, string slug, string hash,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Branchを削除します。</summary>
     public Task<BitbucketResult<bool>> DeleteBranchAsync(
         string repositoryId, string workspace, string slug, string branch,
