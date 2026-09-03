@@ -1,30 +1,31 @@
-# Release 1.3.17.0
+# Release 1.3.20.0
 
-Release date: 2026-08-31
+Release date: 2026-09-04
 
 ## Highlights
 
-- Added the read-only MCP `list_projects` tool for selecting registered repository IDs before push operations.
-- Added registered-project candidates to unregistered repository push errors and MCP guidance to call `list_projects` before every push.
-- Added the source project name and target repository URL to the Token registration dialog.
+- Require every branch creation request to provide an explicit source branch or full 40-character commit SHA.
+- Support creating the initial `develop` branch from an explicitly selected source such as `main` without an implicit fallback.
+- Return partial repository status when configured remote-tracking references are missing, with nullable comparison data and an explicit reason.
+- Distinguish invalid and missing branch sources in MCP, CLI, and audit results.
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.3.17.0-win-x64.msi` | `0E5D3FA7F6239760A7807B8BEB865935FFC15F6F14154EC8A01E4BBFE68964EE` |
-| `Buckettie-1.3.17.0-win-x64.zip` | `0AF7874C5FE75C67CF8C3F5FE81734D5397F73C0E744ECE283B96AF3340F5EDC` |
+| `Buckettie-1.3.20.0-win-x64.msi` | `5C18307652736F4A88D1F8B138974599F152E0B3523BE29EF583AA70B7AE8217` |
+| `Buckettie-1.3.20.0-win-x64.zip` | `66795B4FD93EF038993952BF11FDC8D9FA56143113F29034EED16A37AB35834E` |
 
 - Runtime: Windows x64, self-contained
-- Display version: `1.3.17.0`
-- Windows Installer product version: `1.3.17`
-- Tag: `v1.3.17.0`
+- Display version: `1.3.20.0`
+- Windows Installer product version: `1.3.20`
+- Tag: `v1.3.20.0`
 
 ## Validation
 
-- Automated tests: passed (284 tests)
+- Automated tests: passed (332 tests)
 - MSI build and SHA-256 hash: passed
 - ZIP release build and SHA-256 hash: passed
-- Physical-machine upgrade: passed after UAC elevation (service running, version `1.3.17.0`, configuration and 3 Token files preserved)
+- Physical-machine upgrade: passed after UAC elevation (service running automatically, MCP version `1.3.20.0`, configuration and six registered repositories preserved)
 
 Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.
