@@ -14,7 +14,10 @@ internal sealed record BuckettieAuditEvent(
     bool IsSuccess,
     long DurationMilliseconds,
     string? ErrorCode,
-    string? CorrelationId = null);
+    string? CorrelationId = null,
+    string? Source = null,
+    string? SourceKind = null,
+    string? SourceHash = null);
 
 internal interface IBuckettieAuditLogger
 {
@@ -24,7 +27,7 @@ internal interface IBuckettieAuditLogger
 internal sealed class BuckettieAuditLogger(ILogger<BuckettieAuditLogger> logger) : IBuckettieAuditLogger
 {
     public void Write(BuckettieAuditEvent auditEvent) => logger.LogInformation(
-        "client={Client} tool={Tool} repository={Repository} branch={Branch} pull_request_id={PullRequestId} tag={Tag} result={Result} duration_ms={DurationMilliseconds} error_code={ErrorCode} correlation_id={CorrelationId}",
+        "client={Client} tool={Tool} repository={Repository} branch={Branch} pull_request_id={PullRequestId} tag={Tag} result={Result} duration_ms={DurationMilliseconds} error_code={ErrorCode} correlation_id={CorrelationId} source={Source} source_kind={SourceKind} source_hash={SourceHash}",
         "mcp",
         auditEvent.Tool,
         auditEvent.Repository,
@@ -34,7 +37,10 @@ internal sealed class BuckettieAuditLogger(ILogger<BuckettieAuditLogger> logger)
         auditEvent.IsSuccess ? "success" : "failure",
         auditEvent.DurationMilliseconds,
         auditEvent.ErrorCode ?? "-",
-        auditEvent.CorrelationId ?? "-");
+        auditEvent.CorrelationId ?? "-",
+        auditEvent.Source ?? "-",
+        auditEvent.SourceKind ?? "-",
+        auditEvent.SourceHash ?? "-");
 }
 
 internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger audit) : IGitGateway
@@ -85,8 +91,10 @@ internal sealed class AuditedBitbucketRepositoryGateway(
     public Task<BitbucketResult<BitbucketBranchInfo>> GetBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_branch_get", repository, branch, null, null, () => inner.GetBranchAsync(repository, branch, cancellationToken));
 
-    public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
-        RunAsync("bitbucket_branch_create", repository, branch, null, null, () => inner.CreateBranchAsync(repository, branch, cancellationToken));
+    public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(string repository, string branch, string source, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_branch_create", repository, branch, null, null,
+            () => inner.CreateBranchAsync(repository, branch, source, cancellationToken),
+            BranchSource.IsValid(source) ? source : null);
 
     public Task<BitbucketResult<bool>> DeleteBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_branch_delete", repository, branch, null, null, () => inner.DeleteBranchAsync(repository, branch, cancellationToken));
@@ -102,6 +110,18 @@ internal sealed class AuditedBitbucketRepositoryGateway(
 
     public Task<BitbucketResult<bool>> DeleteTagAsync(string repository, string tag, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_tag_delete", repository, null, null, tag, () => inner.DeleteTagAsync(repository, tag, cancellationToken));
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(string repository, string version, string? notes, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_create", repository, null, null, version, () => inner.CreateReleaseAsync(repository, version, notes, cancellationToken));
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(string repository, string version, string? artifactPath, string? notes, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_publish", repository, null, null, version, () => inner.PublishReleaseAsync(repository, version, artifactPath, notes, cancellationToken));
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(string repository, string version, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_get", repository, null, null, version, () => inner.GetReleaseAsync(repository, version, cancellationToken));
+
+    public Task<BitbucketResult<bool>> WithdrawReleaseAsync(string repository, string version, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_withdraw", repository, null, null, version, () => inner.WithdrawReleaseAsync(repository, version, cancellationToken));
 
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(string repository, BitbucketPullRequestState? state, string? source, string? destination, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_pr_list", repository, source, null, null, () => inner.ListPullRequestsAsync(repository, state, source, destination, cancellationToken));
@@ -119,7 +139,7 @@ internal sealed class AuditedBitbucketRepositoryGateway(
         RunAsync("bitbucket_pr_merge", repository, null, pullRequestId, null, () => inner.MergePullRequestAsync(repository, pullRequestId, input, cancellationToken));
 
     private async Task<BitbucketResult<T>> RunAsync<T>(string tool, string repository, string? branch,
-        int? pullRequestId, string? tag, Func<Task<BitbucketResult<T>>> operation)
+        int? pullRequestId, string? tag, Func<Task<BitbucketResult<T>>> operation, string? source = null)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         BitbucketResult<T> result = await operation().ConfigureAwait(false);
@@ -128,8 +148,10 @@ internal sealed class AuditedBitbucketRepositoryGateway(
         {
             auditedPullRequestId = pullRequest.Id;
         }
+        BitbucketBranchInfo? createdBranch = result.Value as BitbucketBranchInfo;
         audit.Write(new(tool, repository, branch, auditedPullRequestId, tag, result.IsSuccess,
-            stopwatch.ElapsedMilliseconds, result.Error?.ToString()));
+            stopwatch.ElapsedMilliseconds, result.Error?.ToString(), Source: source,
+            SourceKind: createdBranch?.SourceKind, SourceHash: createdBranch?.SourceHash));
         return result;
     }
 }

@@ -30,6 +30,11 @@ public interface IBitbucketApiClient
         string repositoryId, string workspace, string slug, BitbucketBranchCreate input,
         CancellationToken cancellationToken = default);
 
+    /// <summary>同一Repository内の明示コミットを完全SHAへ解決します。</summary>
+    public Task<BitbucketResult<string>> GetCommitAsync(
+        string repositoryId, string workspace, string slug, string hash,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Branchを削除します。</summary>
     public Task<BitbucketResult<bool>> DeleteBranchAsync(
         string repositoryId, string workspace, string slug, string branch,
@@ -62,6 +67,18 @@ public interface IBitbucketApiClient
     /// <summary>Tagを削除します。</summary>
     public Task<BitbucketResult<bool>> DeleteTagAsync(
         string repositoryId, string workspace, string slug, string tag,
+        CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PutReleaseAsync(
+        string repositoryId, string workspace, string slug, BitbucketReleaseInfo release,
+        string? artifactPath, CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        string repositoryId, string workspace, string slug, string version,
+        CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<bool>> DeleteReleaseAsync(
+        string repositoryId, string workspace, string slug, string version,
         CancellationToken cancellationToken = default);
 
     /// <summary>Pull Request一覧を取得します。</summary>

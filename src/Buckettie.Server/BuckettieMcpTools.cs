@@ -76,6 +76,10 @@ public sealed class BuckettieMcpTools
             ["branch_delete"] = true,
             ["tag_delete"] = true,
             ["tag_push"] = true,
+            ["release_create"] = true,
+            ["release_publish"] = true,
+            ["release_get"] = true,
+            ["release_withdraw"] = true,
             ["explicit_push"] = true,
             ["repository_diff"] = true,
             ["repository_commit"] = true,
@@ -169,16 +173,17 @@ public sealed class BuckettieMcpTools
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetBranchAsync(repository, branch, cancellationToken), "branch_get", repository, _language);
 
-    /// <summary>設定済みdevelopのHEADへRemote Branchを作成します。</summary>
+    /// <summary>明示した作成元からRemote Branchを作成します。ローカル切替は行いません。</summary>
     [McpServerTool(Name = "bitbucket_branch_create", Destructive = true, Idempotent = false,
         OpenWorld = true, UseStructuredContent = true)]
-    [Description("設定済みdevelopブランチのHEADからBitbucketブランチを作成します。 / Creates a Bitbucket branch from the configured develop branch HEAD.")]
+    [Description("明示した作成元からBitbucketブランチを作成します。省略・暗黙補完・ローカル切替はありません。 / Creates a remote branch from an explicit source branch or full commit SHA; no default source or local checkout.")]
     public Task<BuckettieToolResult<BitbucketBranchInfo>> CreateBranchAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         [Description("作成するブランチ名。 / Branch name to create.")] string branch,
+        [Description("必須の作成元Branch名または完全40桁コミットSHA。 / Required source branch name or full 40-character commit SHA.")] string source,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.CreateBranchAsync(repository, branch, cancellationToken),
+            _bitbucket.CreateBranchAsync(repository, branch, source, cancellationToken),
             "branch_create", repository, _language);
 
     /// <summary>保護規則を適用してRemote Branchを削除します。</summary>
@@ -323,6 +328,57 @@ public sealed class BuckettieMcpTools
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.DeleteTagAsync(repository, tag, cancellationToken),
             "tag_delete", repository, _language);
+
+    /// <summary>Bitbucket Downloads manifestとしてdraft Releaseを作成します。</summary>
+    [McpServerTool(Name = "buckettie_release_create", Destructive = true, Idempotent = true,
+        OpenWorld = true, UseStructuredContent = true)]
+    [Description("Bitbucket Downloads上のRelease manifestをdraft状態で作成または置換します。 / Creates or replaces a draft release manifest in Bitbucket Downloads.")]
+    public Task<BuckettieToolResult<BitbucketReleaseInfo>> CreateReleaseAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("Release版。 / Release version.")] string version,
+        [Description("任意のRelease notes。 / Optional release notes.")] string? notes = null,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.CreateReleaseAsync(repository, version, notes, cancellationToken),
+            "release_create", repository, _language);
+
+    /// <summary>Releaseを公開し、任意の成果物をDownloadsへ配置します。</summary>
+    [McpServerTool(Name = "buckettie_release_publish", Destructive = true, Idempotent = true,
+        OpenWorld = true, UseStructuredContent = true)]
+    [Description("Release manifestをpublished状態へ置換し、任意の成果物をBitbucket Downloadsへアップロードします。 / Replaces the manifest with published state and optionally uploads an artifact to Bitbucket Downloads.")]
+    public Task<BuckettieToolResult<BitbucketReleaseInfo>> PublishReleaseAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("Release版。 / Release version.")] string version,
+        [Description("任意のローカル成果物パス。 / Optional local artifact path.")] string? artifactPath = null,
+        [Description("任意のRelease notes。 / Optional release notes.")] string? notes = null,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.PublishReleaseAsync(repository, version, artifactPath, notes, cancellationToken),
+            "release_publish", repository, _language);
+
+    /// <summary>Release manifestを取得します。</summary>
+    [McpServerTool(Name = "buckettie_release_get", ReadOnly = true, Destructive = false,
+        Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
+    [Description("Bitbucket DownloadsからRelease manifestを取得します。 / Gets a release manifest from Bitbucket Downloads.")]
+    public Task<BuckettieToolResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("Release版。 / Release version.")] string version,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.GetReleaseAsync(repository, version, cancellationToken),
+            "release_get", repository, _language);
+
+    /// <summary>Release manifestを削除して公開を取り下げます。</summary>
+    [McpServerTool(Name = "buckettie_release_withdraw", Destructive = true, Idempotent = false,
+        OpenWorld = true, UseStructuredContent = true)]
+    [Description("Release manifestを削除して公開を取り下げます。成果物は保持します。 / Withdraws a release by deleting its manifest; uploaded artifacts are retained.")]
+    public Task<BuckettieToolResult<bool>> WithdrawReleaseAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("Release版。 / Release version.")] string version,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapBitbucketAsync(
+            _bitbucket.WithdrawReleaseAsync(repository, version, cancellationToken),
+            "release_withdraw", repository, _language);
 
     /// <summary>Policy準拠のLocal Tagを明示的にpushします。</summary>
     [McpServerTool(Name = "bitbucket_tag_push", Destructive = true, Idempotent = true,

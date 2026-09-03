@@ -58,8 +58,8 @@ public sealed class GitCommandClient : IGitCommandClient
         CancellationToken cancellationToken) =>
         ExecuteAsync(
             repositoryRoot,
-            ["rev-parse", "--verify", "--end-of-options", RemoteReference(remote, branch)],
-            cancellationToken);
+            ["rev-parse", "--verify", "--quiet", "--end-of-options", RemoteReference(remote, branch)],
+            cancellationToken, missingReferenceAllowed: true);
 
     /// <inheritdoc />
     public Task<GitCommandResult> GetAheadBehindAsync(
@@ -168,7 +168,8 @@ public sealed class GitCommandClient : IGitCommandClient
         string repositoryRoot,
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null,
+        bool missingReferenceAllowed = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
         string safeDirectory = repositoryRoot.Replace('\\', '/');
@@ -193,6 +194,11 @@ public sealed class GitCommandClient : IGitCommandClient
         if (result.Cancelled)
         {
             return GitCommandResult.Failed(GitCommandFailure.Cancelled, result.StandardError);
+        }
+
+        if (missingReferenceAllowed && result.ExitCode == 1 && string.IsNullOrEmpty(result.StandardError))
+        {
+            return GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound);
         }
 
         return result.ExitCode == 0

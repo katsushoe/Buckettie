@@ -120,6 +120,9 @@ internal static class BuckettieToolResultMapper
     {
         BitbucketError.RepositoryNotAllowed => "repository_not_allowed",
         BitbucketError.InvalidBranch => "branch_not_allowed",
+        BitbucketError.InvalidBranchSource => "branch_source_invalid",
+        BitbucketError.SourceBranchNotFound => "branch_not_found",
+        BitbucketError.SourceCommitNotFound => "branch_source_not_found",
         BitbucketError.BranchAlreadyExists => "branch_already_exists",
         BitbucketError.BranchProtected => "protected_branch",
         BitbucketError.InvalidPullRequest => "pull_request_invalid",
@@ -132,6 +135,7 @@ internal static class BuckettieToolResultMapper
         BitbucketError.InvalidTag => "tag_invalid",
         BitbucketError.TagAlreadyExists => "tag_already_exists",
         BitbucketError.TagTargetNotAllowed => "tag_target_not_allowed",
+        BitbucketError.InvalidRelease => "invalid_release",
         BitbucketError.TokenUnavailable => "authentication_failed",
         BitbucketError.AuthenticationFailed => "authentication_failed",
         BitbucketError.PermissionDenied => "permission_denied",
@@ -178,8 +182,10 @@ internal static class BuckettieToolResultMapper
     private static string NotFoundCode(string operation) => operation switch
     {
         "branch_get" or "branch_delete" => "branch_not_found",
+        "branch_create" => "branch_source_not_found",
         "pr_get" or "pr_diff" or "pr_merge" => "pull_request_not_found",
         "tag_get" or "tag_delete" => "tag_not_found",
+        "release_get" or "release_withdraw" => "release_not_found",
         _ => "repository_not_found",
     };
 
@@ -259,6 +265,8 @@ internal static class BuckettieToolResultMapper
 
     private static string EnglishMessage(string code) => code switch
     {
+        "branch_source_invalid" => "Specify a source branch name or full 40-character commit SHA; no default source is used.",
+        "branch_source_not_found" => "The branch source could not be found or is not visible in this repository. Check the source and repository access before retrying.",
         "repository_not_found" => "The repository was not found.",
         "repository_not_allowed" => "The repository is not allowed.",
         "local_repository_invalid" => "The local repository boundary is invalid.",
@@ -310,6 +318,8 @@ internal static class BuckettieToolResultMapper
 
     private static string JapaneseMessage(string code) => code switch
     {
+        "branch_source_invalid" => "作成元Branch名または完全40桁コミットSHAを指定してください。暗黙の作成元はありません。",
+        "branch_source_not_found" => "このリポジトリで作成元が見つからないか参照できません。作成元とアクセス権を確認してください。",
         "repository_not_found" => "リポジトリが見つかりません。",
         "repository_not_allowed" => "このリポジトリは許可されていません。",
         "local_repository_invalid" => "ローカルリポジトリの境界が無効です。",

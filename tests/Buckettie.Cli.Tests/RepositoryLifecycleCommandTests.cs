@@ -105,6 +105,8 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
     [InlineData("tag|get|example|v1.0.0", "bitbucket_tag_get", "\"tag\":\"v1.0.0\"")]
     [InlineData("tag|create|example|v1.0.0|--message|Release", "bitbucket_tag_create", "\"message\":\"Release\"")]
     [InlineData("mcp|version", "get_version", "\"arguments\":{}")]
+    [InlineData("branch|create|example|develop|main", "bitbucket_branch_create", "\"source\":\"main\"")]
+    [InlineData("branch|create|example|feature/test|0123456789abcdef0123456789abcdef01234567", "bitbucket_branch_create", "\"source\":\"0123456789abcdef0123456789abcdef01234567\"")]
     public async Task McpEquivalentCommand_CallsExpectedTool(
         string serializedArguments, string expectedTool, string expectedArgument)
     {
@@ -162,6 +164,38 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
         await serverTask;
         exitCode.Should().Be(1);
         output.ToString().Should().Contain("[NG] bitbucket_push: example");
+    }
+
+    [Fact]
+    public async Task BranchCreate_WhenSourceIsOmitted_ReturnsUsageErrorWithoutService()
+    {
+        string path = WriteConfiguration(GetFreePort());
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "branch", "create", "example", "develop"],
+            new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken);
+        exitCode.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task BranchCreate_WhenSourceIsRejected_PreservesProviderErrorAndExitCode()
+    {
+        int port = GetFreePort();
+        string path = WriteConfiguration(port);
+        using HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/mcp/");
+        listener.Start();
+        Task<string> serverTask = RespondOnceAsync(listener,
+            """{"result":{"structuredContent":{"ok":false,"error":{"code":"branch_source_invalid"}}}}""");
+        StringWriter output = new();
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "branch", "create", "example", "develop", " "],
+            output, new StringWriter(), TestContext.Current.CancellationToken);
+
+        string request = await serverTask;
+        request.Should().Contain("\"source\":\" \"");
+        exitCode.Should().Be(1);
+        output.ToString().Should().Contain("branch_source_invalid");
     }
 
     private static async Task<string> RespondOnceAsync(HttpListener listener, string responseBody)

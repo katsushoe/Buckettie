@@ -9,6 +9,7 @@ public enum GitCommandFailure
     Failed,
     TimedOut,
     Cancelled,
+    ReferenceNotFound,
 }
 
 /// <summary>

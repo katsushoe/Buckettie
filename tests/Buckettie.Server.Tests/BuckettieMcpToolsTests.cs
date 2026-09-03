@@ -36,6 +36,10 @@ public sealed class BuckettieMcpToolsTests
         "bitbucket_tag_create",
         "bitbucket_tag_delete",
         "bitbucket_tag_push",
+        "buckettie_release_create",
+        "buckettie_release_publish",
+        "buckettie_release_get",
+        "buckettie_release_withdraw",
         "bitbucket_repository_register",
         "bitbucket_repository_unregister",
         "bitbucket_repository_update",
@@ -104,6 +108,9 @@ public sealed class BuckettieMcpToolsTests
             "bitbucket_tag_create",
             "bitbucket_tag_delete",
             "bitbucket_tag_push",
+            "buckettie_release_create",
+            "buckettie_release_publish",
+            "buckettie_release_withdraw",
             "bitbucket_repository_register",
             "bitbucket_repository_unregister",
             "bitbucket_repository_update");
@@ -143,6 +150,10 @@ public sealed class BuckettieMcpToolsTests
 
         diffInputs.Should().Equal("repository");
         commitInputs.Should().Equal("repository", "message");
+        var branchInputs = typeof(BuckettieMcpTools).GetMethod(nameof(BuckettieMcpTools.CreateBranchAsync))!
+            .GetParameters().Where(parameter => parameter.ParameterType != typeof(CancellationToken)).ToArray();
+        branchInputs.Select(parameter => parameter.Name).Should().Equal("repository", "branch", "source");
+        branchInputs.Should().OnlyContain(parameter => !parameter.IsOptional);
     }
 
     [Fact]
@@ -319,6 +330,7 @@ public sealed class BuckettieMcpToolsTests
     [InlineData("branch_get", "branch_not_found")]
     [InlineData("branch_delete", "branch_not_found")]
     [InlineData("branch_list", "repository_not_found")]
+    [InlineData("branch_create", "branch_source_not_found")]
     public void BitbucketCode_WhenApiReturnsNotFound_UsesOperationContext(string operation, string expected)
     {
         BuckettieToolResultMapper.BitbucketCode(BitbucketError.NotFound, operation).Should().Be(expected);
@@ -464,7 +476,7 @@ public sealed class BuckettieMcpToolsTests
             throw new NotSupportedException();
 
         public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
-            string repository, string branch, CancellationToken cancellationToken = default) =>
+            string repository, string branch, string source, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<BitbucketResult<bool>> DeleteBranchAsync(
@@ -485,6 +497,22 @@ public sealed class BuckettieMcpToolsTests
 
         public Task<BitbucketResult<bool>> DeleteTagAsync(
             string repository, string tag, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(
+            string repository, string version, string? notes, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(
+            string repository, string version, string? artifactPath, string? notes,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+            string repository, string version, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<bool>> WithdrawReleaseAsync(
+            string repository, string version, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(

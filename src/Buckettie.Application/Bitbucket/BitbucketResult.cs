@@ -5,6 +5,9 @@ public enum BitbucketError
 {
     RepositoryNotAllowed,
     InvalidBranch,
+    InvalidBranchSource,
+    SourceBranchNotFound,
+    SourceCommitNotFound,
     BranchAlreadyExists,
     BranchProtected,
     InvalidPullRequest,
@@ -17,6 +20,7 @@ public enum BitbucketError
     InvalidTag,
     TagAlreadyExists,
     TagTargetNotAllowed,
+    InvalidRelease,
     TokenUnavailable,
     AuthenticationFailed,
     PermissionDenied,

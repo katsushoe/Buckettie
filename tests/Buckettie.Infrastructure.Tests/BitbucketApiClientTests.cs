@@ -105,6 +105,42 @@ public sealed class BitbucketApiClientTests
     }
 
     [Fact]
+    public async Task GetCommitAsync_WhenFullHashIsRequested_UsesFixedRepositoryEndpoint()
+    {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
+        RecordingHandler handler = new("{\"hash\":\"" + hash + "\"}");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<string> result = await client.GetCommitAsync(
+            "allowed", "workspace", "repository", hash, TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(hash);
+        handler.Paths.Should().Equal("repositories/workspace/repository/commit/" + hash);
+        handler.Methods.Should().Equal(HttpMethod.Get);
+    }
+
+    [Fact]
+    public async Task GetCommitAsync_WhenHashDoesNotMatch_ReturnsInvalidResponse()
+    {
+        RecordingHandler handler = new("{\"hash\":\"ffffffffffffffffffffffffffffffffffffffff\"}");
+        BitbucketResult<string> result = await CreateClient(handler).GetCommitAsync(
+            "allowed", "workspace", "repository", "0123456789abcdef0123456789abcdef01234567",
+            TestContext.Current.CancellationToken);
+        result.Error.Should().Be(BitbucketError.InvalidResponse);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, BitbucketError.NotFound)]
+    [InlineData(HttpStatusCode.Forbidden, BitbucketError.PermissionDenied)]
+    public async Task GetCommitAsync_WhenProviderRejects_PreservesError(HttpStatusCode status, BitbucketError expected)
+    {
+        BitbucketResult<string> result = await CreateClient(new RecordingHandler(status)).GetCommitAsync(
+            "allowed", "workspace", "repository", "0123456789abcdef0123456789abcdef01234567",
+            TestContext.Current.CancellationToken);
+        result.Error.Should().Be(expected);
+    }
+
+    [Fact]
     public async Task DeleteBranchAsync_WhenMissing_ReturnsNotFound()
     {
         RecordingHandler handler = new(HttpStatusCode.NotFound);
@@ -193,6 +229,53 @@ public sealed class BitbucketApiClientTests
         result.Value.Should().BeTrue();
         handler.Methods.Should().Equal(HttpMethod.Delete);
         handler.Paths.Should().Equal("repositories/workspace/repository/refs/tags/release%2F1");
+    }
+
+    [Fact]
+    public async Task PutReleaseAsync_WhenCalled_UploadsManifestToDownloads()
+    {
+        RecordingHandler handler = new(HttpStatusCode.Created);
+        BitbucketApiClient client = CreateClient(handler);
+        var release = new BitbucketReleaseInfo("v1.2.3", "draft", "notes", null,
+            DateTimeOffset.Parse("2026-09-04T00:00:00Z"));
+
+        BitbucketResult<BitbucketReleaseInfo> result = await client.PutReleaseAsync(
+            "allowed", "workspace", "repository", release, null, TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(release);
+        handler.Methods.Should().Equal(HttpMethod.Post);
+        handler.Paths.Should().Equal("repositories/workspace/repository/downloads");
+        handler.Bodies.Single().Should().Contain("buckettie-release-v1.2.3.json").And.Contain("draft");
+    }
+
+    [Fact]
+    public async Task GetReleaseAsync_WhenManifestExists_ReturnsRelease()
+    {
+        RecordingHandler handler = new("""
+            {"version":"v1.2.3","state":"published","notes":"notes","artifactName":"app.zip","updatedAt":"2026-09-04T00:00:00Z"}
+            """);
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketReleaseInfo> result = await client.GetReleaseAsync(
+            "allowed", "workspace", "repository", "v1.2.3", TestContext.Current.CancellationToken);
+
+        result.Value.Should().NotBeNull();
+        result.Value!.State.Should().Be("published");
+        handler.Paths.Should().Equal("repositories/workspace/repository/downloads/buckettie-release-v1.2.3.json");
+    }
+
+    [Fact]
+    public async Task DeleteReleaseAsync_WhenCalled_DeletesManifestOnly()
+    {
+        RecordingHandler handler = new(HttpStatusCode.NoContent);
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<bool> result = await client.DeleteReleaseAsync(
+            "allowed", "workspace", "repository", "v1.2.3", TestContext.Current.CancellationToken);
+
+        result.Value.Should().BeTrue();
+        handler.Methods.Should().Equal(HttpMethod.Delete);
+        handler.Paths.Should().Equal("repositories/workspace/repository/downloads/buckettie-release-v1.2.3.json");
     }
 
     [Fact]

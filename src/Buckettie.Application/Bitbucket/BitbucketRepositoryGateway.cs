@@ -56,6 +56,7 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
     public async Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
         string repository,
         string branch,
+        string source,
         CancellationToken cancellationToken = default)
     {
         if (!IsValidBranchInput(branch))
@@ -63,25 +64,66 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
             return BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.InvalidBranch);
         }
 
+        if (!BranchSource.IsValid(source))
+        {
+            return BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.InvalidBranchSource);
+        }
+
         if (!TryGet(repository, out RepositoryOptions? options) || options is null)
         {
             return BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.RepositoryNotAllowed);
         }
 
-        BitbucketResult<BitbucketBranchInfo> source = await _client.GetBranchAsync(
-            repository, options.Workspace, options.Slug, options.DevelopBranch, cancellationToken)
-            .ConfigureAwait(false);
-        if (!source.IsSuccess || source.Value is null)
+        BitbucketResult<string> resolved = await ResolveSourceAsync(
+            repository, options, source, cancellationToken).ConfigureAwait(false);
+        if (!resolved.IsSuccess || !BranchSource.IsCommit(resolved.Value))
         {
-            return BitbucketResult<BitbucketBranchInfo>.Failure(source.Error ?? BitbucketError.InvalidResponse);
+            return BitbucketResult<BitbucketBranchInfo>.Failure(resolved.Error ?? BitbucketError.InvalidResponse);
         }
 
-        return await _client.CreateBranchAsync(
+        BitbucketResult<BitbucketBranchInfo> created = await _client.CreateBranchAsync(
             repository,
             options.Workspace,
             options.Slug,
-            new BitbucketBranchCreate(branch, source.Value.TargetHash),
+            new BitbucketBranchCreate(branch, resolved.Value!),
             cancellationToken).ConfigureAwait(false);
+        if (!created.IsSuccess || created.Value is null)
+        {
+            return created;
+        }
+
+        if (!string.Equals(created.Value.Name, branch, StringComparison.Ordinal)
+            || !string.Equals(created.Value.TargetHash, resolved.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            return BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.InvalidResponse);
+        }
+
+        return BitbucketResult<BitbucketBranchInfo>.Success(created.Value with
+        {
+            Source = source,
+            SourceKind = BranchSource.IsCommit(source) ? "commit" : "branch",
+            SourceHash = resolved.Value,
+        });
+    }
+
+    private async Task<BitbucketResult<string>> ResolveSourceAsync(
+        string repository, RepositoryOptions options, string source, CancellationToken cancellationToken)
+    {
+        if (BranchSource.IsCommit(source))
+        {
+            BitbucketResult<string> commit = await _client.GetCommitAsync(
+                repository, options.Workspace, options.Slug, source, cancellationToken).ConfigureAwait(false);
+            return commit.Error == BitbucketError.NotFound
+                ? BitbucketResult<string>.Failure(BitbucketError.SourceCommitNotFound)
+                : commit;
+        }
+
+        BitbucketResult<BitbucketBranchInfo> branch = await _client.GetBranchAsync(
+            repository, options.Workspace, options.Slug, source, cancellationToken).ConfigureAwait(false);
+        return branch.IsSuccess && branch.Value is not null
+            ? BitbucketResult<string>.Success(branch.Value.TargetHash)
+            : BitbucketResult<string>.Failure(branch.Error == BitbucketError.NotFound
+                ? BitbucketError.SourceBranchNotFound : branch.Error ?? BitbucketError.InvalidResponse);
     }
 
     /// <inheritdoc />
@@ -209,6 +251,66 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
         }
 
         return _client.DeleteTagAsync(repository, options.Workspace, options.Slug, tag, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(
+        string repository, string version, string? notes, CancellationToken cancellationToken = default) =>
+        PutReleaseAsync(repository, version, "draft", null, notes, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(
+        string repository, string version, string? artifactPath, string? notes,
+        CancellationToken cancellationToken = default) =>
+        PutReleaseAsync(repository, version, "published", artifactPath, notes, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default)
+    {
+        if (!IsValidReleaseVersion(version))
+        {
+            return Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidRelease));
+        }
+
+        return TryGet(repository, out RepositoryOptions? options)
+            ? _client.GetReleaseAsync(repository, options!.Workspace, options.Slug, version, cancellationToken)
+            : Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.RepositoryNotAllowed));
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<bool>> WithdrawReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default)
+    {
+        if (!IsValidReleaseVersion(version))
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.InvalidRelease));
+        }
+
+        return TryGet(repository, out RepositoryOptions? options)
+            ? _client.DeleteReleaseAsync(repository, options!.Workspace, options.Slug, version, cancellationToken)
+            : Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.RepositoryNotAllowed));
+    }
+
+    private Task<BitbucketResult<BitbucketReleaseInfo>> PutReleaseAsync(
+        string repository, string version, string state, string? artifactPath, string? notes,
+        CancellationToken cancellationToken)
+    {
+        if (!IsValidReleaseVersion(version) || notes is { Length: > 32_768 }
+            || notes?.Contains('\0', StringComparison.Ordinal) == true
+            || artifactPath?.Contains('\0', StringComparison.Ordinal) == true)
+        {
+            return Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidRelease));
+        }
+
+        if (!TryGet(repository, out RepositoryOptions? options) || options is null)
+        {
+            return Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.RepositoryNotAllowed));
+        }
+
+        string? artifactName = string.IsNullOrWhiteSpace(artifactPath) ? null : Path.GetFileName(artifactPath);
+        var release = new BitbucketReleaseInfo(version, state, notes, artifactName, DateTimeOffset.UtcNow);
+        return _client.PutReleaseAsync(repository, options.Workspace, options.Slug, release, artifactPath, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -384,6 +486,10 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
 
     private static bool IsValidTagInput(string tag) =>
         !string.IsNullOrWhiteSpace(tag) && tag.Length <= 255 && !tag.Any(char.IsControl);
+
+    private static bool IsValidReleaseVersion(string version) =>
+        !string.IsNullOrWhiteSpace(version) && version.Length <= 128 && !version.Any(char.IsControl)
+        && version.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 
     private static bool IsValidBranchInput(string branch) =>
         !string.IsNullOrWhiteSpace(branch) && branch.Length <= 255 && !branch.Any(char.IsControl);

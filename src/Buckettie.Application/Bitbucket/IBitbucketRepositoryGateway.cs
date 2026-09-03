@@ -19,9 +19,9 @@ public interface IBitbucketRepositoryGateway
         string branch,
         CancellationToken cancellationToken = default);
 
-    /// <summary>設定済みdevelopのHEADへBranchを作成します。</summary>
+    /// <summary>明示したBranchまたは完全コミットSHAからRemote Branchを作成します。</summary>
     public Task<BitbucketResult<BitbucketBranchInfo>> CreateBranchAsync(
-        string repository, string branch, CancellationToken cancellationToken = default);
+        string repository, string branch, string source, CancellationToken cancellationToken = default);
 
     /// <summary>保護規則を適用してBranchを削除します。</summary>
     public Task<BitbucketResult<bool>> DeleteBranchAsync(
@@ -47,6 +47,19 @@ public interface IBitbucketRepositoryGateway
     /// <summary>Policy検証後にTagを削除します。</summary>
     public Task<BitbucketResult<bool>> DeleteTagAsync(
         string repository, string tag, CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(
+        string repository, string version, string? notes, CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(
+        string repository, string version, string? artifactPath, string? notes,
+        CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<bool>> WithdrawReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default);
 
     /// <summary>Pull Request一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
