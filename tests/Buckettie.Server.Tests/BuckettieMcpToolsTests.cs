@@ -36,6 +36,10 @@ public sealed class BuckettieMcpToolsTests
         "bitbucket_tag_create",
         "bitbucket_tag_delete",
         "bitbucket_tag_push",
+        "buckettie_release_create",
+        "buckettie_release_publish",
+        "buckettie_release_get",
+        "buckettie_release_withdraw",
         "bitbucket_repository_register",
         "bitbucket_repository_unregister",
         "bitbucket_repository_update",
@@ -104,6 +108,9 @@ public sealed class BuckettieMcpToolsTests
             "bitbucket_tag_create",
             "bitbucket_tag_delete",
             "bitbucket_tag_push",
+            "buckettie_release_create",
+            "buckettie_release_publish",
+            "buckettie_release_withdraw",
             "bitbucket_repository_register",
             "bitbucket_repository_unregister",
             "bitbucket_repository_update");
@@ -490,6 +497,22 @@ public sealed class BuckettieMcpToolsTests
 
         public Task<BitbucketResult<bool>> DeleteTagAsync(
             string repository, string tag, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(
+            string repository, string version, string? notes, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(
+            string repository, string version, string? artifactPath, string? notes,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+            string repository, string version, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BitbucketResult<bool>> WithdrawReleaseAsync(
+            string repository, string version, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(

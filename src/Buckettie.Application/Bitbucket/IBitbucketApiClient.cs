@@ -69,6 +69,18 @@ public interface IBitbucketApiClient
         string repositoryId, string workspace, string slug, string tag,
         CancellationToken cancellationToken = default);
 
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PutReleaseAsync(
+        string repositoryId, string workspace, string slug, BitbucketReleaseInfo release,
+        string? artifactPath, CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        string repositoryId, string workspace, string slug, string version,
+        CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<bool>> DeleteReleaseAsync(
+        string repositoryId, string workspace, string slug, string version,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Pull Request一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repositoryId,

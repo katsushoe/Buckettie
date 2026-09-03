@@ -20,6 +20,7 @@ public enum BitbucketError
     InvalidTag,
     TagAlreadyExists,
     TagTargetNotAllowed,
+    InvalidRelease,
     TokenUnavailable,
     AuthenticationFailed,
     PermissionDenied,

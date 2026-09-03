@@ -135,6 +135,7 @@ internal static class BuckettieToolResultMapper
         BitbucketError.InvalidTag => "tag_invalid",
         BitbucketError.TagAlreadyExists => "tag_already_exists",
         BitbucketError.TagTargetNotAllowed => "tag_target_not_allowed",
+        BitbucketError.InvalidRelease => "invalid_release",
         BitbucketError.TokenUnavailable => "authentication_failed",
         BitbucketError.AuthenticationFailed => "authentication_failed",
         BitbucketError.PermissionDenied => "permission_denied",
@@ -184,6 +185,7 @@ internal static class BuckettieToolResultMapper
         "branch_create" => "branch_source_not_found",
         "pr_get" or "pr_diff" or "pr_merge" => "pull_request_not_found",
         "tag_get" or "tag_delete" => "tag_not_found",
+        "release_get" or "release_withdraw" => "release_not_found",
         _ => "repository_not_found",
     };
 

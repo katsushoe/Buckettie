@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Credentials;
@@ -229,6 +230,111 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
         DeleteAsync(
             repositoryId,
             $"{RepositoryPath(workspace, slug)}/refs/tags/{Uri.EscapeDataString(tag)}",
+            cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<BitbucketResult<BitbucketReleaseInfo>> PutReleaseAsync(
+        string repositoryId, string workspace, string slug, BitbucketReleaseInfo release,
+        string? artifactPath, CancellationToken cancellationToken = default)
+    {
+        using MultipartFormDataContent content = new();
+        byte[] manifest = JsonSerializer.SerializeToUtf8Bytes(release);
+        content.Add(new ByteArrayContent(manifest), "files", ReleaseFileName(release.Version));
+        if (!string.IsNullOrWhiteSpace(artifactPath))
+        {
+            try
+            {
+                content.Add(new StreamContent(File.OpenRead(artifactPath)), "files", Path.GetFileName(artifactPath));
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidRelease);
+            }
+        }
+
+        using HttpRequestMessage request = new(HttpMethod.Post, $"{RepositoryPath(workspace, slug)}/downloads")
+        {
+            Content = content,
+        };
+        BitbucketResult<HttpResponseMessage> sent = await SendAsync(repositoryId, request, cancellationToken)
+            .ConfigureAwait(false);
+        if (!sent.IsSuccess || sent.Value is null)
+        {
+            return BitbucketResult<BitbucketReleaseInfo>.Failure(sent.Error ?? BitbucketError.ApiError);
+        }
+
+        using HttpResponseMessage response = sent.Value;
+        return BitbucketResult<BitbucketReleaseInfo>.Success(release);
+    }
+
+    /// <inheritdoc />
+    public async Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        string repositoryId, string workspace, string slug, string version,
+        CancellationToken cancellationToken = default)
+    {
+        BitbucketResult<HttpResponseMessage> sent = await SendAsync(repositoryId,
+            new HttpRequestMessage(HttpMethod.Get,
+                $"{RepositoryPath(workspace, slug)}/downloads/{Uri.EscapeDataString(ReleaseFileName(version))}"),
+            cancellationToken).ConfigureAwait(false);
+        if (!sent.IsSuccess || sent.Value is null)
+        {
+            return BitbucketResult<BitbucketReleaseInfo>.Failure(sent.Error ?? BitbucketError.ApiError);
+        }
+
+        using HttpResponseMessage initialResponse = sent.Value;
+        HttpResponseMessage? redirectedResponse = null;
+        try
+        {
+            HttpResponseMessage response = initialResponse;
+            if (initialResponse.StatusCode == HttpStatusCode.Redirect)
+            {
+                Uri? location = initialResponse.Headers.Location;
+                if (location is null || !location.IsAbsoluteUri
+                    || location.Scheme != Uri.UriSchemeHttps)
+                {
+                    return BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidResponse);
+                }
+
+                using HttpRequestMessage redirectRequest = new(HttpMethod.Get, location);
+                redirectedResponse = await _httpClient.SendAsync(
+                    redirectRequest,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken).ConfigureAwait(false);
+                if (!redirectedResponse.IsSuccessStatusCode)
+                {
+                    return BitbucketResult<BitbucketReleaseInfo>.Failure(
+                        MapStatusCode(redirectedResponse.StatusCode));
+                }
+
+                response = redirectedResponse;
+            }
+
+            BitbucketReleaseInfo? release = await response.Content.ReadFromJsonAsync<BitbucketReleaseInfo>(
+                cancellationToken).ConfigureAwait(false);
+            return release is not null && string.Equals(release.Version, version, StringComparison.Ordinal)
+                ? BitbucketResult<BitbucketReleaseInfo>.Success(release)
+                : BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidResponse);
+        }
+        catch (JsonException)
+        {
+            return BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidResponse);
+        }
+        catch (HttpRequestException)
+        {
+            return BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.NetworkError);
+        }
+        finally
+        {
+            redirectedResponse?.Dispose();
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<bool>> DeleteReleaseAsync(
+        string repositoryId, string workspace, string slug, string version,
+        CancellationToken cancellationToken = default) =>
+        DeleteAsync(repositoryId,
+            $"{RepositoryPath(workspace, slug)}/downloads/{Uri.EscapeDataString(ReleaseFileName(version))}",
             cancellationToken);
 
     /// <inheritdoc />
@@ -743,6 +849,8 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
 
     private static string RepositoryPath(string workspace, string slug) =>
         $"repositories/{Uri.EscapeDataString(workspace)}/{Uri.EscapeDataString(slug)}";
+
+    private static string ReleaseFileName(string version) => $"buckettie-release-{version}.json";
 
     private static string PullRequestPath(string workspace, string slug, int pullRequestId) =>
         $"{RepositoryPath(workspace, slug)}/pullrequests/{pullRequestId}";

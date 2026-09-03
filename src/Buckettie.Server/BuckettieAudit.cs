@@ -111,6 +111,18 @@ internal sealed class AuditedBitbucketRepositoryGateway(
     public Task<BitbucketResult<bool>> DeleteTagAsync(string repository, string tag, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_tag_delete", repository, null, null, tag, () => inner.DeleteTagAsync(repository, tag, cancellationToken));
 
+    public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(string repository, string version, string? notes, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_create", repository, null, null, version, () => inner.CreateReleaseAsync(repository, version, notes, cancellationToken));
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(string repository, string version, string? artifactPath, string? notes, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_publish", repository, null, null, version, () => inner.PublishReleaseAsync(repository, version, artifactPath, notes, cancellationToken));
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(string repository, string version, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_get", repository, null, null, version, () => inner.GetReleaseAsync(repository, version, cancellationToken));
+
+    public Task<BitbucketResult<bool>> WithdrawReleaseAsync(string repository, string version, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_release_withdraw", repository, null, null, version, () => inner.WithdrawReleaseAsync(repository, version, cancellationToken));
+
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(string repository, BitbucketPullRequestState? state, string? source, string? destination, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_pr_list", repository, source, null, null, () => inner.ListPullRequestsAsync(repository, state, source, destination, cancellationToken));
 

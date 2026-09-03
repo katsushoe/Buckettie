@@ -254,6 +254,66 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
     }
 
     /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(
+        string repository, string version, string? notes, CancellationToken cancellationToken = default) =>
+        PutReleaseAsync(repository, version, "draft", null, notes, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(
+        string repository, string version, string? artifactPath, string? notes,
+        CancellationToken cancellationToken = default) =>
+        PutReleaseAsync(repository, version, "published", artifactPath, notes, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default)
+    {
+        if (!IsValidReleaseVersion(version))
+        {
+            return Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidRelease));
+        }
+
+        return TryGet(repository, out RepositoryOptions? options)
+            ? _client.GetReleaseAsync(repository, options!.Workspace, options.Slug, version, cancellationToken)
+            : Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.RepositoryNotAllowed));
+    }
+
+    /// <inheritdoc />
+    public Task<BitbucketResult<bool>> WithdrawReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default)
+    {
+        if (!IsValidReleaseVersion(version))
+        {
+            return Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.InvalidRelease));
+        }
+
+        return TryGet(repository, out RepositoryOptions? options)
+            ? _client.DeleteReleaseAsync(repository, options!.Workspace, options.Slug, version, cancellationToken)
+            : Task.FromResult(BitbucketResult<bool>.Failure(BitbucketError.RepositoryNotAllowed));
+    }
+
+    private Task<BitbucketResult<BitbucketReleaseInfo>> PutReleaseAsync(
+        string repository, string version, string state, string? artifactPath, string? notes,
+        CancellationToken cancellationToken)
+    {
+        if (!IsValidReleaseVersion(version) || notes is { Length: > 32_768 }
+            || notes?.Contains('\0', StringComparison.Ordinal) == true
+            || artifactPath?.Contains('\0', StringComparison.Ordinal) == true)
+        {
+            return Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.InvalidRelease));
+        }
+
+        if (!TryGet(repository, out RepositoryOptions? options) || options is null)
+        {
+            return Task.FromResult(BitbucketResult<BitbucketReleaseInfo>.Failure(BitbucketError.RepositoryNotAllowed));
+        }
+
+        string? artifactName = string.IsNullOrWhiteSpace(artifactPath) ? null : Path.GetFileName(artifactPath);
+        var release = new BitbucketReleaseInfo(version, state, notes, artifactName, DateTimeOffset.UtcNow);
+        return _client.PutReleaseAsync(repository, options.Workspace, options.Slug, release, artifactPath, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repository,
         BitbucketPullRequestState? state,
@@ -426,6 +486,10 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
 
     private static bool IsValidTagInput(string tag) =>
         !string.IsNullOrWhiteSpace(tag) && tag.Length <= 255 && !tag.Any(char.IsControl);
+
+    private static bool IsValidReleaseVersion(string version) =>
+        !string.IsNullOrWhiteSpace(version) && version.Length <= 128 && !version.Any(char.IsControl)
+        && version.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 
     private static bool IsValidBranchInput(string branch) =>
         !string.IsNullOrWhiteSpace(branch) && branch.Length <= 255 && !branch.Any(char.IsControl);

@@ -26,6 +26,14 @@ public sealed record BitbucketTagInfo(
 /// <summary>Tag作成入力です。</summary>
 public sealed record BitbucketTagCreate(string Name, string? Message);
 
+/// <summary>Bitbucket Downloadsへ保存するRelease manifestです。</summary>
+public sealed record BitbucketReleaseInfo(
+    string Version,
+    string State,
+    string? Notes,
+    string? ArtifactName,
+    DateTimeOffset UpdatedAt);
+
 /// <summary>Repository Contractで公開するProvider能力です。</summary>
 public sealed record BitbucketProviderCapabilities(
     string Provider,

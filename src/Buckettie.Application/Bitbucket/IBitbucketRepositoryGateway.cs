@@ -48,6 +48,19 @@ public interface IBitbucketRepositoryGateway
     public Task<BitbucketResult<bool>> DeleteTagAsync(
         string repository, string tag, CancellationToken cancellationToken = default);
 
+    public Task<BitbucketResult<BitbucketReleaseInfo>> CreateReleaseAsync(
+        string repository, string version, string? notes, CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> PublishReleaseAsync(
+        string repository, string version, string? artifactPath, string? notes,
+        CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<BitbucketReleaseInfo>> GetReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default);
+
+    public Task<BitbucketResult<bool>> WithdrawReleaseAsync(
+        string repository, string version, CancellationToken cancellationToken = default);
+
     /// <summary>Pull Request一覧を取得します。</summary>
     public Task<BitbucketResult<IReadOnlyList<BitbucketPullRequestInfo>>> ListPullRequestsAsync(
         string repository,

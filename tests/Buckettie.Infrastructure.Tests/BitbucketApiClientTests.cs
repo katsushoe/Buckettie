@@ -232,6 +232,53 @@ public sealed class BitbucketApiClientTests
     }
 
     [Fact]
+    public async Task PutReleaseAsync_WhenCalled_UploadsManifestToDownloads()
+    {
+        RecordingHandler handler = new(HttpStatusCode.Created);
+        BitbucketApiClient client = CreateClient(handler);
+        var release = new BitbucketReleaseInfo("v1.2.3", "draft", "notes", null,
+            DateTimeOffset.Parse("2026-09-04T00:00:00Z"));
+
+        BitbucketResult<BitbucketReleaseInfo> result = await client.PutReleaseAsync(
+            "allowed", "workspace", "repository", release, null, TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(release);
+        handler.Methods.Should().Equal(HttpMethod.Post);
+        handler.Paths.Should().Equal("repositories/workspace/repository/downloads");
+        handler.Bodies.Single().Should().Contain("buckettie-release-v1.2.3.json").And.Contain("draft");
+    }
+
+    [Fact]
+    public async Task GetReleaseAsync_WhenManifestExists_ReturnsRelease()
+    {
+        RecordingHandler handler = new("""
+            {"version":"v1.2.3","state":"published","notes":"notes","artifactName":"app.zip","updatedAt":"2026-09-04T00:00:00Z"}
+            """);
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketReleaseInfo> result = await client.GetReleaseAsync(
+            "allowed", "workspace", "repository", "v1.2.3", TestContext.Current.CancellationToken);
+
+        result.Value.Should().NotBeNull();
+        result.Value!.State.Should().Be("published");
+        handler.Paths.Should().Equal("repositories/workspace/repository/downloads/buckettie-release-v1.2.3.json");
+    }
+
+    [Fact]
+    public async Task DeleteReleaseAsync_WhenCalled_DeletesManifestOnly()
+    {
+        RecordingHandler handler = new(HttpStatusCode.NoContent);
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<bool> result = await client.DeleteReleaseAsync(
+            "allowed", "workspace", "repository", "v1.2.3", TestContext.Current.CancellationToken);
+
+        result.Value.Should().BeTrue();
+        handler.Methods.Should().Equal(HttpMethod.Delete);
+        handler.Paths.Should().Equal("repositories/workspace/repository/downloads/buckettie-release-v1.2.3.json");
+    }
+
+    [Fact]
     public async Task GetRepositoryAsync_WhenTokenIsUnavailable_DoesNotSendRequest()
     {
         RecordingHandler handler = new("{}");
