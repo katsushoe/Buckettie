@@ -5,6 +5,7 @@ using Buckettie.Application.Git;
 using Buckettie.Application.Repositories;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
+using System.Text.Json;
 using Xunit;
 
 namespace Buckettie.Server.Tests;
@@ -267,6 +268,27 @@ public sealed class BuckettieMcpToolsTests
         result.Error.Message.Should().Be("Direct push to the protected branch is not allowed.");
         result.Error.Summary.Should().Contain("Git push");
         result.Error.SuggestedAction.Should().NotBeNullOrWhiteSpace();
+        result.Error.Category.Should().Be("protected_branch");
+        result.Error.Details.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task MapGitAsync_WhenGitFailed_ReturnsCategoryAndDiagnosticDetails()
+    {
+        GitGatewayResult gatewayResult = GitGatewayResult.DiagnosticFailure(
+            "fetch", "example", GitGatewayError.GitFailed, errorDetail: "fatal: broken repository");
+
+        BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
+            Task.FromResult(gatewayResult));
+
+        result.Error!.Category.Should().Be("git_failed");
+        result.Error.Details.Should().Be("fatal: broken repository");
+
+        using JsonDocument json = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, BuckettieMcpJson.CreateOptions()));
+        JsonElement error = json.RootElement.GetProperty("error");
+        error.GetProperty("category").GetString().Should().Be("git_failed");
+        error.GetProperty("details").GetString().Should().Be("fatal: broken repository");
     }
 
     [Fact]

@@ -8,6 +8,16 @@ public sealed class CliApplicationTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"buckettie-cli-{Guid.NewGuid():N}");
 
     [Fact]
+    public void IsToolCallSuccessful_WhenResponseIsServerSentEvent_ParsesDataPayload()
+    {
+        const string response = "event: message\ndata: {\"result\":{\"structuredContent\":{\"ok\":true}},\"id\":1,\"jsonrpc\":\"2.0\"}\n\n";
+
+        bool success = CliApplication.IsToolCallSuccessful(response);
+
+        success.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Help_WhenConfigDoesNotExist_DoesNotLoadConfiguration()
     {
         StringWriter output = new();

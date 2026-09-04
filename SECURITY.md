@@ -39,7 +39,7 @@ Buckettie listens only on IPv4 and IPv6 loopback. MCP requests with an `Origin` 
 
 The MCP transport boundary is recorded in [ADR 0005](docs/adr/0005-local-streamable-http-mcp-server.md).
 
-MCP Tool failures use fixed error codes and messages. Git failures also include a fixed summary, fixed suggested action, retryability, and an opaque correlation ID. Git stderr is used only to select a safe classification; stderr, HTTP response bodies, exceptions, local paths, URLs, usernames, email addresses, and credential values are not included in Tool responses, CLI output, or audit logs. The common error contract is recorded in [ADR 0006](docs/adr/0006-common-mcp-tool-result.md).
+MCP Tool failures use fixed error codes and messages. Git failures also include an explicit category, sanitized diagnostic details, a fixed summary, fixed suggested action, retryability, and an opaque correlation ID. Before Git stderr is returned as diagnostic details, URL-like values, email addresses, absolute Windows and Unix paths, credential-like assignments, and control whitespace are redacted or normalized, and the result is limited to 1024 characters. Raw stderr, HTTP response bodies, exceptions, local paths, URLs, usernames, email addresses, and credential values are not included in Tool responses, CLI output, or audit logs. The common error contract is recorded in [ADR 0006](docs/adr/0006-common-mcp-tool-result.md).
 
 ## Audit log
 

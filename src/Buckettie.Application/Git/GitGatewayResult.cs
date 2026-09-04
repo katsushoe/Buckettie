@@ -56,7 +56,8 @@ public sealed record GitGatewayResult(
     GitGatewayError? Error,
     string? CorrelationId = null,
     string? Diff = null,
-    string? CommitHash = null)
+    string? CommitHash = null,
+    string? ErrorDetail = null)
 {
     /// <summary>成功結果を生成します。</summary>
     public static GitGatewayResult Success(
@@ -81,6 +82,8 @@ public sealed record GitGatewayResult(
         string operation,
         string repository,
         GitGatewayError error,
-        string? branch = null) =>
-        Failure(operation, repository, error, branch);
+        string? branch = null,
+        string? errorDetail = null) =>
+        new(false, operation, repository, branch, null, error, Guid.NewGuid().ToString("N"),
+            ErrorDetail: errorDetail);
 }
