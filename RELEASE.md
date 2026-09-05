@@ -1,31 +1,30 @@
-# Release 1.3.20.0
+# Release 1.3.23.0
 
-Release date: 2026-09-04
+Release date: 2026-09-05
 
 ## Highlights
 
-- Require every branch creation request to provide an explicit source branch or full 40-character commit SHA.
-- Support creating the initial `develop` branch from an explicitly selected source such as `main` without an implicit fallback.
-- Return partial repository status when configured remote-tracking references are missing, with nullable comparison data and an explicit reason.
-- Distinguish invalid and missing branch sources in MCP, CLI, and audit results.
+- Return an explicit `error.category` and sanitized `error.details` for Git failures so AI clients can explain the cause to users.
+- Redact URL-like values, email addresses, absolute paths, and credential-like assignments from Git diagnostics, normalize whitespace, and limit details to 1024 characters.
+- Parse MCP Server-Sent Event responses in CLI Tool calls so `buckettie mcp version` reports the running version correctly.
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.3.20.0-win-x64.msi` | `5C18307652736F4A88D1F8B138974599F152E0B3523BE29EF583AA70B7AE8217` |
-| `Buckettie-1.3.20.0-win-x64.zip` | `66795B4FD93EF038993952BF11FDC8D9FA56143113F29034EED16A37AB35834E` |
+| `Buckettie-1.3.23.0-win-x64.msi` | `3CEA539E9CC7657CA6424E6B4FE82CDDB357ACB8597F4167CD9B884EFCA0C2D4` |
+| `Buckettie-1.3.23.0-win-x64.zip` | `7F44644F65189A88444BC05CB307BC3289121FD8EFD7315ED6A83724ECE4A594` |
 
 - Runtime: Windows x64, self-contained
-- Display version: `1.3.20.0`
-- Windows Installer product version: `1.3.20`
-- Tag: `v1.3.20.0`
+- Display version: `1.3.23.0`
+- Windows Installer product version: `1.3.23`
+- Tag: `v1.3.23.0`
 
 ## Validation
 
-- Automated tests: passed (332 tests)
+- Automated tests: passed (338 tests)
 - MSI build and SHA-256 hash: passed
 - ZIP release build and SHA-256 hash: passed
-- Physical-machine upgrade: passed after UAC elevation (service running automatically, MCP version `1.3.20.0`, configuration and six registered repositories preserved)
+- Physical-machine reinstall: passed after UAC elevation (service running automatically, MCP and CLI version `1.3.23.0`, `buckettie mcp version` passed, configuration preserved)
 
 Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.

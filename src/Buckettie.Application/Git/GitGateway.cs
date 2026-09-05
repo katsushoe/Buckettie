@@ -2,6 +2,7 @@
 using Buckettie.Application.Repositories;
 using Buckettie.Domain;
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Buckettie.Application.Git;
 
@@ -10,6 +11,23 @@ namespace Buckettie.Application.Git;
 /// </summary>
 public sealed class GitGateway : IGitGateway
 {
+    private const int MaximumErrorDetailLength = 1024;
+    private static readonly Regex UrlPattern = new(
+        "(?i)\\b(?:https?|ssh)://[^\\s'\\\"]+|\\b[^@\\s]+@[^:\\s]+:[^\\s]+",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex EmailPattern = new(
+        "(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex WindowsPathPattern = new(
+        "(?i)(?:[A-Z]:\\\\|\\\\\\\\)[^\\s'\\\"]+",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex UnixPathPattern = new(
+        "(?<![A-Za-z0-9])/(?:[^\\s'\\\"]+/)*[^\\s'\\\"]+",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex SecretPattern = new(
+        "(?i)\\b(password|token|authorization|credential)\\s*[:=]\\s*[^\\s]+",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex WhitespacePattern = new("\\s+", RegexOptions.CultureInvariant);
     private readonly RepositoryAllowlist _allowlist;
     private readonly LocalPathValidator _pathValidator;
     private readonly BitbucketRemoteUrlValidator _remoteValidator;
@@ -476,7 +494,30 @@ public sealed class GitGateway : IGitGateway
                 GitGatewayError.RemoteMismatch,
             _ => GitGatewayError.GitFailed,
         };
-        return GitGatewayResult.DiagnosticFailure(operation, repository, error, branch);
+        return GitGatewayResult.DiagnosticFailure(
+            operation,
+            repository,
+            error,
+            branch,
+            SanitizeErrorDetail(result.StandardError));
+    }
+
+    private static string SanitizeErrorDetail(string standardError)
+    {
+        if (string.IsNullOrWhiteSpace(standardError))
+        {
+            return "Git did not provide diagnostic details.";
+        }
+
+        string detail = SecretPattern.Replace(standardError, "$1=(redacted)");
+        detail = UrlPattern.Replace(detail, "(redacted-url)");
+        detail = EmailPattern.Replace(detail, "(redacted-email)");
+        detail = WindowsPathPattern.Replace(detail, "(redacted-path)");
+        detail = UnixPathPattern.Replace(detail, "(redacted-path)");
+        detail = WhitespacePattern.Replace(detail, " ").Trim();
+        return detail.Length <= MaximumErrorDetailLength
+            ? detail
+            : string.Concat(detail.AsSpan(0, MaximumErrorDetailLength), "…");
     }
 
     private static bool ContainsAny(string value, params string[] patterns) =>

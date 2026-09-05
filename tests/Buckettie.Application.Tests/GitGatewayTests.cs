@@ -371,7 +371,7 @@ public sealed class GitGatewayTests
     [InlineData("CONFLICT (content): Merge conflict in file.cs", GitGatewayError.Conflict)]
     [InlineData("fatal: Not possible to fast-forward, aborting. non-fast-forward", GitGatewayError.NonFastForward)]
     [InlineData("fatal: unknown failure at C:\\Users\\person\\repo", GitGatewayError.GitFailed)]
-    public async Task FetchAsync_WhenGitFails_ClassifiesFailureWithoutExposingStandardError(
+    public async Task FetchAsync_WhenGitFails_ReturnsCategoryWithSanitizedErrorDetail(
         string standardError,
         GitGatewayError expected)
     {
@@ -386,7 +386,29 @@ public sealed class GitGatewayTests
 
         result.Error.Should().Be(expected);
         result.CorrelationId.Should().MatchRegex("^[0-9a-f]{32}$");
-        result.ToString().Should().NotContain("secret").And.NotContain("C:\\Users");
+        result.ErrorDetail.Should().NotBeNullOrWhiteSpace();
+        result.ErrorDetail.Should().NotContain("secret").And.NotContain("C:\\Users");
+    }
+
+    [Fact]
+    public async Task FetchAsync_WhenGitFailureContainsSensitiveValues_RedactsDiagnosticDetail()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.FetchAsync(RepositoryRoot, "origin", "buckettie", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(
+                GitCommandFailure.Failed,
+                "fatal: https://user:secret@example.com/repo.git C:\\Users\\person\\repo token=abc123"));
+
+        GitGatewayResult result = await gateway.FetchAsync(
+            "buckettie",
+            TestContext.Current.CancellationToken);
+
+        result.ErrorDetail.Should().Contain("fatal:");
+        result.ErrorDetail.Should().Contain("(redacted-url)");
+        result.ErrorDetail.Should().Contain("(redacted-path)");
+        result.ErrorDetail.Should().Contain("token=(redacted)");
+        result.ErrorDetail.Should().NotContain("secret").And.NotContain("person").And.NotContain("abc123");
     }
 
     private GitGateway CreateGateway()

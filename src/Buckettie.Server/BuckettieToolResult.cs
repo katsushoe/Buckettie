@@ -17,7 +17,9 @@ public sealed record BuckettieToolError(
     string? CorrelationId = null,
     [property: JsonPropertyName("status")] string? Status = null,
     [property: JsonPropertyName("retry_after_seconds")] int? RetryAfterSeconds = null,
-    [property: JsonPropertyName("project_candidates")] IReadOnlyList<string>? ProjectCandidates = null);
+    [property: JsonPropertyName("project_candidates")] IReadOnlyList<string>? ProjectCandidates = null,
+    [property: JsonPropertyName("category")] string? Category = null,
+    [property: JsonPropertyName("details")] string? Details = null);
 
 /// <summary>MCP Toolの共通構造化結果です。</summary>
 public sealed record BuckettieToolResult<T>(
@@ -70,7 +72,13 @@ internal static class BuckettieToolResultMapper
 
         string code = GitCode(result.Error ?? GitGatewayError.GitFailed);
         return new(false, result.Operation, result.Repository, null,
-            CreateGitError(code, language, result.Operation, result.CorrelationId, projectCandidates));
+            CreateGitError(
+                code,
+                language,
+                result.Operation,
+                result.CorrelationId,
+                projectCandidates,
+                result.ErrorDetail));
     }
 
     internal static async Task<BuckettieToolResult<T>> MapBitbucketAsync<T>(
@@ -197,13 +205,16 @@ internal static class BuckettieToolResultMapper
         string language,
         string operation,
         string? correlationId,
-        IReadOnlyList<string>? projectCandidates)
+        IReadOnlyList<string>? projectCandidates,
+        string? errorDetail)
     {
         bool japanese = BuckettieLanguage.IsJapanese(language);
         string message = japanese ? JapaneseMessage(code) : EnglishMessage(code);
         return new(code, message, $"Git {operation}: {message}",
             japanese ? JapaneseAction(code) : EnglishAction(code), IsRetryable(code), correlationId,
-            ProjectCandidates: code == "repository_not_allowed" ? projectCandidates : null);
+            ProjectCandidates: code == "repository_not_allowed" ? projectCandidates : null,
+            Category: code,
+            Details: errorDetail);
     }
 
     private static BuckettieToolError CreateError(string code, string language = "en-US") =>

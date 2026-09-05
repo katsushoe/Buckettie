@@ -399,11 +399,11 @@ internal static class CliApplication
         }
     }
 
-    private static bool IsToolCallSuccessful(string body)
+    internal static bool IsToolCallSuccessful(string body)
     {
         try
         {
-            using JsonDocument document = JsonDocument.Parse(body);
+            using JsonDocument document = JsonDocument.Parse(ExtractJsonRpcPayload(body));
             JsonElement root = document.RootElement;
             if (root.TryGetProperty("error", out _)) return false;
             if (!root.TryGetProperty("result", out JsonElement result)) return false;
@@ -422,6 +422,27 @@ internal static class CliApplication
         {
             return false;
         }
+    }
+
+    private static string ExtractJsonRpcPayload(string body)
+    {
+        using StringReader reader = new(body);
+        while (reader.ReadLine() is { } line)
+        {
+            if (!line.StartsWith("data:", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string payload = line["data:".Length..].TrimStart();
+            if (!string.IsNullOrWhiteSpace(payload)
+                && !string.Equals(payload, "[DONE]", StringComparison.Ordinal))
+            {
+                return payload;
+            }
+        }
+
+        return body;
     }
 
     private static Task<int> ListPullRequestsAsync(IServiceProvider services, string repository,
