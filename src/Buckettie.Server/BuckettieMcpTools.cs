@@ -83,6 +83,9 @@ public sealed class BuckettieMcpTools
             ["explicit_push"] = true,
             ["repository_diff"] = true,
             ["repository_commit"] = true,
+            ["history_rewrite_preview"] = true,
+            ["history_rewrite_execute"] = true,
+            ["force_push_with_lease"] = true,
         };
         return Task.FromResult(new BuckettieToolResult<BitbucketProviderCapabilities>(
             true,
@@ -121,6 +124,42 @@ public sealed class BuckettieMcpTools
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(
             _git.CommitAsync(repository, message, cancellationToken), _language);
+
+    /// <summary>最新commitのidentity書き換えを事前確認します。</summary>
+    [McpServerTool(Name = "bitbucket_history_rewrite_preview", ReadOnly = true, Destructive = false,
+        Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
+    [Description("最新commitのidentity書き換え結果と影響を、状態を変更せず返します。 / Returns the latest-commit identity rewrite impact without changing state.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> HistoryRewritePreviewAsync(
+        string repository, string branch, string expectedOldHead, string reason,
+        string? authorName = null, string? authorEmail = null,
+        string? committerName = null, string? committerEmail = null,
+        bool allowSignatureRemoval = false, CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(_git.PreviewHistoryRewriteAsync(repository,
+            new(branch, expectedOldHead, reason, authorName, authorEmail, committerName, committerEmail,
+                allowSignatureRemoval), cancellationToken), _language);
+
+    /// <summary>最新commitのidentityを書き換えます。</summary>
+    [McpServerTool(Name = "bitbucket_history_rewrite_execute", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("確認済みHEADの最新commit identityを書き換え、復旧refを保持します。リモート更新は行いません。 / Rewrites the verified latest commit identity and retains a recovery ref without updating the remote.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> HistoryRewriteExecuteAsync(
+        string repository, string branch, string expectedOldHead, string reason,
+        string? authorName = null, string? authorEmail = null,
+        string? committerName = null, string? committerEmail = null,
+        bool allowSignatureRemoval = false, CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(_git.RewriteHistoryAsync(repository,
+            new(branch, expectedOldHead, reason, authorName, authorEmail, committerName, committerEmail,
+                allowSignatureRemoval), cancellationToken), _language);
+
+    /// <summary>実Remoteを照合してforce-with-lease pushします。</summary>
+    [McpServerTool(Name = "bitbucket_force_push_with_lease", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
+    [Description("実Remote HEADを期待SHAと照合し、無条件forceへ切り替えずに対象branchだけをpushします。 / Compares the actual remote HEAD and pushes only the target branch without unconditional force fallback.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> ForcePushWithLeaseAsync(
+        string repository, string branch, string expectedLocalHead, string expectedRemoteHead,
+        string reason, CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(_git.ForcePushWithLeaseAsync(repository,
+            new(branch, expectedLocalHead, expectedRemoteHead, reason), cancellationToken), _language);
 
     /// <summary>設定済みRemoteからfetchします。</summary>
     [McpServerTool(Name = "bitbucket_fetch", Destructive = false, Idempotent = true, OpenWorld = true,
@@ -451,11 +490,12 @@ public sealed class BuckettieMcpTools
         [Description("リリースタグの対象ブランチ。 / Branch that release tags target.")] string tagTargetBranch,
         [Description("許可するリリースタグ名が一致すべき正規表現。 / Regular expression allowed release tag names must match.")] string tagPattern,
         [Description("pushにクリーンな作業ツリーを要求するか。 / Whether push requires a clean working tree.")] bool requireCleanWorkingTree = true,
+        [Description("履歴書き換えを明示許可するブランチ。 / Branches explicitly allowed for history rewriting.")] HashSet<string>? historyRewriteBranches = null,
         CancellationToken cancellationToken = default)
     {
         RepositoryUpdateRequest request = new(
             directPushBranches, pullBranches, protectedBranches, tagTargetBranch, tagPattern,
-            requireCleanWorkingTree);
+            requireCleanWorkingTree, historyRewriteBranches);
         RepositoryUpdateOutcome outcome = await _update
             .UpdateAsync(repository, request, cancellationToken).ConfigureAwait(false);
         return outcome.IsSuccess

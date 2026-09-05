@@ -141,6 +141,83 @@ public sealed class GitCommandClient : IGitCommandClient
             repositoryId,
             cancellationToken);
 
+    /// <inheritdoc />
+    public Task<GitCommandResult> GetCommitMetadataAsync(
+        string repositoryRoot, string commit, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot,
+            ["show", "--no-patch", "--format=format:%H%x1f%T%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%cn%x1f%ce%x1f%cI%x1f%G?%x1f%B", "--end-of-options", commit],
+            cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<GitCommandResult> GetUnfinishedOperationAsync(
+        string repositoryRoot, CancellationToken cancellationToken)
+    {
+        string[] markers = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply"];
+        List<string> active = [];
+        foreach (string marker in markers)
+        {
+            GitCommandResult path = await ExecuteAsync(
+                repositoryRoot, ["rev-parse", "--git-path", marker], cancellationToken).ConfigureAwait(false);
+            if (!path.IsSuccess)
+            {
+                return path;
+            }
+            string resolved = path.StandardOutput.Trim();
+            if (!Path.IsPathRooted(resolved)) resolved = Path.GetFullPath(resolved, repositoryRoot);
+            if (File.Exists(resolved) || Directory.Exists(resolved))
+            {
+                active.Add(marker);
+            }
+        }
+        return GitCommandResult.Success(string.Join(',', active));
+    }
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> CreateReferenceAsync(
+        string repositoryRoot, string reference, string target, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["update-ref", "--create-reflog", reference, target], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> CreateCommitAsync(
+        string repositoryRoot,
+        string metadata,
+        IReadOnlyDictionary<string, string> identityEnvironment,
+        CancellationToken cancellationToken)
+    {
+        string[] parts = metadata.Split('\u001f', 3);
+        if (parts.Length != 3)
+        {
+            return Task.FromResult(GitCommandResult.Failed(GitCommandFailure.Failed, "invalid commit metadata"));
+        }
+        List<string> arguments = ["commit-tree", parts[0]];
+        foreach (string parent in parts[1].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            arguments.Add("-p");
+            arguments.Add(parent);
+        }
+        arguments.Add("-F");
+        arguments.Add("-");
+        return ExecuteAsync(repositoryRoot, arguments, cancellationToken, identityEnvironment, standardInput: parts[2]);
+    }
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> UpdateBranchReferenceAsync(
+        string repositoryRoot, string branch, string newHead, string expectedOldHead, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["update-ref", $"refs/heads/{branch}", newHead, expectedOldHead], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> GetActualRemoteHeadAsync(
+        string repositoryRoot, string remote, string branch, string repositoryId, CancellationToken cancellationToken) =>
+        ExecuteNetworkAsync(repositoryRoot, ["ls-remote", "--heads", "--", remote, $"refs/heads/{branch}"], repositoryId, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> ForcePushWithLeaseAsync(
+        string repositoryRoot, string remote, string branch, string expectedRemoteHead,
+        string repositoryId, CancellationToken cancellationToken) =>
+        ExecuteNetworkAsync(repositoryRoot,
+            ["push", $"--force-with-lease=refs/heads/{branch}:{expectedRemoteHead}", "--", remote,
+                $"refs/heads/{branch}:refs/heads/{branch}"], repositoryId, cancellationToken);
+
     private Task<GitCommandResult> ExecuteNetworkAsync(
         string repositoryRoot,
         IReadOnlyList<string> operationArguments,
@@ -169,7 +246,8 @@ public sealed class GitCommandClient : IGitCommandClient
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken,
         IReadOnlyDictionary<string, string>? environment = null,
-        bool missingReferenceAllowed = false)
+        bool missingReferenceAllowed = false,
+        string? standardInput = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
         string safeDirectory = repositoryRoot.Replace('\\', '/');
@@ -179,7 +257,8 @@ public sealed class GitCommandClient : IGitCommandClient
             repositoryRoot,
             safeArguments,
             environment ?? new Dictionary<string, string>(),
-            _commandTimeout);
+            _commandTimeout,
+            standardInput);
         ProcessExecutionResult result = await _executor.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
         if (result.NotFound)
         {

@@ -71,4 +71,25 @@ public interface IGitCommandClient
     public Task<GitCommandResult> PushTagAsync(
         string repositoryRoot, string remote, string tag, string repositoryId,
         CancellationToken cancellationToken);
+
+    /// <summary>commit-treeで再構築するための最新commit情報を取得します。</summary>
+    public Task<GitCommandResult> GetCommitMetadataAsync(string repositoryRoot, string commit, CancellationToken cancellationToken);
+
+    /// <summary>未完了のmerge/rebase等があるかを取得します。</summary>
+    public Task<GitCommandResult> GetUnfinishedOperationAsync(string repositoryRoot, CancellationToken cancellationToken);
+
+    /// <summary>復旧用refを作成します。</summary>
+    public Task<GitCommandResult> CreateReferenceAsync(string repositoryRoot, string reference, string target, CancellationToken cancellationToken);
+
+    /// <summary>元commitと同一tree/parents/messageでidentityだけを変更したcommitを作成します。</summary>
+    public Task<GitCommandResult> CreateCommitAsync(string repositoryRoot, string metadata, IReadOnlyDictionary<string, string> identityEnvironment, CancellationToken cancellationToken);
+
+    /// <summary>branch refを期待値付きで更新します。</summary>
+    public Task<GitCommandResult> UpdateBranchReferenceAsync(string repositoryRoot, string branch, string newHead, string expectedOldHead, CancellationToken cancellationToken);
+
+    /// <summary>追跡refではなく実Remoteのbranch HEADを取得します。</summary>
+    public Task<GitCommandResult> GetActualRemoteHeadAsync(string repositoryRoot, string remote, string branch, string repositoryId, CancellationToken cancellationToken);
+
+    /// <summary>期待Remote HEADを指定してforce-with-lease pushします。</summary>
+    public Task<GitCommandResult> ForcePushWithLeaseAsync(string repositoryRoot, string remote, string branch, string expectedRemoteHead, string repositoryId, CancellationToken cancellationToken);
 }

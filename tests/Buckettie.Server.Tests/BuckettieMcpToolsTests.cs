@@ -20,6 +20,9 @@ public sealed class BuckettieMcpToolsTests
         "bitbucket_repository_status",
         "bitbucket_repository_diff",
         "bitbucket_repository_commit",
+        "bitbucket_history_rewrite_preview",
+        "bitbucket_history_rewrite_execute",
+        "bitbucket_force_push_with_lease",
         "bitbucket_fetch",
         "bitbucket_pull",
         "bitbucket_push",
@@ -102,6 +105,8 @@ public sealed class BuckettieMcpToolsTests
         destructive.Should().BeEquivalentTo(
             "bitbucket_push",
             "bitbucket_repository_commit",
+            "bitbucket_history_rewrite_execute",
+            "bitbucket_force_push_with_lease",
             "bitbucket_branch_create",
             "bitbucket_branch_delete",
             "bitbucket_pr_create",
@@ -480,6 +485,18 @@ public sealed class BuckettieMcpToolsTests
 
         public Task<GitGatewayResult> PushTagAsync(
             string repository, string tag, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> PreviewHistoryRewriteAsync(
+            string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> RewriteHistoryAsync(
+            string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> ForcePushWithLeaseAsync(
+            string repository, GitForceWithLeaseRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 

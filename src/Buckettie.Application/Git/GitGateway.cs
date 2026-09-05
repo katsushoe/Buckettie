@@ -11,6 +11,8 @@ namespace Buckettie.Application.Git;
 /// </summary>
 public sealed class GitGateway : IGitGateway
 {
+    private static readonly Regex FullShaPattern = new("^[0-9a-fA-F]{40}$", RegexOptions.CultureInvariant);
+    private static readonly Regex BranchPattern = new("^(?!.*(?:\\.\\.|//|@\\{|\\\\))[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$", RegexOptions.CultureInvariant);
     private const int MaximumErrorDetailLength = 1024;
     private static readonly Regex UrlPattern = new(
         "(?i)\\b(?:https?|ssh)://[^\\s'\\\"]+|\\b[^@\\s]+@[^:\\s]+:[^\\s]+",
@@ -384,6 +386,190 @@ public sealed class GitGateway : IGitGateway
             ?? GitGatewayResult.Success(operation, repository, tag);
     }
 
+    /// <inheritdoc />
+    public Task<GitGatewayResult> PreviewHistoryRewriteAsync(
+        string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default) =>
+        PrepareHistoryRewriteAsync(repository, request, "history_rewrite_preview", cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> RewriteHistoryAsync(
+        string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default)
+    {
+        const string operation = "history_rewrite_execute";
+        GitGatewayResult prepared = await PrepareHistoryRewriteAsync(repository, request, operation, cancellationToken)
+            .ConfigureAwait(false);
+        if (!prepared.IsSuccess || prepared.HistoryRewrite is null)
+        {
+            return prepared;
+        }
+
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        RepositoryOptions options = boundary.Repository!;
+        GitCommandResult metadataResult = await _git.GetCommitMetadataAsync(
+            options.LocalRoot, request.ExpectedOldHead, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? metadataError = MapCommandFailure(operation, repository, metadataResult, request.Branch);
+        if (metadataError is not null) return metadataError;
+        string[] fields = metadataResult.StandardOutput.Split('\u001f', 11);
+        if (fields.Length != 11) return GitGatewayResult.Failure(operation, repository, GitGatewayError.GitFailed, request.Branch);
+
+        string recovery = $"refs/buckettie/recovery/{request.Branch}/{request.ExpectedOldHead}";
+        GitCommandResult recoveryResult = await _git.CreateReferenceAsync(
+            options.LocalRoot, recovery, request.ExpectedOldHead, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? recoveryError = MapCommandFailure(operation, repository, recoveryResult, request.Branch);
+        if (recoveryError is not null) return recoveryError;
+
+        GitHistoryRewriteData preview = prepared.HistoryRewrite;
+        Dictionary<string, string> environment = new(StringComparer.Ordinal)
+        {
+            ["GIT_AUTHOR_NAME"] = preview.AuthorAfter.Name,
+            ["GIT_AUTHOR_EMAIL"] = preview.AuthorAfter.Email,
+            ["GIT_AUTHOR_DATE"] = preview.AuthorDate,
+            ["GIT_COMMITTER_NAME"] = preview.CommitterAfter.Name,
+            ["GIT_COMMITTER_EMAIL"] = preview.CommitterAfter.Email,
+            ["GIT_COMMITTER_DATE"] = preview.CommitterDate,
+        };
+        GitCommandResult createResult = await _git.CreateCommitAsync(
+            options.LocalRoot, $"{fields[1]}\u001f{fields[2]}\u001f{fields[10]}", environment, cancellationToken)
+            .ConfigureAwait(false);
+        GitGatewayResult? createError = MapCommandFailure(operation, repository, createResult, request.Branch);
+        if (createError is not null) return createError;
+        string newHead = createResult.StandardOutput.Trim();
+
+        GitCommandResult updateResult = await _git.UpdateBranchReferenceAsync(
+            options.LocalRoot, request.Branch, newHead, request.ExpectedOldHead, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? updateError = MapCommandFailure(operation, repository, updateResult, request.Branch);
+        if (updateError is not null) return updateError;
+        return prepared with
+        {
+            Operation = operation,
+            CommitHash = newHead,
+            HistoryRewrite = preview with { NewHead = newHead, RecoveryReference = recovery },
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> ForcePushWithLeaseAsync(
+        string repository, GitForceWithLeaseRequest request, CancellationToken cancellationToken = default)
+    {
+        const string operation = "force_push_with_lease";
+        if (!IsRewriteInputValid(request.Branch, request.ExpectedLocalHead, request.Reason)
+            || !FullShaPattern.IsMatch(request.ExpectedRemoteHead))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidReference, request.Branch);
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+        RepositoryOptions options = boundary.Repository;
+        if (!options.HistoryRewriteBranches.Contains(request.Branch))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.HistoryRewriteNotAllowed, request.Branch);
+        GitGatewayResult? localFailure = await ValidateLocalRewriteStateAsync(
+            operation, repository, options, request.Branch, request.ExpectedLocalHead, cancellationToken).ConfigureAwait(false);
+        if (localFailure is not null) return localFailure;
+
+        GitCommandResult remoteBefore = await _git.GetActualRemoteHeadAsync(
+            options.LocalRoot, options.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? remoteError = MapCommandFailure(operation, repository, remoteBefore, request.Branch);
+        if (remoteError is not null) return remoteError;
+        string actual = ParseRemoteHead(remoteBefore.StandardOutput);
+        if (!string.Equals(actual, request.ExpectedRemoteHead, StringComparison.OrdinalIgnoreCase))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.ExpectedHeadMismatch, request.Branch);
+
+        GitCommandResult push = await _git.ForcePushWithLeaseAsync(
+            options.LocalRoot, options.Remote, request.Branch, request.ExpectedRemoteHead, repository, cancellationToken)
+            .ConfigureAwait(false);
+        GitGatewayResult? pushError = MapCommandFailure(operation, repository, push, request.Branch);
+        if (pushError is not null) return pushError;
+        GitCommandResult remoteAfter = await _git.GetActualRemoteHeadAsync(
+            options.LocalRoot, options.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? verifyError = MapCommandFailure(operation, repository, remoteAfter, request.Branch);
+        if (verifyError is not null) return verifyError;
+        string verified = ParseRemoteHead(remoteAfter.StandardOutput);
+        if (!string.Equals(verified, request.ExpectedLocalHead, StringComparison.OrdinalIgnoreCase))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.RemoteVerificationFailed, request.Branch);
+        return new(true, operation, repository, request.Branch, null, null,
+            ForceWithLease: new(options.Remote, request.Branch, request.ExpectedRemoteHead,
+                request.ExpectedLocalHead, verified, true));
+    }
+
+    private async Task<GitGatewayResult> PrepareHistoryRewriteAsync(
+        string repository, GitHistoryRewriteRequest request, string operation, CancellationToken cancellationToken)
+    {
+        if (!IsRewriteInputValid(request.Branch, request.ExpectedOldHead, request.Reason))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidReference, request.Branch);
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+        RepositoryOptions options = boundary.Repository;
+        if (!options.HistoryRewriteBranches.Contains(request.Branch))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.HistoryRewriteNotAllowed, request.Branch);
+        GitGatewayResult? localFailure = await ValidateLocalRewriteStateAsync(
+            operation, repository, options, request.Branch, request.ExpectedOldHead, cancellationToken).ConfigureAwait(false);
+        if (localFailure is not null) return localFailure;
+        GitCommandResult metadata = await _git.GetCommitMetadataAsync(
+            options.LocalRoot, request.ExpectedOldHead, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? metadataError = MapCommandFailure(operation, repository, metadata, request.Branch);
+        if (metadataError is not null) return metadataError;
+        string[] f = metadata.StandardOutput.Split('\u001f', 11);
+        if (f.Length != 11) return GitGatewayResult.Failure(operation, repository, GitGatewayError.GitFailed, request.Branch);
+        GitIdentity authorBefore = new(f[3], f[4]);
+        GitIdentity committerBefore = new(f[6], f[7]);
+        GitIdentity authorAfter = new(request.AuthorName ?? f[3], request.AuthorEmail ?? f[4]);
+        GitIdentity committerAfter = new(request.CommitterName ?? f[6], request.CommitterEmail ?? f[7]);
+        if (!IsIdentityValid(authorAfter) || !IsIdentityValid(committerAfter))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidIdentity, request.Branch);
+        if (authorAfter == authorBefore && committerAfter == committerBefore)
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.NoIdentityChange, request.Branch);
+        bool signed = !string.Equals(f[9], "N", StringComparison.Ordinal);
+        if (signed && !request.AllowSignatureRemoval)
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.SignedCommitConfirmationRequired, request.Branch);
+        GitCommandResult remote = await _git.GetActualRemoteHeadAsync(
+            options.LocalRoot, options.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? remoteError = MapCommandFailure(operation, repository, remote, request.Branch);
+        if (remoteError is not null) return remoteError;
+        bool remoteUpdateRequired = string.Equals(ParseRemoteHead(remote.StandardOutput), request.ExpectedOldHead,
+            StringComparison.OrdinalIgnoreCase);
+        GitHistoryRewriteData data = new(options.Remote, request.Branch, request.ExpectedOldHead, null,
+            authorBefore, authorAfter, committerBefore, committerAfter, f[5], f[8], true,
+            signed, signed, remoteUpdateRequired, null, false);
+        return new(true, operation, repository, request.Branch, null, null, HistoryRewrite: data);
+    }
+
+    private async Task<GitGatewayResult?> ValidateLocalRewriteStateAsync(
+        string operation, string repository, RepositoryOptions options, string branch, string expectedHead,
+        CancellationToken cancellationToken)
+    {
+        GitCommandResult branchResult = await _git.GetCurrentBranchAsync(options.LocalRoot, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? error = MapCommandFailure(operation, repository, branchResult, branch);
+        if (error is not null) return error;
+        if (!string.Equals(branchResult.StandardOutput.Trim(), branch, StringComparison.Ordinal))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.BranchNotCheckedOut, branch);
+        GitCommandResult head = await _git.GetHeadAsync(options.LocalRoot, cancellationToken).ConfigureAwait(false);
+        error = MapCommandFailure(operation, repository, head, branch);
+        if (error is not null) return error;
+        if (!string.Equals(head.StandardOutput.Trim(), expectedHead, StringComparison.OrdinalIgnoreCase))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.ExpectedHeadMismatch, branch);
+        GitCommandResult status = await _git.GetStatusAsync(options.LocalRoot, cancellationToken).ConfigureAwait(false);
+        error = MapCommandFailure(operation, repository, status, branch);
+        if (error is not null) return error;
+        if (!string.IsNullOrWhiteSpace(status.StandardOutput))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.WorkingTreeDirty, branch);
+        GitCommandResult unfinished = await _git.GetUnfinishedOperationAsync(options.LocalRoot, cancellationToken).ConfigureAwait(false);
+        error = MapCommandFailure(operation, repository, unfinished, branch);
+        if (error is not null) return error;
+        return string.IsNullOrWhiteSpace(unfinished.StandardOutput) ? null
+            : GitGatewayResult.Failure(operation, repository, GitGatewayError.UnfinishedOperation, branch);
+    }
+
+    private static bool IsRewriteInputValid(string branch, string head, string reason) =>
+        BranchPattern.IsMatch(branch) && FullShaPattern.IsMatch(head)
+        && !string.IsNullOrWhiteSpace(reason) && reason.Length <= 1024;
+
+    private static bool IsIdentityValid(GitIdentity identity) =>
+        !string.IsNullOrWhiteSpace(identity.Name) && identity.Name.Length <= 256
+        && !identity.Name.Any(char.IsControl) && !string.IsNullOrWhiteSpace(identity.Email)
+        && identity.Email.Length <= 320 && identity.Email.Contains('@', StringComparison.Ordinal)
+        && !identity.Email.Any(char.IsControl);
+
+    private static string ParseRemoteHead(string output) =>
+        output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+
     private async Task<BoundaryResult> ValidateBoundaryAsync(
         string repository,
         string operation,
@@ -473,6 +659,8 @@ public sealed class GitGateway : IGitGateway
             GitCommandFailure.Cancelled => GitGatewayError.Cancelled,
             _ when result.StandardError.Contains("non-fast-forward", StringComparison.OrdinalIgnoreCase) =>
                 GitGatewayError.NonFastForward,
+            _ when ContainsAny(result.StandardError, "cannot lock ref", "stale info") =>
+                GitGatewayError.ExpectedHeadMismatch,
             _ when ContainsAny(result.StandardError,
                 "authentication failed", "could not read Username", "terminal prompts disabled",
                 "invalid credentials", "Authentication failed") => GitGatewayError.AuthenticationFailed,

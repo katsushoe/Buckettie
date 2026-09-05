@@ -11,7 +11,8 @@ public sealed record RepositoryUpdateRequest(
     HashSet<string> ProtectedBranches,
     string TagTargetBranch,
     string TagPattern,
-    bool RequireCleanWorkingTree);
+    bool RequireCleanWorkingTree,
+    HashSet<string>? HistoryRewriteBranches = null);
 
 /// <summary>Repository修正要求を1つの流れとして実行する境界です。</summary>
 public interface IRepositoryUpdateService
@@ -104,6 +105,7 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
                 TagTargetBranch = request.TagTargetBranch,
                 TagPattern = request.TagPattern,
                 RequireCleanWorkingTree = request.RequireCleanWorkingTree,
+                HistoryRewriteBranches = request.HistoryRewriteBranches ?? existing.HistoryRewriteBranches,
             };
 
             bool written = await _repositoryStore.UpdateAsync(repositoryId, updated, cancellationToken)

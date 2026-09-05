@@ -31,6 +31,11 @@ internal sealed class ProcessExecutor : IProcessExecutor
 
         Task<string> outputTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
         Task<string> errorTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        if (request.StandardInput is not null)
+        {
+            await process.StandardInput.WriteAsync(request.StandardInput).ConfigureAwait(false);
+            process.StandardInput.Close();
+        }
         using CancellationTokenSource timeout = new(request.Timeout);
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
@@ -75,6 +80,7 @@ internal sealed class ProcessExecutor : IProcessExecutor
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = request.StandardInput is not null,
             CreateNoWindow = true,
         };
         GitEnvironmentSanitizer.Sanitize(startInfo.Environment);

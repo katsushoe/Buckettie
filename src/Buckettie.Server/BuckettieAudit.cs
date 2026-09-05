@@ -17,7 +17,13 @@ internal sealed record BuckettieAuditEvent(
     string? CorrelationId = null,
     string? Source = null,
     string? SourceKind = null,
-    string? SourceHash = null);
+    string? SourceHash = null,
+    string? Actor = null,
+    string? Reason = null,
+    string? Target = null,
+    string? OldHead = null,
+    string? NewHead = null,
+    string? RecoveryReference = null);
 
 internal interface IBuckettieAuditLogger
 {
@@ -27,7 +33,7 @@ internal interface IBuckettieAuditLogger
 internal sealed class BuckettieAuditLogger(ILogger<BuckettieAuditLogger> logger) : IBuckettieAuditLogger
 {
     public void Write(BuckettieAuditEvent auditEvent) => logger.LogInformation(
-        "client={Client} tool={Tool} repository={Repository} branch={Branch} pull_request_id={PullRequestId} tag={Tag} result={Result} duration_ms={DurationMilliseconds} error_code={ErrorCode} correlation_id={CorrelationId} source={Source} source_kind={SourceKind} source_hash={SourceHash}",
+        "client={Client} tool={Tool} repository={Repository} branch={Branch} pull_request_id={PullRequestId} tag={Tag} result={Result} duration_ms={DurationMilliseconds} error_code={ErrorCode} correlation_id={CorrelationId} source={Source} source_kind={SourceKind} source_hash={SourceHash} actor={Actor} reason={Reason} target={Target} old_head={OldHead} new_head={NewHead} recovery_ref={RecoveryReference}",
         "mcp",
         auditEvent.Tool,
         auditEvent.Repository,
@@ -40,7 +46,13 @@ internal sealed class BuckettieAuditLogger(ILogger<BuckettieAuditLogger> logger)
         auditEvent.CorrelationId ?? "-",
         auditEvent.Source ?? "-",
         auditEvent.SourceKind ?? "-",
-        auditEvent.SourceHash ?? "-");
+        auditEvent.SourceHash ?? "-",
+        auditEvent.Actor ?? "-",
+        auditEvent.Reason ?? "-",
+        auditEvent.Target ?? "-",
+        auditEvent.OldHead ?? "-",
+        auditEvent.NewHead ?? "-",
+        auditEvent.RecoveryReference ?? "-");
 }
 
 internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger audit) : IGitGateway
@@ -67,6 +79,38 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
     public Task<GitGatewayResult> PushTagAsync(
         string repository, string tag, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_tag_push", repository, () => inner.PushTagAsync(repository, tag, cancellationToken));
+
+    public Task<GitGatewayResult> PreviewHistoryRewriteAsync(
+        string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default) =>
+        RunHistoryAsync("bitbucket_history_rewrite_preview", repository, request.Branch,
+            request.ExpectedOldHead, request.Reason,
+            () => inner.PreviewHistoryRewriteAsync(repository, request, cancellationToken));
+
+    public Task<GitGatewayResult> RewriteHistoryAsync(
+        string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default) =>
+        RunHistoryAsync("bitbucket_history_rewrite_execute", repository, request.Branch,
+            request.ExpectedOldHead, request.Reason,
+            () => inner.RewriteHistoryAsync(repository, request, cancellationToken));
+
+    public Task<GitGatewayResult> ForcePushWithLeaseAsync(
+        string repository, GitForceWithLeaseRequest request, CancellationToken cancellationToken = default) =>
+        RunHistoryAsync("bitbucket_force_push_with_lease", repository, request.Branch,
+            request.ExpectedRemoteHead, request.Reason,
+            () => inner.ForcePushWithLeaseAsync(repository, request, cancellationToken));
+
+    private async Task<GitGatewayResult> RunHistoryAsync(
+        string tool, string repository, string branch, string oldHead, string reason,
+        Func<Task<GitGatewayResult>> operation)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        GitGatewayResult result = await operation().ConfigureAwait(false);
+        audit.Write(new(tool, repository, branch, null, null, result.IsSuccess,
+            stopwatch.ElapsedMilliseconds, result.Error?.ToString(), result.CorrelationId,
+            Actor: "mcp", Reason: reason, Target: $"refs/heads/{branch}", OldHead: oldHead,
+            NewHead: result.HistoryRewrite?.NewHead ?? result.ForceWithLease?.NewLocalHead,
+            RecoveryReference: result.HistoryRewrite?.RecoveryReference));
+        return result;
+    }
 
     private async Task<GitGatewayResult> RunAsync(string tool, string repository, Func<Task<GitGatewayResult>> operation)
     {

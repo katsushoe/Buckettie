@@ -9,6 +9,8 @@ namespace Buckettie.Application.Tests;
 
 public sealed class GitGatewayTests
 {
+    private const string OldHead = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private const string NewHead = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private const string RepositoryRoot = "C:\\Repositories\\Buckettie";
     private readonly IGitCommandClient _git = Substitute.For<IGitCommandClient>();
     private readonly IRepositoryEnvironment _environment = Substitute.For<IRepositoryEnvironment>();
@@ -411,6 +413,87 @@ public sealed class GitGatewayTests
         result.ErrorDetail.Should().NotContain("secret").And.NotContain("person").And.NotContain("abc123");
     }
 
+    [Fact]
+    public async Task PreviewHistoryRewriteAsync_WhenValid_ReturnsChangesWithoutCreatingReference()
+    {
+        ConfigureRewriteBoundary();
+        GitHistoryRewriteRequest request = new("develop", OldHead, "correct identity", AuthorEmail: "new@example.com");
+
+        GitGatewayResult result = await CreateGateway().PreviewHistoryRewriteAsync(
+            "buckettie", request, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.HistoryRewrite!.AuthorBefore.Email.Should().Be("old@example.com");
+        result.HistoryRewrite.AuthorAfter.Email.Should().Be("new@example.com");
+        result.HistoryRewrite.DatesPreserved.Should().BeTrue();
+        result.HistoryRewrite.RemoteUpdateRequired.Should().BeTrue();
+        await _git.DidNotReceiveWithAnyArgs().CreateReferenceAsync(
+            default!, default!, default!, TestContext.Current.CancellationToken);
+        await _git.DidNotReceiveWithAnyArgs().UpdateBranchReferenceAsync(
+            default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task RewriteHistoryAsync_WhenValid_CreatesRecoveryRefAndUpdatesExpectedBranchHead()
+    {
+        ConfigureRewriteBoundary();
+        _git.CreateReferenceAsync(RepositoryRoot, $"refs/buckettie/recovery/develop/{OldHead}", OldHead,
+            Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.CreateCommitAsync(RepositoryRoot, Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(),
+            Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(NewHead));
+        _git.UpdateBranchReferenceAsync(RepositoryRoot, "develop", NewHead, OldHead,
+            Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+
+        GitGatewayResult result = await CreateGateway().RewriteHistoryAsync("buckettie",
+            new("develop", OldHead, "correct identity", CommitterName: "New Committer"),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.HistoryRewrite!.NewHead.Should().Be(NewHead);
+        result.HistoryRewrite.RecoveryReference.Should().Be($"refs/buckettie/recovery/develop/{OldHead}");
+        result.HistoryRewrite.RemoteUpdated.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PreviewHistoryRewriteAsync_WhenHeadChanged_RejectsWithoutReadingMetadata()
+    {
+        ConfigureRewriteBoundary();
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(NewHead));
+
+        GitGatewayResult result = await CreateGateway().PreviewHistoryRewriteAsync("buckettie",
+            new("develop", OldHead, "correct identity", AuthorName: "New Author"),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.ExpectedHeadMismatch);
+        await _git.DidNotReceiveWithAnyArgs().GetCommitMetadataAsync(
+            default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task PreviewHistoryRewriteAsync_WhenSignedAndNotConfirmed_Rejects()
+    {
+        ConfigureRewriteBoundary(signature: "G");
+
+        GitGatewayResult result = await CreateGateway().PreviewHistoryRewriteAsync("buckettie",
+            new("develop", OldHead, "correct identity", AuthorName: "New Author"),
+            TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.SignedCommitConfirmationRequired);
+    }
+
+    private void ConfigureRewriteBoundary(string signature = "N")
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(OldHead));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetUnfinishedOperationAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetCommitMetadataAsync(RepositoryRoot, OldHead, Arg.Any<CancellationToken>()).Returns(
+            GitCommandResult.Success($"{OldHead}\u001ftree\u001fparent\u001fOld Author\u001fold@example.com\u001f2026-09-05T00:00:00+09:00\u001fOld Committer\u001fold@example.com\u001f2026-09-05T00:00:01+09:00\u001f{signature}\u001fmessage\n"));
+        _git.GetActualRemoteHeadAsync(RepositoryRoot, "origin", "develop", "buckettie", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success($"{OldHead}\trefs/heads/develop\n"));
+    }
+
     private GitGateway CreateGateway()
     {
         BuckettieOptions options = new()
@@ -458,5 +541,6 @@ public sealed class GitGatewayTests
         TagTargetBranch = "main",
         TagPattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+.*$",
         RequireCleanWorkingTree = true,
+        HistoryRewriteBranches = new HashSet<string> { "develop" },
     };
 }

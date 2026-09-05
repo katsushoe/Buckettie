@@ -27,4 +27,16 @@ public interface IGitGateway
     /// <summary>Policy準拠のローカルTagをpushします。</summary>
     public Task<GitGatewayResult> PushTagAsync(
         string repository, string tag, CancellationToken cancellationToken = default);
+
+    /// <summary>最新commitのidentity書き換え内容を状態変更せず返します。</summary>
+    public Task<GitGatewayResult> PreviewHistoryRewriteAsync(
+        string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>最新commitのidentityを変更し、復旧refを保持します。</summary>
+    public Task<GitGatewayResult> RewriteHistoryAsync(
+        string repository, GitHistoryRewriteRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>実Remoteを照合してforce-with-lease pushします。</summary>
+    public Task<GitGatewayResult> ForcePushWithLeaseAsync(
+        string repository, GitForceWithLeaseRequest request, CancellationToken cancellationToken = default);
 }
