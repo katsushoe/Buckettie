@@ -1,29 +1,29 @@
-# Release 1.3.24.0
+# Release 1.3.25.0
 
 Release date: 2026-09-05
 
 ## Highlights
 
-- Preview and execute latest-commit Author/Committer corrections while preserving tree, parents, message, and dates.
-- Create a persistent recovery reference before rewriting and reject signed-commit rewrites unless signature removal is explicitly approved.
-- Add separately authorized, single-branch `force-with-lease` push with actual-remote comparison and post-push verification.
-- Expose symmetric MCP/CLI operations, structured errors, provider capabilities, and detailed audit fields.
+- Add typed Provider error classification for deterministic Moyai conversion.
+- Add `outcome`, `common_code`, `suggested_action`, and lossless Provider-specific diagnostics.
+- Require status verification before retrying a push whose result is unknown.
+- Preserve legacy error and repository fields for existing clients.
 
 ## Artifacts
 
 | File | SHA-256 |
 | --- | --- |
-| `Buckettie-1.3.24.0-win-x64.msi` | `0D466C7A844EA7F4746952A68C89BA58DA079092A2B85EA11FB2747C8E92A0B1` |
+| `Buckettie-1.3.25.0-win-x64.msi` | `AB2D24C1C94D9270E18B3AD6AE901977003B0C02937D43DCB1BC7BFD0B93E57D` |
 
 - Runtime: Windows x64, self-contained
-- Display version: `1.3.24.0`
-- Windows Installer product version: `1.3.24`
-- Tag: `v1.3.24.0`
+- Display version: `1.3.25.0`
+- Windows Installer product version: `1.3.25`
+- Tag: `v1.3.25.0`
 
 ## Validation
 
-- Automated tests: passed (343 tests)
+- Automated tests: passed (350 tests)
 - MSI build and SHA-256 hash: passed
-- Physical-machine upgrade: passed after UAC elevation (service running, CLI and MCP version `1.3.24.0`, configuration preserved)
+- Physical-machine upgrade: passed after UAC elevation (service running, CLI version `1.3.25.0`, configuration preserved)
 
 Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.
