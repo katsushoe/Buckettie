@@ -23,6 +23,8 @@ Release date: 2026-09-06
 
 - Automated tests: passed (351 tests)
 - MSI build, Windows Installer database inspection, and SHA-256 verification: passed
-- Physical-machine upgrade and live `tag_create` verification: pending
+- Physical-machine upgrade: passed after UAC elevation (service running, MCP version `1.3.26.0`, existing Bitbucket credentials usable)
+- Direct Buckettie live `tag_create`, lookup, deletion, and post-deletion absence check: passed against `buckettieselftest`
+- Moyai end-to-end tag mutation verification: pending because Moyai fails before invoking the Provider
 
 Configuration, DPAPI tokens, audit logs, and other machine-specific data are not included in the artifacts.
