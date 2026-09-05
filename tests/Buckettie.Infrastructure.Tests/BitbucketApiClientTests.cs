@@ -217,6 +217,25 @@ public sealed class BitbucketApiClientTests
     }
 
     [Fact]
+    public async Task CreateTagAsync_WhenMessageIsNull_OmitsMessage()
+    {
+        RecordingHandler handler = new(
+            "{\"name\":\"v1.2.3\",\"target\":{\"hash\":\"abcdef\"},\"message\":\"Added tag for changeset abcdef\"}");
+        BitbucketApiClient client = CreateClient(handler);
+
+        BitbucketResult<BitbucketTagInfo> result = await client.CreateTagAsync(
+            "allowed",
+            "workspace",
+            "repository",
+            "abcdef",
+            new BitbucketTagCreate("v1.2.3", null),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        handler.Bodies.Should().ContainSingle().Which.Should().NotContain("\"message\"");
+    }
+
+    [Fact]
     public async Task DeleteTagAsync_WhenCalled_UsesEncodedTagPath()
     {
         RecordingHandler handler = new((HttpStatusCode.NoContent, string.Empty));
