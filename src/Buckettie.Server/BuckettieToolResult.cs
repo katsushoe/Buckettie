@@ -34,7 +34,9 @@ public sealed record BuckettieGitData(
     string? Branch,
     GitRepositoryStatus? Status,
     string? Diff,
-    string? CommitHash);
+    string? CommitHash,
+    GitHistoryRewriteData? HistoryRewrite,
+    GitForceWithLeaseData? ForceWithLease);
 
 /// <summary>get_version Toolの成功データです。</summary>
 public sealed record BuckettieVersionData(string Version);
@@ -67,7 +69,8 @@ internal static class BuckettieToolResultMapper
         if (result.IsSuccess)
         {
             return new(true, result.Operation, result.Repository,
-                new(result.Branch, result.Status, result.Diff, result.CommitHash), null);
+                new(result.Branch, result.Status, result.Diff, result.CommitHash,
+                    result.HistoryRewrite, result.ForceWithLease), null);
         }
 
         string code = GitCode(result.Error ?? GitGatewayError.GitFailed);
@@ -121,6 +124,14 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.NonFastForward => "non_fast_forward",
         GitGatewayError.Timeout => "timeout",
         GitGatewayError.Cancelled => "cancelled",
+        GitGatewayError.ExpectedHeadMismatch => "expected_head_mismatch",
+        GitGatewayError.HistoryRewriteNotAllowed => "history_rewrite_not_allowed",
+        GitGatewayError.BranchNotCheckedOut => "branch_not_checked_out",
+        GitGatewayError.UnfinishedOperation => "unfinished_operation",
+        GitGatewayError.InvalidIdentity => "invalid_identity",
+        GitGatewayError.NoIdentityChange => "no_identity_change",
+        GitGatewayError.SignedCommitConfirmationRequired => "signed_commit_confirmation_required",
+        GitGatewayError.RemoteVerificationFailed => "remote_verification_failed",
         _ => "git_failed",
     };
 
@@ -313,6 +324,14 @@ internal static class BuckettieToolResultMapper
         "network_error" => "The network operation failed.",
         "timeout" => "The operation timed out.",
         "cancelled" => "The operation was cancelled.",
+        "expected_head_mismatch" => "The current HEAD does not match the explicitly expected full SHA.",
+        "history_rewrite_not_allowed" => "History rewriting is not enabled for this branch.",
+        "branch_not_checked_out" => "The target branch is not currently checked out.",
+        "unfinished_operation" => "A merge, rebase, cherry-pick, or revert is unfinished.",
+        "invalid_identity" => "The requested author or committer identity is invalid.",
+        "no_identity_change" => "The requested identity is unchanged.",
+        "signed_commit_confirmation_required" => "Rewriting removes the commit signature; explicit permission is required.",
+        "remote_verification_failed" => "The remote branch did not match the new local HEAD after push.",
         "repository_id_invalid" => "The repository ID is invalid.",
         "repository_already_registered" => "The repository is already registered.",
         "repository_not_registered" => "The repository is not registered.",
@@ -366,6 +385,14 @@ internal static class BuckettieToolResultMapper
         "network_error" => "ネットワーク操作に失敗しました。",
         "timeout" => "操作がタイムアウトしました。",
         "cancelled" => "操作はキャンセルされました。",
+        "expected_head_mismatch" => "現在のHEADが明示された完全SHAと一致しません。",
+        "history_rewrite_not_allowed" => "このブランチでは履歴書き換えが許可されていません。",
+        "branch_not_checked_out" => "対象ブランチが現在チェックアウトされていません。",
+        "unfinished_operation" => "merge、rebase、cherry-pick、またはrevertが完了していません。",
+        "invalid_identity" => "指定されたAuthorまたはCommitter情報が無効です。",
+        "no_identity_change" => "指定されたidentityは変更前と同一です。",
+        "signed_commit_confirmation_required" => "書き換えによりcommit署名が失われるため、明示的な許可が必要です。",
+        "remote_verification_failed" => "push後のリモートブランチが新しいローカルHEADと一致しません。",
         "repository_id_invalid" => "リポジトリIDが無効です。",
         "repository_already_registered" => "リポジトリは既に登録されています。",
         "repository_not_registered" => "リポジトリは登録されていません。",

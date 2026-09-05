@@ -117,6 +117,15 @@ internal static class CliApplication
                 ["repo", "fetch", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_fetch", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "pull", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_pull", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "push", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_push", repository, [], cancellationToken).ConfigureAwait(false),
+                ["repo", "force-push-with-lease", var repository, var branch, var localHead, var remoteHead, .. var forceArgs] =>
+                    await CallHistoryToolAsync(services, output, error, japanese, "bitbucket_force_push_with_lease",
+                        repository, branch, localHead, forceArgs, cancellationToken, remoteHead).ConfigureAwait(false),
+                ["history", "preview", var repository, var branch, var expectedHead, .. var historyArgs] =>
+                    await CallHistoryToolAsync(services, output, error, japanese, "bitbucket_history_rewrite_preview",
+                        repository, branch, expectedHead, historyArgs, cancellationToken).ConfigureAwait(false),
+                ["history", "rewrite", var repository, var branch, var expectedHead, .. var historyArgs] =>
+                    await CallHistoryToolAsync(services, output, error, japanese, "bitbucket_history_rewrite_execute",
+                        repository, branch, expectedHead, historyArgs, cancellationToken).ConfigureAwait(false),
                 ["repo", "register", var repository, var localRoot, .. var rest] =>
                     await RegisterRepositoryAsync(
                         services, repository, localRoot, rest, output, error, secretReader,
@@ -324,6 +333,7 @@ internal static class CliApplication
         string? protectedBranches = GetOption(rest, "--protected-branches");
         string? tagTargetBranch = GetOption(rest, "--tag-target-branch");
         string? tagPattern = GetOption(rest, "--tag-pattern");
+        string? historyRewriteBranches = GetOption(rest, "--history-rewrite-branches");
         if (directPushBranches is null || pullBranches is null || protectedBranches is null
             || tagTargetBranch is null || tagPattern is null)
         {
@@ -344,8 +354,46 @@ internal static class CliApplication
             ["tagPattern"] = tagPattern,
             ["requireCleanWorkingTree"] = !rest.Contains("--allow-dirty-working-tree"),
         };
+        if (historyRewriteBranches is not null)
+        {
+            arguments["historyRewriteBranches"] = SplitList(historyRewriteBranches);
+        }
         return await CallRepositoryToolAsync(
             services, output, "bitbucket_repository_update", repository, arguments, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<int> CallHistoryToolAsync(
+        IServiceProvider services, TextWriter output, TextWriter error, bool japanese, string tool,
+        string repository, string branch, string expectedHead, string[] rest,
+        CancellationToken cancellationToken, string? expectedRemoteHead = null)
+    {
+        string? reason = GetOption(rest, "--reason");
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            error.WriteLine(japanese ? "履歴操作には--reasonが必要です。" : "History operations require --reason.");
+            return 2;
+        }
+        Dictionary<string, object?> arguments = new()
+        {
+            ["branch"] = branch,
+            ["reason"] = reason,
+        };
+        if (expectedRemoteHead is null)
+        {
+            arguments["expectedOldHead"] = expectedHead;
+            arguments["authorName"] = GetOption(rest, "--author-name");
+            arguments["authorEmail"] = GetOption(rest, "--author-email");
+            arguments["committerName"] = GetOption(rest, "--committer-name");
+            arguments["committerEmail"] = GetOption(rest, "--committer-email");
+            arguments["allowSignatureRemoval"] = rest.Contains("--allow-signature-removal");
+        }
+        else
+        {
+            arguments["expectedLocalHead"] = expectedHead;
+            arguments["expectedRemoteHead"] = expectedRemoteHead;
+        }
+        return await CallRepositoryToolAsync(services, output, tool, repository, arguments, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -612,10 +660,14 @@ internal static class CliApplication
         buckettie repo diff <repository>
         buckettie repo commit <repository> <message>
         buckettie repo fetch|pull|push <repository>
+        buckettie repo force-push-with-lease <repository> <branch> <expected-local-head> <expected-remote-head> --reason TEXT
+        buckettie history preview|rewrite <repository> <branch> <expected-old-head> --reason TEXT
+            [--author-name X] [--author-email X] [--committer-name X] [--committer-email X] [--allow-signature-removal]
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
+            [--history-rewrite-branches a,b]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>
@@ -646,10 +698,14 @@ internal static class CliApplication
         buckettie repo diff <repository>
         buckettie repo commit <repository> <message>
         buckettie repo fetch|pull|push <repository>
+        buckettie repo force-push-with-lease <repository> <branch> <expected-local-head> <expected-remote-head> --reason TEXT
+        buckettie history preview|rewrite <repository> <branch> <expected-old-head> --reason TEXT
+            [--author-name X] [--author-email X] [--committer-name X] [--committer-email X] [--allow-signature-removal]
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
+            [--history-rewrite-branches a,b]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>

@@ -70,4 +70,7 @@ public sealed record RepositoryOptions
 
     /// <summary>Push時にcleanな作業ツリーを要求するかを示します。</summary>
     public bool RequireCleanWorkingTree { get; init; } = true;
+
+    /// <summary>履歴書き換え操作を明示的に許可するブランチです。</summary>
+    public HashSet<string> HistoryRewriteBranches { get; init; } = [];
 }

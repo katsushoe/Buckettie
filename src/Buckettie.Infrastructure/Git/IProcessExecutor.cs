@@ -12,7 +12,8 @@ internal sealed record ProcessRequest(
     string WorkingDirectory,
     IReadOnlyList<string> Arguments,
     IReadOnlyDictionary<string, string> Environment,
-    TimeSpan Timeout);
+    TimeSpan Timeout,
+    string? StandardInput = null);
 
 internal sealed record ProcessExecutionResult(
     int? ExitCode,

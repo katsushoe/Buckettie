@@ -47,12 +47,14 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 protected_branches TEXT NOT NULL,
                 tag_target_branch TEXT NOT NULL,
                 tag_pattern TEXT NOT NULL,
-                require_clean_working_tree INTEGER NOT NULL
+                require_clean_working_tree INTEGER NOT NULL,
+                history_rewrite_branches TEXT NOT NULL DEFAULT '[]'
             );
             CREATE UNIQUE INDEX IF NOT EXISTS ux_repositories_repository_id_nocase
                 ON repositories(repository_id COLLATE NOCASE);
             """;
         create.ExecuteNonQuery();
+        EnsureHistoryRewriteColumn(connection);
     }
 
     /// <inheritdoc />
@@ -64,7 +66,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         select.CommandText = """
             SELECT repository_id, workspace, slug, local_root, remote, develop_branch, main_branch,
                    direct_push_branches, pull_branches, protected_branches, tag_target_branch,
-                   tag_pattern, require_clean_working_tree
+                   tag_pattern, require_clean_working_tree, history_rewrite_branches
             FROM repositories;
             """;
 
@@ -87,6 +89,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 TagTargetBranch = reader.GetString(10),
                 TagPattern = reader.GetString(11),
                 RequireCleanWorkingTree = reader.GetInt64(12) != 0,
+                HistoryRewriteBranches = DeserializeSet(reader.GetString(13)),
             };
         }
 
@@ -106,11 +109,11 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
             INSERT OR IGNORE INTO repositories
                 (repository_id, workspace, slug, local_root, remote, develop_branch, main_branch,
                  direct_push_branches, pull_branches, protected_branches, tag_target_branch,
-                 tag_pattern, require_clean_working_tree)
+                 tag_pattern, require_clean_working_tree, history_rewrite_branches)
             VALUES
                 (@id, @workspace, @slug, @localRoot, @remote, @developBranch, @mainBranch,
                  @directPushBranches, @pullBranches, @protectedBranches, @tagTargetBranch,
-                 @tagPattern, @requireCleanWorkingTree);
+                 @tagPattern, @requireCleanWorkingTree, @historyRewriteBranches);
             """;
         BindOptions(insert, repositoryId, options);
         int affected = await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -139,7 +142,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 protected_branches = @protectedBranches,
                 tag_target_branch = @tagTargetBranch,
                 tag_pattern = @tagPattern,
-                require_clean_working_tree = @requireCleanWorkingTree
+                require_clean_working_tree = @requireCleanWorkingTree,
+                history_rewrite_branches = @historyRewriteBranches
             WHERE repository_id = @id COLLATE NOCASE;
             """;
         BindOptions(update, repositoryId, options);
@@ -182,6 +186,28 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         command.Parameters.AddWithValue("@tagTargetBranch", options.TagTargetBranch);
         command.Parameters.AddWithValue("@tagPattern", options.TagPattern);
         command.Parameters.AddWithValue("@requireCleanWorkingTree", options.RequireCleanWorkingTree ? 1 : 0);
+        command.Parameters.AddWithValue("@historyRewriteBranches", SerializeSet(options.HistoryRewriteBranches));
+    }
+
+    private static void EnsureHistoryRewriteColumn(SqliteConnection connection)
+    {
+        using SqliteCommand columns = connection.CreateCommand();
+        columns.CommandText = "PRAGMA table_info(repositories);";
+        using SqliteDataReader reader = columns.ExecuteReader();
+        bool exists = false;
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), "history_rewrite_branches", StringComparison.Ordinal))
+            {
+                exists = true;
+                break;
+            }
+        }
+        reader.Close();
+        if (exists) return;
+        using SqliteCommand alter = connection.CreateCommand();
+        alter.CommandText = "ALTER TABLE repositories ADD COLUMN history_rewrite_branches TEXT NOT NULL DEFAULT '[]';";
+        alter.ExecuteNonQuery();
     }
 
     private static string SerializeSet(HashSet<string> value) => JsonSerializer.Serialize(value);

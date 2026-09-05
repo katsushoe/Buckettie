@@ -26,7 +26,64 @@ public enum GitGatewayError
     NonFastForward,
     Timeout,
     Cancelled,
+    ExpectedHeadMismatch,
+    HistoryRewriteNotAllowed,
+    BranchNotCheckedOut,
+    UnfinishedOperation,
+    InvalidIdentity,
+    NoIdentityChange,
+    SignedCommitConfirmationRequired,
+    RemoteVerificationFailed,
 }
+
+/// <summary>Git commitの氏名とメールアドレスです。</summary>
+public sealed record GitIdentity(string Name, string Email);
+
+/// <summary>最新commitのidentity書き換え要求です。</summary>
+public sealed record GitHistoryRewriteRequest(
+    string Branch,
+    string ExpectedOldHead,
+    string Reason,
+    string? AuthorName = null,
+    string? AuthorEmail = null,
+    string? CommitterName = null,
+    string? CommitterEmail = null,
+    bool AllowSignatureRemoval = false);
+
+/// <summary>履歴書き換えの事前確認および実行結果です。</summary>
+public sealed record GitHistoryRewriteData(
+    string Remote,
+    string Branch,
+    string OldHead,
+    string? NewHead,
+    GitIdentity AuthorBefore,
+    GitIdentity AuthorAfter,
+    GitIdentity CommitterBefore,
+    GitIdentity CommitterAfter,
+    string AuthorDate,
+    string CommitterDate,
+    bool DatesPreserved,
+    bool WasSigned,
+    bool SignatureWillBeRemoved,
+    bool RemoteUpdateRequired,
+    string? RecoveryReference,
+    bool RemoteUpdated);
+
+/// <summary>force-with-lease要求です。</summary>
+public sealed record GitForceWithLeaseRequest(
+    string Branch,
+    string ExpectedLocalHead,
+    string ExpectedRemoteHead,
+    string Reason);
+
+/// <summary>force-with-lease結果です。</summary>
+public sealed record GitForceWithLeaseData(
+    string Remote,
+    string Branch,
+    string ExpectedRemoteHead,
+    string NewLocalHead,
+    string VerifiedRemoteHead,
+    bool RemoteUpdated);
 
 /// <summary>
 /// Repository状態を表します。
@@ -57,7 +114,9 @@ public sealed record GitGatewayResult(
     string? CorrelationId = null,
     string? Diff = null,
     string? CommitHash = null,
-    string? ErrorDetail = null)
+    string? ErrorDetail = null,
+    GitHistoryRewriteData? HistoryRewrite = null,
+    GitForceWithLeaseData? ForceWithLease = null)
 {
     /// <summary>成功結果を生成します。</summary>
     public static GitGatewayResult Success(
