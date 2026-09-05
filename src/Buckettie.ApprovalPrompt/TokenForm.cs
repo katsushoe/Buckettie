@@ -20,9 +20,9 @@ internal sealed partial class TokenForm : Form
         instructionLabel.Text = japanese
             ? $"Repository「{repository}」のAPI Tokenを入力してください。"
             : $"Enter the API Token for repository '{repository}'.";
-        sourceProjectLabel.Text = japanese ? "登録元プロジェクト名" : "Source project";
+        sourceProjectLabel.Text = japanese ? "要求元プロジェクト名" : "Requesting project name";
         sourceProjectTextBox.Text = repository;
-        targetUrlLabel.Text = japanese ? "登録対象リポジトリURL" : "Target repository URL";
+        targetUrlLabel.Text = japanese ? "要求先リポジトリURL" : "Target repository URL";
         targetUrlTextBox.Text = remoteUrl;
         tokenLabel.Text = japanese ? "Token" : "Token";
         okButton.Text = japanese ? "OK" : "OK";
