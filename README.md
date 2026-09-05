@@ -4,9 +4,10 @@
 
 Buckettie is a Windows gateway that lets MCP clients operate explicitly allowed local Git repositories and Bitbucket Cloud repositories. Repository allowlists, branch protection, audit logs, and DPAPI-protected API tokens expose only the operations an AI client needs.
 
-Current release: `1.3.23.0`
+Current release: `1.3.25.0`
 
 Bitbucket Release lifecycle semantics are documented in [docs/bitbucket-release-provider.md](docs/bitbucket-release-provider.md).
+Provider error response semantics are documented in [docs/provider-error-contract.md](docs/provider-error-contract.md).
 
 ## Getting Started
 

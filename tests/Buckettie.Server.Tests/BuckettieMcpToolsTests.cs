@@ -240,7 +240,12 @@ public sealed class BuckettieMcpToolsTests
             cancellationToken: TestContext.Current.CancellationToken);
 
         result.Ok.Should().BeFalse();
-        result.Error.Should().Be(error);
+        result.Error.Should().NotBeNull();
+        result.Error!.Code.Should().Be(error.Code);
+        result.Error.Message.Should().Be(error.Message);
+        result.Error.Category.Should().Be(error.Code);
+        result.Error.CommonCode.Should().Be("INVALID_STATE");
+        result.Error.Provider.Should().Be(new BuckettieProviderError("Buckettie", error.Code));
     }
 
     [Fact]
@@ -275,6 +280,47 @@ public sealed class BuckettieMcpToolsTests
         result.Error.SuggestedAction.Should().NotBeNullOrWhiteSpace();
         result.Error.Category.Should().Be("protected_branch");
         result.Error.Details.Should().BeNull();
+        result.Error.CommonCode.Should().Be("POLICY_REJECTED");
+        result.Error.Outcome.Should().Be("not_executed");
+        result.Error.Provider.Should().Be(new BuckettieProviderError("Buckettie", "protected_branch"));
+
+        using JsonDocument json = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, BuckettieMcpJson.CreateOptions()));
+        json.RootElement.GetProperty("schema_version").GetString().Should().Be("1");
+        json.RootElement.GetProperty("project").GetString().Should().Be("example");
+    }
+
+    [Theory]
+    [InlineData(GitGatewayError.AuthenticationFailed, "AUTHENTICATION_REQUIRED", "failed", "configure_authentication", false)]
+    [InlineData(GitGatewayError.PermissionDenied, "PERMISSION_DENIED", "failed", "request_permission", false)]
+    [InlineData(GitGatewayError.ProtectedBranch, "POLICY_REJECTED", "not_executed", "review_policy", false)]
+    [InlineData(GitGatewayError.Conflict, "CONFLICT", "failed", "resolve_conflict", false)]
+    [InlineData(GitGatewayError.NetworkError, "COMMUNICATION_FAILURE", "unknown", "check_status", false)]
+    [InlineData(GitGatewayError.Timeout, "COMMUNICATION_FAILURE", "unknown", "check_status", false)]
+    [InlineData(GitGatewayError.GitFailed, "PROVIDER_ERROR", "unknown", "check_status", false)]
+    public async Task MapGitAsync_WhenPushFails_ReturnsProviderErrorContract(
+        GitGatewayError gatewayError,
+        string commonCode,
+        string outcome,
+        string suggestedAction,
+        bool retryable)
+    {
+        GitGatewayResult gatewayResult = GitGatewayResult.DiagnosticFailure(
+            "push", "example", gatewayError, "develop", "sanitized provider detail");
+
+        BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
+            Task.FromResult(gatewayResult));
+
+        result.Error.Should().NotBeNull();
+        result.Error!.CommonCode.Should().Be(commonCode);
+        result.Error.Outcome.Should().Be(outcome);
+        result.Error.SuggestedAction.Should().Be(suggestedAction);
+        result.Error.Retryable.Should().Be(retryable);
+        result.Error.CorrelationId.Should().MatchRegex("^[0-9a-f]{32}$");
+        result.Error.Provider.Should().Be(new BuckettieProviderError(
+            "Buckettie", BuckettieToolResultMapper.GitCode(gatewayError), "sanitized provider detail"));
+        result.Error.Category.Should().Be(BuckettieToolResultMapper.GitCode(gatewayError));
+        result.Error.Details.Should().Be("sanitized provider detail");
     }
 
     [Fact]
@@ -326,7 +372,7 @@ public sealed class BuckettieMcpToolsTests
 
     [Theory]
     [InlineData(BitbucketError.MergeabilityCalculating, "mergeability_calculating", "calculating_retryable", true, 2)]
-    [InlineData(BitbucketError.MergeabilityUnknown, "mergeability_unknown", "unknown_retryable", true, 2)]
+    [InlineData(BitbucketError.MergeabilityUnknown, "mergeability_unknown", "unknown_retryable", false, 2)]
     [InlineData(BitbucketError.PullRequestMergeConflict, "pull_request_merge_conflict", "conflicting", false, null)]
     [InlineData(BitbucketError.PullRequestMergeBlocked, "pull_request_merge_blocked", "blocked", false, null)]
     public async Task MapBitbucketAsync_WhenMergeFails_ReturnsCommonMergeabilityContract(

@@ -19,6 +19,15 @@ public sealed record BuckettieToolError(
     [property: JsonPropertyName("retry_after_seconds")] int? RetryAfterSeconds = null,
     [property: JsonPropertyName("project_candidates")] IReadOnlyList<string>? ProjectCandidates = null,
     [property: JsonPropertyName("category")] string? Category = null,
+    [property: JsonPropertyName("details")] string? Details = null,
+    [property: JsonPropertyName("outcome")] string Outcome = "not_executed",
+    [property: JsonPropertyName("provider")] BuckettieProviderError? Provider = null,
+    [property: JsonPropertyName("common_code")] string? CommonCode = null);
+
+/// <summary>Provider固有のエラー情報です。</summary>
+public sealed record BuckettieProviderError(
+    string Name,
+    [property: JsonPropertyName("code")] string Code,
     [property: JsonPropertyName("details")] string? Details = null);
 
 /// <summary>MCP Toolの共通構造化結果です。</summary>
@@ -27,7 +36,16 @@ public sealed record BuckettieToolResult<T>(
     string Operation,
     string Repository,
     T? Data,
-    BuckettieToolError? Error);
+    BuckettieToolError? Error)
+{
+    /// <summary>Provider委譲操作のエラー応答契約バージョンです。</summary>
+    [JsonPropertyName("schema_version")]
+    public string SchemaVersion => "1";
+
+    /// <summary>Moyai共通契約のProject名です。Repositoryは後方互換のため保持します。</summary>
+    [JsonPropertyName("project")]
+    public string Project => Repository;
+}
 
 /// <summary>Git Toolの成功データです。</summary>
 public sealed record BuckettieGitData(
@@ -73,12 +91,13 @@ internal static class BuckettieToolResultMapper
                     result.HistoryRewrite, result.ForceWithLease), null);
         }
 
-        string code = GitCode(result.Error ?? GitGatewayError.GitFailed);
+        string providerCode = GitCode(result.Error ?? GitGatewayError.GitFailed);
         return new(false, result.Operation, result.Repository, null,
             CreateGitError(
-                code,
+                providerCode,
                 language,
                 result.Operation,
+                result.Error ?? GitGatewayError.GitFailed,
                 result.CorrelationId,
                 projectCandidates,
                 result.ErrorDetail));
@@ -212,24 +231,31 @@ internal static class BuckettieToolResultMapper
         CreateError(error.Code, language);
 
     private static BuckettieToolError CreateGitError(
-        string code,
+        string providerCode,
         string language,
         string operation,
+        GitGatewayError gatewayError,
         string? correlationId,
         IReadOnlyList<string>? projectCandidates,
         string? errorDetail)
     {
         bool japanese = BuckettieLanguage.IsJapanese(language);
-        string message = japanese ? JapaneseMessage(code) : EnglishMessage(code);
-        return new(code, message, $"Git {operation}: {message}",
-            japanese ? JapaneseAction(code) : EnglishAction(code), IsRetryable(code), correlationId,
-            ProjectCandidates: code == "repository_not_allowed" ? projectCandidates : null,
-            Category: code,
-            Details: errorDetail);
+        string message = japanese ? JapaneseMessage(providerCode) : EnglishMessage(providerCode);
+        string outcome = GitOutcome(operation, gatewayError);
+        return new(providerCode, message, $"Git {operation}: {message}",
+            SuggestedAction(providerCode, outcome), IsRetryable(providerCode) && outcome != "unknown", correlationId,
+            ProjectCandidates: providerCode == "repository_not_allowed" ? projectCandidates : null,
+            Category: providerCode,
+            Details: errorDetail,
+            Outcome: outcome,
+            Provider: new("Buckettie", providerCode, errorDetail),
+            CommonCode: MapCommonCode(providerCode));
     }
 
     private static BuckettieToolError CreateError(string code, string language = "en-US") =>
-        new(code, BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code));
+        new(code, BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code),
+            SuggestedAction: SuggestedAction(code, "not_executed"), Category: code,
+            Provider: new("Buckettie", code), CommonCode: MapCommonCode(code));
 
     private static BuckettieToolError CreateBitbucketError(
         string code,
@@ -239,21 +265,72 @@ internal static class BuckettieToolResultMapper
         string message = BuckettieLanguage.IsJapanese(language) ? JapaneseMessage(code) : EnglishMessage(code);
         if (!string.Equals(operation, "pr_merge", StringComparison.Ordinal))
         {
-            return new(code, message);
+            return new(code, message, SuggestedAction: SuggestedAction(code, "failed"),
+                Category: code, Outcome: "failed", Provider: new("Buckettie", code),
+                CommonCode: MapCommonCode(code));
         }
 
         return code switch
         {
             "mergeability_calculating" => new(
-                code, message, Retryable: true, Status: "calculating_retryable", RetryAfterSeconds: 2),
+                code, message, SuggestedAction: "retry", Retryable: true,
+                Status: "calculating_retryable", RetryAfterSeconds: 2, Category: code,
+                Outcome: "failed", Provider: new("Buckettie", code), CommonCode: MapCommonCode(code)),
             "mergeability_unknown" => new(
-                code, message, Retryable: true, Status: "unknown_retryable", RetryAfterSeconds: 2),
-            "pull_request_merge_conflict" => new(code, message, Status: "conflicting"),
+                code, message, SuggestedAction: "check_status", Retryable: false,
+                Status: "unknown_retryable", RetryAfterSeconds: 2, Category: code,
+                Outcome: "unknown", Provider: new("Buckettie", code), CommonCode: MapCommonCode(code)),
+            "pull_request_merge_conflict" => new(code, message,
+                SuggestedAction: "resolve_conflict", Status: "conflicting", Category: code,
+                Outcome: "failed", Provider: new("Buckettie", code), CommonCode: MapCommonCode(code)),
             "pull_request_merge_blocked" or "pull_request_route_not_allowed" or "pull_request_not_open" =>
-                new(code, message, Status: "blocked"),
-            _ => new(code, message),
+                new(code, message, SuggestedAction: "review_policy", Status: "blocked",
+                    Category: code, Outcome: "failed", Provider: new("Buckettie", code),
+                    CommonCode: MapCommonCode(code)),
+            _ => new(code, message, SuggestedAction: SuggestedAction(code, "failed"),
+                Category: code, Outcome: "failed", Provider: new("Buckettie", code),
+                CommonCode: MapCommonCode(code)),
         };
     }
+
+    private static string GitOutcome(string operation, GitGatewayError error) =>
+        operation is "push" or "push_tag" or "force_push_with_lease"
+            ? error switch
+            {
+                GitGatewayError.NetworkError or GitGatewayError.Timeout or GitGatewayError.Cancelled
+                    or GitGatewayError.GitFailed or GitGatewayError.RemoteVerificationFailed => "unknown",
+                GitGatewayError.AuthenticationFailed or GitGatewayError.PermissionDenied
+                    or GitGatewayError.Conflict or GitGatewayError.NonFastForward => "failed",
+                _ => "not_executed",
+            }
+            : error is GitGatewayError.NetworkError or GitGatewayError.Timeout or GitGatewayError.Cancelled
+                or GitGatewayError.GitFailed ? "failed" : "not_executed";
+
+    private static string MapCommonCode(string code) => code switch
+    {
+        "authentication_failed" => "AUTHENTICATION_REQUIRED",
+        "permission_denied" => "PERMISSION_DENIED",
+        "protected_branch" or "branch_not_allowed" or "pull_request_merge_blocked"
+            or "pull_request_route_not_allowed" => "POLICY_REJECTED",
+        "conflict" or "non_fast_forward" or "pull_request_merge_conflict" => "CONFLICT",
+        "network_error" or "timeout" or "cancelled" => "COMMUNICATION_FAILURE",
+        "git_failed" or "bitbucket_api_error" or "remote_verification_failed" => "PROVIDER_ERROR",
+        _ => "INVALID_STATE",
+    };
+
+    private static string SuggestedAction(string code, string outcome) => outcome == "unknown"
+        ? "check_status"
+        : code switch
+        {
+            "authentication_failed" => "configure_authentication",
+            "permission_denied" => "request_permission",
+            "protected_branch" or "branch_not_allowed" or "pull_request_merge_blocked"
+                or "pull_request_route_not_allowed" => "review_policy",
+            "conflict" or "non_fast_forward" or "pull_request_merge_conflict" => "resolve_conflict",
+            "network_error" or "timeout" or "rate_limited" => "retry",
+            "git_failed" or "bitbucket_api_error" => "inspect_provider_error",
+            _ => "correct_condition",
+        };
 
     private static bool IsRetryable(string code) => code is "network_error" or "timeout" or "rate_limited";
 
