@@ -971,7 +971,10 @@ public sealed class BitbucketApiClient : IBitbucketApiClient
     private sealed record TaggerResponse(
         [property: JsonPropertyName("display_name")] string? DisplayName);
 
-    private sealed record TagCreateRequest(string Name, TargetResponse Target, string? Message);
+    private sealed record TagCreateRequest(
+        string Name,
+        TargetResponse Target,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Message);
 
     private sealed record PullRequestPageResponse(IReadOnlyList<PullRequestResponse>? Values, string? Next);
 
