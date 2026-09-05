@@ -7,6 +7,7 @@ Buckettie is a Windows gateway that lets MCP clients operate explicitly allowed 
 Current release: `1.3.23.0`
 
 Bitbucket Release lifecycle semantics are documented in [docs/bitbucket-release-provider.md](docs/bitbucket-release-provider.md).
+Provider error response semantics are documented in [docs/provider-error-contract.md](docs/provider-error-contract.md).
 
 ## Getting Started
 
