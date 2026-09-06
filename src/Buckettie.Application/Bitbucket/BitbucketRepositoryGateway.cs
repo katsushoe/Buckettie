@@ -192,13 +192,20 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
             return BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.InvalidTag);
         }
 
+        if (!BranchSource.IsValid(input.Source))
+        {
+            return BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.InvalidTagSource);
+        }
+
         if (!TryGet(repository, out RepositoryOptions? options) || options is null)
         {
             return BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.RepositoryNotAllowed);
         }
 
         RepositoryPolicy policy = CreatePolicy(repository, options);
-        PolicyResult policyResult = policy.ValidateTag(input.Name, options.TagTargetBranch);
+        PolicyResult policyResult = policy.ValidateTag(
+            input.Name,
+            BranchSource.IsCommit(input.Source) ? options.TagTargetBranch : input.Source);
         if (!policyResult.IsAllowed)
         {
             return BitbucketResult<BitbucketTagInfo>.Failure(
@@ -207,24 +214,40 @@ public sealed class BitbucketRepositoryGateway : IBitbucketRepositoryGateway
                     : BitbucketError.InvalidTag);
         }
 
-        BitbucketResult<BitbucketBranchInfo> branch = await _client.GetBranchAsync(
-            repository,
-            options.Workspace,
-            options.Slug,
-            options.TagTargetBranch,
-            cancellationToken).ConfigureAwait(false);
-        if (!branch.IsSuccess || branch.Value is null)
+        BitbucketResult<string> resolved = await ResolveSourceAsync(
+            repository, options, input.Source, cancellationToken).ConfigureAwait(false);
+        if (!resolved.IsSuccess || !BranchSource.IsCommit(resolved.Value))
         {
-            return BitbucketResult<BitbucketTagInfo>.Failure(branch.Error ?? BitbucketError.InvalidResponse);
+            BitbucketError error = resolved.Error is BitbucketError.SourceBranchNotFound or BitbucketError.SourceCommitNotFound
+                ? BitbucketError.TagSourceNotFound
+                : resolved.Error ?? BitbucketError.InvalidResponse;
+            return BitbucketResult<BitbucketTagInfo>.Failure(error);
         }
 
-        return await _client.CreateTagAsync(
+        BitbucketResult<BitbucketTagInfo> created = await _client.CreateTagAsync(
             repository,
             options.Workspace,
             options.Slug,
-            branch.Value.TargetHash,
+            resolved.Value!,
             input,
             cancellationToken).ConfigureAwait(false);
+        if (!created.IsSuccess || created.Value is null)
+        {
+            return created;
+        }
+
+        if (!string.Equals(created.Value.Name, input.Name, StringComparison.Ordinal)
+            || !string.Equals(created.Value.TargetHash, resolved.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            return BitbucketResult<BitbucketTagInfo>.Failure(BitbucketError.InvalidResponse);
+        }
+
+        return BitbucketResult<BitbucketTagInfo>.Success(created.Value with
+        {
+            Source = input.Source,
+            SourceKind = BranchSource.IsCommit(input.Source) ? "commit" : "branch",
+            SourceHash = resolved.Value,
+        });
     }
 
     /// <inheritdoc />

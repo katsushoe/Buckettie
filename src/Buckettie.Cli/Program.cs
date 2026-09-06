@@ -147,7 +147,7 @@ internal static class CliApplication
                 ["pr", "merge", var repository, var pullRequestId, .. var mergeArgs] => await MergePullRequestAsync(services, repository, pullRequestId, mergeArgs, output, error, japanese, cancellationToken).ConfigureAwait(false),
                 ["tag", "list", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_list", repository, [], cancellationToken).ConfigureAwait(false),
                 ["tag", "get", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_get", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
-                ["tag", "create", var repository, var tag, .. var tagArgs] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_create", repository, new() { ["tag"] = tag, ["message"] = GetOption(tagArgs, "--message") }, cancellationToken).ConfigureAwait(false),
+                ["tag", "create", var repository, var tag, var source, .. var tagArgs] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_create", repository, new() { ["tag"] = tag, ["source"] = source, ["message"] = GetOption(tagArgs, "--message") }, cancellationToken).ConfigureAwait(false),
                 ["tag", "delete", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_delete", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
                 ["tag", "push", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_push", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
                 ["provider", "capabilities"] => await CallToolAsync(services, output, "bitbucket_provider_capabilities", null, [], cancellationToken).ConfigureAwait(false),
@@ -678,7 +678,7 @@ internal static class CliApplication
         buckettie pr merge <repository> <pull-request-id> [--strategy X] [--message X]
         buckettie tag list <repository>
         buckettie tag get <repository> <tag>
-        buckettie tag create <repository> <tag> [--message X]
+        buckettie tag create <repository> <tag> <source-branch-or-full-sha> [--message X]
         buckettie tag delete|push <repository> <tag>
         buckettie provider capabilities
         repo register/unregister/updateは稼働中サービスのMCPエンドポイントを呼び出します。
@@ -716,7 +716,7 @@ internal static class CliApplication
         buckettie pr merge <repository> <pull-request-id> [--strategy X] [--message X]
         buckettie tag list <repository>
         buckettie tag get <repository> <tag>
-        buckettie tag create <repository> <tag> [--message X]
+        buckettie tag create <repository> <tag> <source-branch-or-full-sha> [--message X]
         buckettie tag delete|push <repository> <tag>
         buckettie provider capabilities
         (repo register/unregister/update call the running service's MCP endpoint; register/update wait for

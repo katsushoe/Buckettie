@@ -205,7 +205,7 @@ public sealed class BitbucketApiClientTests
             "workspace",
             "repository",
             "abcdef",
-            new BitbucketTagCreate("v1.2.3", "Release"),
+            new BitbucketTagCreate("v1.2.3", "main", "Release"),
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.Should().BeTrue();
@@ -228,7 +228,7 @@ public sealed class BitbucketApiClientTests
             "workspace",
             "repository",
             "abcdef",
-            new BitbucketTagCreate("v1.2.3", null),
+            new BitbucketTagCreate("v1.2.3", "main", null),
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.Should().BeTrue();

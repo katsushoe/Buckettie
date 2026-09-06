@@ -160,6 +160,10 @@ public sealed class BuckettieMcpToolsTests
             .GetParameters().Where(parameter => parameter.ParameterType != typeof(CancellationToken)).ToArray();
         branchInputs.Select(parameter => parameter.Name).Should().Equal("repository", "branch", "source");
         branchInputs.Should().OnlyContain(parameter => !parameter.IsOptional);
+        var tagInputs = typeof(BuckettieMcpTools).GetMethod(nameof(BuckettieMcpTools.CreateTagAsync))!
+            .GetParameters().Where(parameter => parameter.ParameterType != typeof(CancellationToken)).ToArray();
+        tagInputs.Select(parameter => parameter.Name).Should().Equal("repository", "tag", "source", "message");
+        tagInputs.Single(parameter => parameter.Name == "source").IsOptional.Should().BeFalse();
     }
 
     [Fact]
@@ -404,6 +408,7 @@ public sealed class BuckettieMcpToolsTests
     [InlineData("branch_delete", "branch_not_found")]
     [InlineData("branch_list", "repository_not_found")]
     [InlineData("branch_create", "branch_source_not_found")]
+    [InlineData("tag_create", "tag_source_not_found")]
     public void BitbucketCode_WhenApiReturnsNotFound_UsesOperationContext(string operation, string expected)
     {
         BuckettieToolResultMapper.BitbucketCode(BitbucketError.NotFound, operation).Should().Be(expected);
@@ -496,6 +501,8 @@ public sealed class BuckettieMcpToolsTests
 
         result.Ok.Should().BeTrue();
         result.Data!.Provider.Should().Be("bitbucket");
+        result.Data.ContractVersion.Should().Be(3);
+        result.Data.TagSourceRequired.Should().BeTrue();
         result.Data.Operations.Should().Contain(
         [
             new KeyValuePair<string, bool>("branch_create", true),

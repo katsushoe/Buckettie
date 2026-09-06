@@ -38,7 +38,7 @@ public interface IBitbucketRepositoryGateway
         string tag,
         CancellationToken cancellationToken = default);
 
-    /// <summary>設定済み対象BranchのHEADへTagを作成します。</summary>
+    /// <summary>明示したBranchまたは完全コミットSHAへTagを作成します。</summary>
     public Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(
         string repository,
         BitbucketTagCreate input,

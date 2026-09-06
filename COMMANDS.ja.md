@@ -26,7 +26,7 @@
 | `buckettie repo unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。 |
 | `buckettie branch list\|get\|create\|delete ...` | Bitbucketブランチを一覧・取得・作成・削除します。作成元の明示指定が必須です。develop、main、保護ブランチは削除できません。 |
 | `buckettie pr list\|get\|diff\|create\|merge ...` | Bitbucketプルリクエストの一覧・詳細・差分・作成・マージを実行します。 |
-| `buckettie tag list\|get\|create\|delete\|push ...` | ポリシー準拠タグの一覧・取得・作成・削除・明示的pushを実行します。 |
+| `buckettie tag list\|get\|create\|delete\|push ...` | ポリシー準拠タグの一覧・取得・作成・削除・明示的pushを実行します。作成元の明示指定が必須です。 |
 | `buckettie provider capabilities` | Repository diff・commitを含むRepository Contract操作の対応可否を表示します。 |
 | `buckettie auth test` | 値を表示せず各Repositoryの認証情報を読めるか確認します。 |
 | `buckettie auth set <id>` | 非表示でTokenを読み、DPAPI LocalMachineで保護して保存します。 |
@@ -44,8 +44,10 @@ ServiceはLocalSystemとして実行し、`..\data\secrets`のMachine保護Token
 
 導入と通常運用は[INSTALLATION.md](INSTALLATION.md)および[OPERATIONS.md](OPERATIONS.md)、障害時は[TROUBLESHOOTING.md](TROUBLESHOOTING.md)を参照してください。
 
-## 作成元の明示指定と参照欠落時の状態取得
+## Branch・Tag作成元の明示指定と参照欠落時の状態取得
 
 `buckettie branch create <repository> <branch> <source>`は、作成元Branch名または完全40桁コミットSHAが必須です。例: `buckettie branch create example develop main`でmainから初回のリモートdevelopを作成します。作成元の暗黙補完、短縮コミットSHAの解決、ローカルcheckout、自動fetchは行いません。MCP `bitbucket_branch_create`も`repository`、`branch`、`source`が必須となり、旧呼び出しは更新が必要です。空白・リビジョン式は`branch_source_invalid`、作成元GETの404はBranchなら`branch_not_found`、Commitなら`branch_source_not_found`です。404は参照またはRepositoryの不可視も含みます。返却には`source`、`source_kind`、`source_hash`と作成Branchの`target_hash`が含まれます。
 
-`repo status`は設定済みremote-tracking参照が欠落しても、ローカルBranch/HEAD/作業ツリー状態を返します。`remote_develop_head`/`remote_main_head`はnullになり得ます。developとの比較不能時の`ahead`/`behind`もnullです。`comparison_reference`、`comparison_unavailable_reason`、`missing_remote_references`で理由を示し、未fetchの可能性もあるためBitbucket上の不存在とは断定しません。他のエラーは失敗として扱います。Provider能力は`contract_version: 2`、`branch_source_required: true`、`repository_status_nullable: true`を返し、Moyaiはsourceの無損失転送とnullの保持が必要です。設計判断は[ADR 0014](docs/adr/0014-explicit-branch-source-and-partial-status.md)を参照してください。
+`buckettie tag create <repository> <tag> <source> [--message X]`とMCP `bitbucket_tag_create`は、許可された作成元Branch名または完全40桁コミットSHAが必須です。BranchはBitbucketで解決し、CommitはBitbucketで存在を確認します。解決済みSHAをTag targetとして送信し、応答とも照合します。省略・不正入力は`tag_source_invalid`、不存在または参照不能は`tag_source_not_found`です。返却には`source`、`source_kind`、`source_hash`、`target_hash`が含まれます。`--message`省略時はBitbucket JSONの`message`項目自体を省略します。
+
+`repo status`は設定済みremote-tracking参照が欠落しても、ローカルBranch/HEAD/作業ツリー状態を返します。`remote_develop_head`/`remote_main_head`はnullになり得ます。developとの比較不能時の`ahead`/`behind`もnullです。`comparison_reference`、`comparison_unavailable_reason`、`missing_remote_references`で理由を示し、未fetchの可能性もあるためBitbucket上の不存在とは断定しません。他のエラーは失敗として扱います。Provider能力は`contract_version: 3`、`branch_source_required: true`、`tag_source_required: true`、`repository_status_nullable: true`を返し、Moyaiはsourceの無損失転送とnullの保持が必要です。設計判断は[ADR 0014](docs/adr/0014-explicit-branch-source-and-partial-status.md)と[ADR 0015](docs/adr/0015-explicit-tag-source.md)を参照してください。
