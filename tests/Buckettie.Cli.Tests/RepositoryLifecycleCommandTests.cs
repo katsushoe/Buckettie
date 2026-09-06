@@ -103,7 +103,7 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
     [InlineData("pr|merge|example|12|--strategy|Squash|--message|Done", "bitbucket_pr_merge", "\"strategy\":\"Squash\"")]
     [InlineData("tag|list|example", "bitbucket_tag_list", "\"repository\":\"example\"")]
     [InlineData("tag|get|example|v1.0.0", "bitbucket_tag_get", "\"tag\":\"v1.0.0\"")]
-    [InlineData("tag|create|example|v1.0.0|--message|Release", "bitbucket_tag_create", "\"message\":\"Release\"")]
+    [InlineData("tag|create|example|v1.0.0|main|--message|Release", "bitbucket_tag_create", "\"source\":\"main\"")]
     [InlineData("mcp|version", "get_version", "\"arguments\":{}")]
     [InlineData("branch|create|example|develop|main", "bitbucket_branch_create", "\"source\":\"main\"")]
     [InlineData("branch|create|example|feature/test|0123456789abcdef0123456789abcdef01234567", "bitbucket_branch_create", "\"source\":\"0123456789abcdef0123456789abcdef01234567\"")]
@@ -172,6 +172,16 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
         string path = WriteConfiguration(GetFreePort());
         int exitCode = await CliApplication.RunAsync(
             ["--config", path, "branch", "create", "example", "develop"],
+            new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken);
+        exitCode.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task TagCreate_WhenSourceIsOmitted_ReturnsUsageErrorWithoutService()
+    {
+        string path = WriteConfiguration(GetFreePort());
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "tag", "create", "example", "v1.0.0"],
             new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken);
         exitCode.Should().Be(2);
     }

@@ -18,6 +18,8 @@ public enum BitbucketError
     MergeabilityCalculating,
     MergeabilityUnknown,
     InvalidTag,
+    InvalidTagSource,
+    TagSourceNotFound,
     TagAlreadyExists,
     TagTargetNotAllowed,
     InvalidRelease,

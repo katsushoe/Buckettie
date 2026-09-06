@@ -45,6 +45,41 @@ public sealed class BranchSourceContractTests
             && entry.Source == "main" && entry.SourceKind == "branch" && entry.SourceHash == hash));
     }
 
+    [Theory]
+    [InlineData(BitbucketError.InvalidTagSource, "tag_source_invalid")]
+    [InlineData(BitbucketError.TagSourceNotFound, "tag_source_not_found")]
+    public async Task CreateTag_WhenSourceFails_ReturnsTypedError(BitbucketError failure, string code)
+    {
+        IBitbucketRepositoryGateway gateway = Substitute.For<IBitbucketRepositoryGateway>();
+        gateway.CreateTagAsync("example", new("v1.2.3", "main", null), Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketTagInfo>.Failure(failure));
+        BuckettieMcpTools tools = CreateTools(gateway);
+
+        BuckettieToolResult<BitbucketTagInfo> result = await tools.CreateTagAsync(
+            "example", "v1.2.3", "main", null, TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeFalse();
+        result.Error!.Code.Should().Be(code);
+        result.Data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateTag_WhenSuccessful_AuditsInputAndResolvedHash()
+    {
+        const string hash = "0123456789abcdef0123456789abcdef01234567";
+        IBitbucketRepositoryGateway gateway = Substitute.For<IBitbucketRepositoryGateway>();
+        IBuckettieAuditLogger audit = Substitute.For<IBuckettieAuditLogger>();
+        gateway.CreateTagAsync("example", new("v1.2.3", "main", null), Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketTagInfo>.Success(
+                new("v1.2.3", hash, null, null, null, "main", "branch", hash)));
+
+        await new AuditedBitbucketRepositoryGateway(gateway, audit).CreateTagAsync(
+            "example", new("v1.2.3", "main", null), TestContext.Current.CancellationToken);
+
+        audit.Received(1).Write(Arg.Is<BuckettieAuditEvent>(entry => entry.IsSuccess
+            && entry.Source == "main" && entry.SourceKind == "branch" && entry.SourceHash == hash));
+    }
+
     [Fact]
     public async Task Status_WhenComparisonUnavailable_SerializesNullInsteadOfZero()
     {

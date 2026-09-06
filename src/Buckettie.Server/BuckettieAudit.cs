@@ -150,7 +150,9 @@ internal sealed class AuditedBitbucketRepositoryGateway(
         RunAsync("bitbucket_tag_get", repository, null, null, tag, () => inner.GetTagAsync(repository, tag, cancellationToken));
 
     public Task<BitbucketResult<BitbucketTagInfo>> CreateTagAsync(string repository, BitbucketTagCreate input, CancellationToken cancellationToken = default) =>
-        RunAsync("bitbucket_tag_create", repository, null, null, input.Name, () => inner.CreateTagAsync(repository, input, cancellationToken));
+        RunAsync("bitbucket_tag_create", repository, null, null, input.Name,
+            () => inner.CreateTagAsync(repository, input, cancellationToken),
+            BranchSource.IsValid(input.Source) ? input.Source : null);
 
     public Task<BitbucketResult<bool>> DeleteTagAsync(string repository, string tag, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_tag_delete", repository, null, null, tag, () => inner.DeleteTagAsync(repository, tag, cancellationToken));
@@ -193,9 +195,11 @@ internal sealed class AuditedBitbucketRepositoryGateway(
             auditedPullRequestId = pullRequest.Id;
         }
         BitbucketBranchInfo? createdBranch = result.Value as BitbucketBranchInfo;
+        BitbucketTagInfo? createdTag = result.Value as BitbucketTagInfo;
         audit.Write(new(tool, repository, branch, auditedPullRequestId, tag, result.IsSuccess,
             stopwatch.ElapsedMilliseconds, result.Error?.ToString(), Source: source,
-            SourceKind: createdBranch?.SourceKind, SourceHash: createdBranch?.SourceHash));
+            SourceKind: createdBranch?.SourceKind ?? createdTag?.SourceKind,
+            SourceHash: createdBranch?.SourceHash ?? createdTag?.SourceHash));
         return result;
     }
 }

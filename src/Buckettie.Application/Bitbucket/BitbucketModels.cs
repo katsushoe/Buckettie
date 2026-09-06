@@ -21,10 +21,13 @@ public sealed record BitbucketTagInfo(
     string TargetHash,
     string? Message,
     DateTimeOffset? Date,
-    string? Tagger);
+    string? Tagger,
+    string? Source = null,
+    string? SourceKind = null,
+    string? SourceHash = null);
 
 /// <summary>Tag作成入力です。</summary>
-public sealed record BitbucketTagCreate(string Name, string? Message);
+public sealed record BitbucketTagCreate(string Name, string Source, string? Message);
 
 /// <summary>Bitbucket Downloadsへ保存するRelease manifestです。</summary>
 public sealed record BitbucketReleaseInfo(
@@ -38,8 +41,9 @@ public sealed record BitbucketReleaseInfo(
 public sealed record BitbucketProviderCapabilities(
     string Provider,
     IReadOnlyDictionary<string, bool> Operations,
-    int ContractVersion = 2,
+    int ContractVersion = 3,
     bool BranchSourceRequired = true,
+    bool TagSourceRequired = true,
     bool RepositoryStatusNullable = true);
 
 /// <summary>Pull Requestの状態です。</summary>

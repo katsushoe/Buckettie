@@ -214,22 +214,23 @@ public sealed class BitbucketRepositoryGatewayTests
     }
 
     [Fact]
-    public async Task CreateTagAsync_WhenInputIsValid_TargetsConfiguredBranchHead()
+    public async Task CreateTagAsync_WhenBranchSourceIsValid_TargetsResolvedCommit()
     {
-        BitbucketTagCreate input = new("v1.2.3", "Release");
-        BitbucketTagInfo expected = new("v1.2.3", "abcdef", "Release", null, null);
+        string hash = new('a', 40);
+        BitbucketTagCreate input = new("v1.2.3", "main", "Release");
+        BitbucketTagInfo expected = new("v1.2.3", hash, "Release", null, null);
         _client.GetBranchAsync(
             "allowed",
             "workspace",
             "repository",
             "main",
             Arg.Any<CancellationToken>()).Returns(BitbucketResult<BitbucketBranchInfo>.Success(
-                new BitbucketBranchInfo("main", "abcdef")));
+                new BitbucketBranchInfo("main", hash)));
         _client.CreateTagAsync(
             "allowed",
             "workspace",
             "repository",
-            "abcdef",
+            hash,
             input,
             Arg.Any<CancellationToken>()).Returns(BitbucketResult<BitbucketTagInfo>.Success(expected));
         BitbucketRepositoryGateway gateway = CreateGateway();
@@ -239,7 +240,34 @@ public sealed class BitbucketRepositoryGatewayTests
             input,
             TestContext.Current.CancellationToken);
 
-        result.Value.Should().Be(expected);
+        result.Value.Should().Be(expected with
+        {
+            Source = "main",
+            SourceKind = "branch",
+            SourceHash = hash,
+        });
+    }
+
+    [Fact]
+    public async Task CreateTagAsync_WhenCommitSourceIsValid_TargetsThatCommit()
+    {
+        string hash = new('b', 40);
+        BitbucketTagCreate input = new("v1.2.3", hash, null);
+        BitbucketTagInfo expected = new("v1.2.3", hash, null, null, null);
+        _client.GetCommitAsync("allowed", "workspace", "repository", hash, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<string>.Success(hash));
+        _client.CreateTagAsync("allowed", "workspace", "repository", hash, input, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketTagInfo>.Success(expected));
+
+        BitbucketResult<BitbucketTagInfo> result = await CreateGateway().CreateTagAsync(
+            "allowed", input, TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(expected with
+        {
+            Source = hash,
+            SourceKind = "commit",
+            SourceHash = hash,
+        });
     }
 
     [Fact]
@@ -249,12 +277,68 @@ public sealed class BitbucketRepositoryGatewayTests
 
         BitbucketResult<BitbucketTagInfo> result = await gateway.CreateTagAsync(
             "allowed",
-            new BitbucketTagCreate("release-1", null),
+            new BitbucketTagCreate("release-1", "main", null),
             TestContext.Current.CancellationToken);
 
         result.Error.Should().Be(BitbucketError.InvalidTag);
         await _client.DidNotReceiveWithAnyArgs().CreateTagAsync(
             default!, default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("HEAD")]
+    [InlineData("bad source")]
+    public async Task CreateTagAsync_WhenSourceIsInvalid_ReturnsTypedError(string source)
+    {
+        BitbucketResult<BitbucketTagInfo> result = await CreateGateway().CreateTagAsync(
+            "allowed", new BitbucketTagCreate("v1.2.3", source, null), TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.InvalidTagSource);
+        await _client.DidNotReceiveWithAnyArgs().CreateTagAsync(
+            default!, default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task CreateTagAsync_WhenSourceDoesNotExist_ReturnsTypedError()
+    {
+        _client.GetBranchAsync("allowed", "workspace", "repository", "main", Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketBranchInfo>.Failure(BitbucketError.NotFound));
+
+        BitbucketResult<BitbucketTagInfo> result = await CreateGateway().CreateTagAsync(
+            "allowed", new BitbucketTagCreate("v1.2.3", "main", null), TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.TagSourceNotFound);
+    }
+
+    [Fact]
+    public async Task CreateTagAsync_WhenCommitSourceDoesNotExist_ReturnsTypedError()
+    {
+        string hash = new('c', 40);
+        _client.GetCommitAsync("allowed", "workspace", "repository", hash, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<string>.Failure(BitbucketError.NotFound));
+
+        BitbucketResult<BitbucketTagInfo> result = await CreateGateway().CreateTagAsync(
+            "allowed", new BitbucketTagCreate("v1.2.3", hash, null), TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.TagSourceNotFound);
+    }
+
+    [Fact]
+    public async Task CreateTagAsync_WhenProviderReturnsDifferentTarget_ReturnsInvalidResponse()
+    {
+        string hash = new('d', 40);
+        BitbucketTagCreate input = new("v1.2.3", hash, null);
+        _client.GetCommitAsync("allowed", "workspace", "repository", hash, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<string>.Success(hash));
+        _client.CreateTagAsync("allowed", "workspace", "repository", hash, input, Arg.Any<CancellationToken>())
+            .Returns(BitbucketResult<BitbucketTagInfo>.Success(
+                new("v1.2.3", new string('e', 40), null, null, null)));
+
+        BitbucketResult<BitbucketTagInfo> result = await CreateGateway().CreateTagAsync(
+            "allowed", input, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(BitbucketError.InvalidResponse);
     }
 
     [Fact]

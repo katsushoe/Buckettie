@@ -341,17 +341,18 @@ public sealed class BuckettieMcpTools
         BuckettieToolResultMapper.MapBitbucketAsync(
             _bitbucket.GetTagAsync(repository, tag, cancellationToken), "tag_get", repository, _language);
 
-    /// <summary>設定済み対象BranchのHEADへTagを作成します。</summary>
+    /// <summary>明示したBranchまたは完全コミットSHAへTagを作成します。</summary>
     [McpServerTool(Name = "bitbucket_tag_create", Destructive = true, OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("設定済み対象ブランチの現在のHEADへポリシー準拠タグを作成します。 / Creates a policy-compliant tag at the configured target branch's current HEAD.")]
+    [Description("明示した作成元へポリシー準拠タグを作成します。省略・暗黙補完・ローカル切替はありません。 / Creates a policy-compliant tag from an explicit source branch or full commit SHA; no default source or local checkout.")]
     public Task<BuckettieToolResult<BitbucketTagInfo>> CreateTagAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         [Description("ポリシー準拠のタグ名。 / Policy-compliant tag name.")] string tag,
+        [Description("必須の作成元Branch名または完全40桁コミットSHA。 / Required source branch name or full 40-character commit SHA.")] string source,
         [Description("任意の注釈付きタグメッセージ。 / Optional annotated-tag message.")] string? message = null,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapBitbucketAsync(
-            _bitbucket.CreateTagAsync(repository, new BitbucketTagCreate(tag, message), cancellationToken),
+            _bitbucket.CreateTagAsync(repository, new BitbucketTagCreate(tag, source, message), cancellationToken),
             "tag_create",
             repository,
             _language);
