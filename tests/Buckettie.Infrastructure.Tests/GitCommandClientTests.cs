@@ -208,17 +208,49 @@ public sealed class GitCommandClientTests
     }
 
     [Fact]
-    public async Task CommitAsync_WhenCalled_PassesMessageAsSingleArgument()
+    public async Task CommitAsync_WhenCalled_PassesMessageAsSingleArgumentAndAuthorThroughEnvironment()
     {
         GitCommandClient client = CreateClient();
 
-        await client.CommitAsync(
-            "repository-root", "feat: add provider contract", TestContext.Current.CancellationToken);
+        await client.CommitAsync("repository-root", "feat: add provider contract",
+            new GitCommitAuthor("Registered Author", "registered@example.com"), TestContext.Current.CancellationToken);
 
         _executor.Request!.Arguments.Should().Equal(
             "-c", "safe.directory=repository-root",
             "commit", "--message", "feat: add provider contract", "--");
-        _executor.Request.Environment.Should().BeEmpty();
+        _executor.Request.Environment.Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["GIT_AUTHOR_NAME"] = "Registered Author",
+            ["GIT_AUTHOR_EMAIL"] = "registered@example.com",
+            ["GIT_COMMITTER_NAME"] = "Registered Author",
+            ["GIT_COMMITTER_EMAIL"] = "registered@example.com",
+        });
+    }
+
+    [Theory]
+    [InlineData("Name\nInjected", "a@example.com")]
+    [InlineData("Name", "not-an-email")]
+    [InlineData("<Name>", "a@example.com")]
+    public async Task CommitAsync_WithInvalidAuthor_RejectsBeforeRunningGit(string name, string email)
+    {
+        GitCommandClient client = CreateClient();
+
+        Func<Task> commit = () => client.CommitAsync("repository-root", "feat: change",
+            new GitCommitAuthor(name, email), TestContext.Current.CancellationToken);
+
+        await commit.Should().ThrowAsync<ArgumentException>();
+        _executor.Request.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetConfigValueAsync_WhenCalled_UsesFixedArguments()
+    {
+        GitCommandClient client = CreateClient();
+
+        await client.GetConfigValueAsync("repository-root", "user.name", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "config", "--get", "--", "user.name");
     }
 
     private GitCommandClient CreateClient() => new(

@@ -55,7 +55,8 @@ internal sealed class BuckettieAuditLogger(ILogger<BuckettieAuditLogger> logger)
         auditEvent.RecoveryReference ?? "-");
 }
 
-internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger audit) : IGitGateway
+internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger audit,
+    Func<string, Task>? ensureCurrent = null) : IGitGateway
 {
     public Task<GitGatewayResult> GetStatusAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_repository_status", repository, () => inner.GetStatusAsync(repository, cancellationToken));
@@ -103,6 +104,7 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
         Func<Task<GitGatewayResult>> operation)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+        if (ensureCurrent is not null) await ensureCurrent(tool).ConfigureAwait(false);
         GitGatewayResult result = await operation().ConfigureAwait(false);
         audit.Write(new(tool, repository, branch, null, null, result.IsSuccess,
             stopwatch.ElapsedMilliseconds, result.Error?.ToString(), result.CorrelationId,
@@ -115,6 +117,7 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
     private async Task<GitGatewayResult> RunAsync(string tool, string repository, Func<Task<GitGatewayResult>> operation)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+        if (ensureCurrent is not null) await ensureCurrent(tool).ConfigureAwait(false);
         GitGatewayResult result = await operation().ConfigureAwait(false);
         audit.Write(new(tool, repository, result.Branch, null, null, result.IsSuccess,
             stopwatch.ElapsedMilliseconds, result.Error?.ToString(), result.CorrelationId));
@@ -124,7 +127,8 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
 
 internal sealed class AuditedBitbucketRepositoryGateway(
     IBitbucketRepositoryGateway inner,
-    IBuckettieAuditLogger audit) : IBitbucketRepositoryGateway
+    IBuckettieAuditLogger audit,
+    Func<string, Task>? ensureCurrent = null) : IBitbucketRepositoryGateway
 {
     public Task<BitbucketResult<BitbucketRepositoryInfo>> GetRepositoryAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_repository_get", repository, null, null, null, () => inner.GetRepositoryAsync(repository, cancellationToken));
@@ -188,6 +192,7 @@ internal sealed class AuditedBitbucketRepositoryGateway(
         int? pullRequestId, string? tag, Func<Task<BitbucketResult<T>>> operation, string? source = null)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+        if (ensureCurrent is not null) await ensureCurrent(tool).ConfigureAwait(false);
         BitbucketResult<T> result = await operation().ConfigureAwait(false);
         int? auditedPullRequestId = pullRequestId;
         if (auditedPullRequestId is null && result.Value is BitbucketPullRequestInfo pullRequest)
@@ -214,11 +219,12 @@ internal sealed class AuditedRepositoryRegistrationService(
         string remote,
         string developBranch,
         string mainBranch,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GitCommitAuthor? commitAuthor = null)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         RepositoryRegistrationOutcome result = await inner.RegisterAsync(
-            repositoryId, localRoot, remote, developBranch, mainBranch, cancellationToken).ConfigureAwait(false);
+            repositoryId, localRoot, remote, developBranch, mainBranch, cancellationToken, commitAuthor).ConfigureAwait(false);
         audit.Write(new(
             "bitbucket_repository_register",
             repositoryId,

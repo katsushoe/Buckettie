@@ -1,5 +1,11 @@
 # MCPセットアップ
 
+BuckettieはMoyaiを前提としません。既定（Serverの`--moyai`オプションなし）では、loopbackからの直接接続ですべての
+Repository操作を利用できます。Serverを`--moyai`付きで起動した場合、直接接続で利用できるのはBootstrapと読み取り操作
+（`list_projects`と`repository.read`だけを要求するTool）で、`fetch`・`pull`と変更操作にはMoyai Assertionが必要です。
+loopbackからの登録・更新・登録解除には、常にデスクトップでの対話承認（または管理者用クライアント証明書）が必要です。
+接続設定の前に[認証設定](docs/provider-authentication.md)を確認してください。
+
 [English](MCP_SETUP.md) | [日本語](MCP_SETUP.ja.md)
 
 このGuideでは、利用者が入力する値、Clientが自動生成する設定、利用者が確認する結果を分離します。Clientごとに推奨手順を1つ示し、Project Scopeの代替設定は別Sectionに分けています。

@@ -34,9 +34,13 @@ public interface IGitCommandClient
     /// <summary>作業ツリーの変更をすべてIndexへ追加します。</summary>
     public Task<GitCommandResult> StageAllAsync(string repositoryRoot, CancellationToken cancellationToken);
 
-    /// <summary>Indexの変更を指定メッセージでcommitします。</summary>
+    /// <summary>Indexの変更を、明示した作成者と指定メッセージでcommitします。</summary>
     public Task<GitCommandResult> CommitAsync(
-        string repositoryRoot, string message, CancellationToken cancellationToken);
+        string repositoryRoot, string message, GitCommitAuthor author, CancellationToken cancellationToken);
+
+    /// <summary>Repositoryから見えるGit設定値を取得します。未設定なら失敗を返します。</summary>
+    public Task<GitCommandResult> GetConfigValueAsync(
+        string repositoryRoot, string key, CancellationToken cancellationToken);
 
     /// <summary>設定済みRemote URLを取得します。</summary>
     public Task<GitCommandResult> GetRemoteUrlAsync(

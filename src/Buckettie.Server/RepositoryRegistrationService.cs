@@ -1,5 +1,6 @@
 using Buckettie.Application.Configuration;
 using Buckettie.Application.Credentials;
+using Buckettie.Application.Git;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
 
@@ -15,7 +16,8 @@ public interface IRepositoryRegistrationService
         string remote,
         string developBranch,
         string mainBranch,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        GitCommitAuthor? commitAuthor = null);
 }
 
 /// <summary>
@@ -66,8 +68,15 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
         string remote,
         string developBranch,
         string mainBranch,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GitCommitAuthor? commitAuthor = null)
     {
+        if (commitAuthor is not null && !GitCommitAuthor.IsValid(commitAuthor.Name, commitAuthor.Email))
+        {
+            return RepositoryRegistrationOutcome.Failure(
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.CommitAuthorInvalid));
+        }
+
         if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
         {
             return RepositoryRegistrationOutcome.Failure(BuckettieToolResultMapper.RegistrationInProgressError());
@@ -121,7 +130,8 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
             }
 
             RepositoryOptions newRepository = CreateServerDefaultedOptions(
-                validation.Workspace!, validation.Slug!, validation.LocalRoot!, remote, developBranch, mainBranch);
+                validation.Workspace!, validation.Slug!, validation.LocalRoot!, remote, developBranch, mainBranch)
+                with { CommitAuthorName = commitAuthor?.Name, CommitAuthorEmail = commitAuthor?.Email };
 
             bool written = await _repositoryStore.InsertAsync(repositoryId, newRepository, cancellationToken)
                 .ConfigureAwait(false);

@@ -1,5 +1,5 @@
 param(
-    [string]$DisplayVersion = '1.3.23.0',
+    [string]$DisplayVersion = '1.3.35.0',
     [string]$RuntimeIdentifier = 'win-x64',
     [switch]$NoRestore
 )
@@ -9,6 +9,7 @@ $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $releaseWorkDirectory = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.local\release'))
 $stagingDirectory = Join-Path $releaseWorkDirectory 'staging'
 $outputDirectory = Join-Path $releaseWorkDirectory 'output'
+$projectPublishDirectory = Join-Path $releaseWorkDirectory 'projects'
 
 if (-not $NoRestore) {
     dotnet restore (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -r $RuntimeIdentifier --nologo
@@ -17,7 +18,7 @@ if (-not $NoRestore) {
     if ($LASTEXITCODE -ne 0) { throw 'ApprovalPrompt restore failed.' }
 }
 
-foreach ($directory in @($stagingDirectory, $outputDirectory)) {
+foreach ($directory in @($stagingDirectory, $projectPublishDirectory, $outputDirectory)) {
     $resolvedDirectory = [IO.Path]::GetFullPath($directory)
     if (-not $resolvedDirectory.StartsWith("$releaseWorkDirectory\", [StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to remove a directory outside the release work directory: $resolvedDirectory"
@@ -25,6 +26,7 @@ foreach ($directory in @($stagingDirectory, $outputDirectory)) {
 }
 
 if (Test-Path -LiteralPath $stagingDirectory) { Remove-Item -LiteralPath $stagingDirectory -Recurse -Force }
+if (Test-Path -LiteralPath $projectPublishDirectory) { Remove-Item -LiteralPath $projectPublishDirectory -Recurse -Force }
 if (Test-Path -LiteralPath $outputDirectory) { Remove-Item -LiteralPath $outputDirectory -Recurse -Force }
 
 $binDirectory = Join-Path $stagingDirectory 'bin'
@@ -37,11 +39,21 @@ New-Item -ItemType Directory -Path $binDirectory, $configDirectory, $logDirector
 [IO.File]::WriteAllText((Join-Path $logDirectory '.keep'), '', [Text.Encoding]::ASCII)
 [IO.File]::WriteAllText((Join-Path $secretDirectory '.keep'), '', [Text.Encoding]::ASCII)
 
-dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo --no-restore
-if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
-
-dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.ApprovalPrompt\Buckettie.ApprovalPrompt.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $binDirectory --nologo --no-restore
+# Merge isolated outputs with the CLI last to retain its newer dependencies.
+$promptOutput = Join-Path $projectPublishDirectory 'ApprovalPrompt'
+dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.ApprovalPrompt\Buckettie.ApprovalPrompt.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $promptOutput --nologo --no-restore
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed: Buckettie.ApprovalPrompt.' }
+Copy-Item -Path (Join-Path $promptOutput '*') -Destination $binDirectory -Recurse -Force
+
+$cliOutput = Join-Path $projectPublishDirectory 'Cli'
+dotnet publish (Join-Path $repositoryRoot 'src\Buckettie.Cli\Buckettie.Cli.csproj') -c Release -r $RuntimeIdentifier --self-contained true -o $cliOutput --nologo --no-restore
+if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
+Copy-Item -Path (Join-Path $cliOutput '*') -Destination $binDirectory -Recurse -Force
+
+$publishedVersion = & (Join-Path $binDirectory 'buckettie.exe') version
+if ($LASTEXITCODE -ne 0 -or $publishedVersion -ne $DisplayVersion) {
+    throw 'Published CLI failed its version smoke test.'
+}
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'buckettie.example.json') -Destination $configDirectory
 $documents = @(

@@ -98,6 +98,40 @@ public sealed class RepositoryRegistrationServiceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_WithCommitAuthor_StoresItWithTheRepository()
+    {
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        FakeRepositoryStore store = new();
+        RepositoryRegistrationService service = CreateService(allowlist, store);
+        _approvalPrompt.RequestApprovalAsync(
+                Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ApprovalPromptOutcome.Approved());
+
+        RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken,
+            new Buckettie.Application.Git.GitCommitAuthor("Registered Author", "registered@example.com"));
+
+        outcome.IsSuccess.Should().BeTrue();
+        RepositoryOptions stored = (await store.LoadAllAsync(TestContext.Current.CancellationToken))["newrepo"];
+        stored.CommitAuthorName.Should().Be("Registered Author");
+        stored.CommitAuthorEmail.Should().Be("registered@example.com");
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WithInvalidCommitAuthor_NeverRequestsApproval()
+    {
+        RepositoryRegistrationService service = CreateService(CreateAllowlist());
+
+        RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken,
+            new Buckettie.Application.Git.GitCommitAuthor("Name", "not-an-email"));
+
+        outcome.Error!.Code.Should().Be("commit_author_invalid");
+        await _approvalPrompt.DidNotReceive().RequestApprovalAsync(
+            Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RegisterAsync_WhenApproved_WritesStoreAndUpdatesAllowlist()
     {
         RepositoryAllowlist allowlist = CreateAllowlist();

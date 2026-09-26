@@ -1,5 +1,11 @@
 using FluentAssertions;
 using Xunit;
+using Buckettie.Application.Configuration;
+using Buckettie.Application.Credentials;
+using Buckettie.Application.Git;
+using Buckettie.Infrastructure.Git;
+using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Buckettie.Cli.Tests;
 
@@ -25,6 +31,7 @@ public sealed class CliApplicationTests : IDisposable
         exitCode.Should().Be(0);
         output.ToString().Should()
             .Contain("buckettie doctor")
+            .And.Contain("buckettie auth set <repository> [--console-token]")
             .And.Contain("buckettie repo diff <repository>")
             .And.Contain("buckettie repo commit <repository> <message>");
     }
@@ -196,6 +203,82 @@ public sealed class CliApplicationTests : IDisposable
 
         exitCode.Should().Be(1);
         secretReaderCalled.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("success", false, 0, "[OK]")]
+    [InlineData("success", true, 0, "[OK]")]
+    [InlineData("cancel", false, 1, "TokenPromptCancelled")]
+    [InlineData("cancel", true, 1, "TokenPromptCancelled")]
+    [InlineData("LaunchFailed", false, 1, "TokenPromptLaunchFailed")]
+    [InlineData("save-failure", false, 1, "ProviderFailure")]
+    public async Task AuthSet_WhenInputCompletes_ReportsOutcomeWithoutSecret(
+        string outcome, bool consoleToken, int expectedExit, string expectedOutput)
+    {
+        string path = WriteConfiguration();
+        WriteGitRepository(_directory);
+        BuckettieOptions options = JsonSerializer.Deserialize<BuckettieOptions>(File.ReadAllText(path),
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower })!;
+        options = options with { Repositories = new Dictionary<string, RepositoryOptions>
+        {
+            ["example"] = options.Repositories["example"] with { LocalRoot = _directory },
+        } };
+        FakeTokenStore store = new(outcome == "save-failure");
+        using ServiceProvider services = new ServiceCollection()
+            .AddSingleton(options).AddSingleton<IApiTokenStore>(store)
+            .AddSingleton<IGitCommandClient>(new GitCommandClient(TimeSpan.FromSeconds(5),
+                Path.Combine(_directory, "askpass.exe"), "developer"))
+            .BuildServiceProvider();
+        StringWriter output = new();
+        StringWriter error = new();
+        const string secret = "test-secret-must-not-be-printed";
+        int exit = await CliApplication.SetAuthenticationAsync(services, "example", output, error,
+            () => { consoleToken.Should().BeTrue(); return outcome == "cancel" ? null : secret; },
+            (repository, remote, language, _) =>
+            {
+                consoleToken.Should().BeFalse();
+                repository.Should().Be("example");
+                remote.Should().Be("https://bitbucket.org/workspace/repository.git");
+                language.Should().Be("en-US");
+                if (Enum.TryParse(outcome, out TokenPromptError failure)) throw new TokenPromptException(failure);
+                return Task.FromResult(outcome == "cancel" ? null : secret);
+            }, consoleToken, false, TestContext.Current.CancellationToken);
+        exit.Should().Be(expectedExit);
+        (output.ToString() + error).Should().Contain(expectedOutput).And.NotContain(secret);
+        store.SavedToken.Should().Be(outcome is "success" or "save-failure" ? secret : null);
+        store.Repository.Should().Be(outcome is "success" or "save-failure" ? "example" : null);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AuthSet_WhenRepositoryIsNotRegistered_RejectsBeforePrompting(bool consoleToken)
+    {
+        string path = WriteConfiguration();
+        string[] args = consoleToken
+            ? ["--config", path, "auth", "set", "unregistered", "--console-token"]
+            : ["--config", path, "auth", "set", "unregistered"];
+        StringWriter output = new();
+        int exit = await CliApplication.RunAsync(args, output, new StringWriter(),
+            TestContext.Current.CancellationToken,
+            secretReader: () => throw new InvalidOperationException("Unexpected terminal input"),
+            tokenPrompt: (_, _, _, _) => throw new InvalidOperationException("Unexpected GUI input"));
+        exit.Should().Be(1);
+        output.ToString().Should().Contain("RepositoryNotAllowed");
+    }
+
+    private sealed class FakeTokenStore(bool fail) : IApiTokenStore
+    {
+        public string? SavedToken { get; private set; }
+        public string? Repository { get; private set; }
+        public ApiTokenStoreResult Save(string repositoryId, string token)
+        {
+            Repository = repositoryId;
+            SavedToken = token;
+            return fail ? ApiTokenStoreResult.Failure(ApiTokenStoreError.ProviderFailure) : ApiTokenStoreResult.Success();
+        }
+        public ApiTokenStoreResult Read(string repositoryId) => throw new NotSupportedException();
+        public ApiTokenStoreResult Delete(string repositoryId) => throw new NotSupportedException();
     }
 
     private string WriteConfiguration(string language = "en-US")

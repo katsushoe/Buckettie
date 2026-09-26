@@ -486,6 +486,24 @@ public sealed class BuckettieMcpToolsTests
         TagPattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+.*$",
     };
 
+    [Theory]
+    [InlineData(false, "standalone")]
+    [InlineData(true, "moyai")]
+    public async Task GetProviderCapabilitiesAsync_ReportsIntegrationMode(bool moyai, string expected)
+    {
+        BuckettieMcpTools tools = new(
+            new UnusedGitGateway(),
+            new UnusedBitbucketRepositoryGateway(),
+            new UnusedRepositoryRegistrationService(),
+            new UnusedRepositoryUnregistrationService(),
+            new UnusedRepositoryUpdateService(),
+            integration: new ProviderIntegrationMode(moyai));
+
+        BuckettieToolResult<BitbucketProviderCapabilities> result = await tools.GetProviderCapabilitiesAsync();
+
+        result.Data!.Authentication!.IntegrationMode.Should().Be(expected);
+    }
+
     [Fact]
     public async Task GetProviderCapabilitiesAsync_WhenCalled_MatchesImplementedContractTools()
     {
@@ -634,7 +652,7 @@ public sealed class BuckettieMcpToolsTests
     {
         public Task<RepositoryRegistrationOutcome> RegisterAsync(
             string repositoryId, string localRoot, string remote, string developBranch, string mainBranch,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken, Buckettie.Application.Git.GitCommitAuthor? commitAuthor = null) =>
             throw new NotSupportedException();
     }
 

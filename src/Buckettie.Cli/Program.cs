@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Globalization;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Buckettie.Cli;
 
@@ -110,7 +111,7 @@ internal static class CliApplication
             {
                 ["config", "check"] => WriteOk(output, japanese ? "設定" : "Config"),
                 ["config", "show"] => ShowConfig(services, output),
-                ["repo", "list"] => ListRepositories(services, output),
+                ["repo", "list"] => await CallToolAsync(services, output, "list_projects", null, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "status", var repository] => await RepositoryStatusAsync(services, repository, output, japanese, cancellationToken).ConfigureAwait(false),
                 ["repo", "diff", var repository] => await CallRepositoryToolAsync(services, output, "bitbucket_repository_diff", repository, [], cancellationToken).ConfigureAwait(false),
                 ["repo", "commit", var repository, var message] => await CallRepositoryToolAsync(services, output, "bitbucket_repository_commit", repository, new() { ["message"] = message }, cancellationToken).ConfigureAwait(false),
@@ -152,7 +153,8 @@ internal static class CliApplication
                 ["tag", "push", var repository, var tag] => await CallRepositoryToolAsync(services, output, "bitbucket_tag_push", repository, new() { ["tag"] = tag }, cancellationToken).ConfigureAwait(false),
                 ["provider", "capabilities"] => await CallToolAsync(services, output, "bitbucket_provider_capabilities", null, [], cancellationToken).ConfigureAwait(false),
                 ["auth", "test"] => TestAuthentication(services, output, japanese),
-                ["auth", "set", var repository] => SetAuthentication(services, repository, output, error, secretReader, japanese),
+                ["auth", "set", var repository] => await SetAuthenticationAsync(services, repository, output, error, secretReader, tokenPrompt, false, japanese, cancellationToken).ConfigureAwait(false),
+                ["auth", "set", var repository, "--console-token"] => await SetAuthenticationAsync(services, repository, output, error, secretReader, tokenPrompt, true, japanese, cancellationToken).ConfigureAwait(false),
                 ["auth", "delete", var repository] => DeleteAuthentication(services, repository, output, japanese),
                 ["mcp", "status"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
                 ["mcp", "test"] => await TestMcpAsync(services, output, false, cancellationToken).ConfigureAwait(false),
@@ -200,19 +202,49 @@ internal static class CliApplication
         return failures == 0 ? 0 : 1;
     }
 
-    private static int SetAuthentication(IServiceProvider services, string repository, TextWriter output,
-        TextWriter error, Func<string?>? secretReader, bool japanese)
+    internal static async Task<int> SetAuthenticationAsync(IServiceProvider services, string repository, TextWriter output,
+        TextWriter error, Func<string?>? secretReader,
+        Func<string, string, string, CancellationToken, Task<string?>>? tokenPrompt,
+        bool consoleToken, bool japanese, CancellationToken cancellationToken)
     {
         if (!services.GetRequiredService<BuckettieOptions>().Repositories.ContainsKey(repository))
         {
             output.WriteLine($"[NG] {(japanese ? "APIトークン" : "API Token")}: {repository} (RepositoryNotAllowed)");
             return 1;
         }
-        error.Write(japanese ? "トークン: " : "Token: ");
-        string? token = secretReader?.Invoke();
-        ApiTokenStoreResult result = token is null
-            ? ApiTokenStoreResult.Failure(ApiTokenStoreError.InvalidToken)
-            : services.GetRequiredService<IApiTokenStore>().Save(repository, token);
+        string? token;
+        try
+        {
+            if (consoleToken)
+            {
+                error.Write(japanese ? "トークン: " : "Token: ");
+                token = secretReader?.Invoke();
+            }
+            else
+            {
+                var options = services.GetRequiredService<BuckettieOptions>().Repositories[repository];
+                GitCommandResult remote = await services.GetRequiredService<IGitCommandClient>()
+                    .GetRemoteUrlAsync(options.LocalRoot, options.Remote, cancellationToken).ConfigureAwait(false);
+                if (!remote.IsSuccess || string.IsNullOrWhiteSpace(remote.StandardOutput))
+                {
+                    error.WriteLine("[NG] API Token: RemoteUrlUnavailable");
+                    return 1;
+                }
+                token = await (tokenPrompt ?? TokenPromptClient.ReadTokenAsync)(repository,
+                    remote.StandardOutput.Trim(), japanese ? "ja-JP" : "en-US", cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (TokenPromptException exception)
+        {
+            error.WriteLine($"[NG] API Token: {exception.Message}");
+            return 1;
+        }
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            error.WriteLine("[NG] API Token: TokenPromptCancelled");
+            return 1;
+        }
+        ApiTokenStoreResult result = services.GetRequiredService<IApiTokenStore>().Save(repository, token);
         output.WriteLine($"[{(result.IsSuccess ? "OK" : "NG")}] {(japanese ? "APIトークン" : "API Token")}: {repository}{(result.Error is null ? string.Empty : $" ({result.Error})")}");
         return result.IsSuccess ? 0 : 1;
     }
@@ -238,12 +270,6 @@ internal static class CliApplication
         output.WriteLine(japanese
             ? $"ブランチ={result.Branch ?? "-"} HEAD={result.Status?.LocalHead ?? "-"} クリーン={result.Status?.WorkingTreeClean}"
             : $"branch={result.Branch ?? "-"} head={result.Status?.LocalHead ?? "-"} clean={result.Status?.WorkingTreeClean}");
-        return 0;
-    }
-
-    private static int ListRepositories(IServiceProvider services, TextWriter output)
-    {
-        foreach (string id in services.GetRequiredService<BuckettieOptions>().Repositories.Keys.Order(StringComparer.Ordinal)) output.WriteLine(id);
         return 0;
     }
 
@@ -281,12 +307,20 @@ internal static class CliApplication
 
             Func<string, string, string, CancellationToken, Task<string?>> prompt =
                 tokenPrompt ?? TokenPromptClient.ReadTokenAsync;
-            token = await prompt(
+            try
+            {
+                token = await prompt(
                     repository,
                     remoteResult.StandardOutput.Trim(),
                     japanese ? "ja-JP" : "en-US",
                     cancellationToken)
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false);
+            }
+            catch (TokenPromptException exception)
+            {
+                error.WriteLine($"[NG] API Token: {exception.Message}");
+                return 1;
+            }
         }
 
         if (string.IsNullOrWhiteSpace(token))
@@ -314,6 +348,11 @@ internal static class CliApplication
             ["developBranch"] = GetOption(rest, "--develop-branch") ?? "develop",
             ["mainBranch"] = GetOption(rest, "--main-branch") ?? "main",
         };
+        // The service runs as LocalSystem, so the default author comes from the registering user's Git config.
+        (string? authorName, string? authorEmail) = await ResolveRegistrationAuthorAsync(
+            services, localRoot, rest, cancellationToken).ConfigureAwait(false);
+        if (authorName is not null) arguments["commitAuthorName"] = authorName;
+        if (authorEmail is not null) arguments["commitAuthorEmail"] = authorEmail;
         int result = await CallRepositoryToolAsync(
             services, output, "bitbucket_repository_register", repository, arguments, cancellationToken)
             .ConfigureAwait(false);
@@ -325,6 +364,25 @@ internal static class CliApplication
         return result;
     }
 
+    /// <summary>
+    /// 登録時のcommit作成者を決めます。明示指定を優先し、なければ登録を行う利用者のGit設定を使います。
+    /// </summary>
+    private static async Task<(string? Name, string? Email)> ResolveRegistrationAuthorAsync(
+        IServiceProvider services, string localRoot, string[] rest, CancellationToken cancellationToken)
+    {
+        string? name = GetOption(rest, "--commit-author-name");
+        string? email = GetOption(rest, "--commit-author-email");
+        if (name is not null || email is not null) return (name, email);
+        IGitCommandClient git = services.GetRequiredService<IGitCommandClient>();
+        GitCommandResult configuredName = await git.GetConfigValueAsync(localRoot, "user.name", cancellationToken)
+            .ConfigureAwait(false);
+        GitCommandResult configuredEmail = await git.GetConfigValueAsync(localRoot, "user.email", cancellationToken)
+            .ConfigureAwait(false);
+        string userName = configuredName.IsSuccess ? configuredName.StandardOutput.Trim() : string.Empty;
+        string userEmail = configuredEmail.IsSuccess ? configuredEmail.StandardOutput.Trim() : string.Empty;
+        return GitCommitAuthor.IsValid(userName, userEmail) ? (userName, userEmail) : (null, null);
+    }
+
     private static async Task<int> UpdateRepositoryAsync(IServiceProvider services, string repository,
         string[] rest, TextWriter output, TextWriter error, bool japanese, CancellationToken cancellationToken)
     {
@@ -334,6 +392,20 @@ internal static class CliApplication
         string? tagTargetBranch = GetOption(rest, "--tag-target-branch");
         string? tagPattern = GetOption(rest, "--tag-pattern");
         string? historyRewriteBranches = GetOption(rest, "--history-rewrite-branches");
+        string? commitAuthorName = GetOption(rest, "--commit-author-name");
+        string? commitAuthorEmail = GetOption(rest, "--commit-author-email");
+        // An author-only update keeps the registered branch policy for omitted flags; policy updates still
+        // require every flag so a partial command cannot silently reuse stale values.
+        bool authorOnly = commitAuthorName is not null || commitAuthorEmail is not null;
+        if (authorOnly
+            && services.GetRequiredService<BuckettieOptions>().Repositories.TryGetValue(repository, out RepositoryOptions? current))
+        {
+            directPushBranches ??= string.Join(',', current.DirectPushBranches);
+            pullBranches ??= string.Join(',', current.PullBranches);
+            protectedBranches ??= string.Join(',', current.ProtectedBranches);
+            tagTargetBranch ??= current.TagTargetBranch;
+            tagPattern ??= current.TagPattern;
+        }
         if (directPushBranches is null || pullBranches is null || protectedBranches is null
             || tagTargetBranch is null || tagPattern is null)
         {
@@ -358,6 +430,8 @@ internal static class CliApplication
         {
             arguments["historyRewriteBranches"] = SplitList(historyRewriteBranches);
         }
+        if (commitAuthorName is not null) arguments["commitAuthorName"] = commitAuthorName;
+        if (commitAuthorEmail is not null) arguments["commitAuthorEmail"] = commitAuthorEmail;
         return await CallRepositoryToolAsync(
             services, output, "bitbucket_repository_update", repository, arguments, cancellationToken)
             .ConfigureAwait(false);
@@ -411,8 +485,34 @@ internal static class CliApplication
         CancellationToken cancellationToken)
     {
         BuckettieOptions options = services.GetRequiredService<BuckettieOptions>();
-        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(130) };
-        using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{options.McpPort}{options.McpPath}");
+        // Without a configured CLI certificate, management tools use the ordinary loopback endpoint,
+        // where the server allows them only after interactive desktop approval.
+        AdministratorEndpointOptions? admin = ProviderToolPolicy.IsAdministrator(toolName)
+            && options.AdministratorEndpoint is { CliCertificateThumbprint: not null } configured ? configured : null;
+        using HttpClientHandler handler = new() { AllowAutoRedirect = false };
+        X509Certificate2? selectedCertificate;
+        try
+        {
+            selectedCertificate = admin is not null
+                ? AdministratorCertificates.Load(admin.CliCertificateThumbprint!, StoreLocation.CurrentUser) : null;
+        }
+        catch (Exception exception) when (exception is System.Security.Cryptography.CryptographicException
+            or InvalidOperationException or UnauthorizedAccessException)
+        {
+            output.WriteLine($"[NG] {toolName}: administrator_certificate_unavailable");
+            return 1;
+        }
+        using X509Certificate2? certificate = selectedCertificate;
+        if (certificate is not null && admin is not null)
+        {
+            handler.ClientCertificates.Add(certificate);
+            handler.ServerCertificateCustomValidationCallback = (_, serverCertificate, _, _) =>
+                AdministratorCertificates.IsAllowed(serverCertificate, [admin.ServerCertificateThumbprint]);
+        }
+        using HttpClient client = new(handler) { Timeout = TimeSpan.FromSeconds(130) };
+        string endpoint = admin is not null ? $"https://localhost:{admin.Port}{options.McpPath}"
+            : $"http://127.0.0.1:{options.McpPort}{options.McpPath}";
+        using HttpRequestMessage request = new(HttpMethod.Post, endpoint);
         request.Headers.Accept.ParseAdd("application/json, text/event-stream");
         request.Content = new StringContent(JsonSerializer.Serialize(new
         {
@@ -664,10 +764,11 @@ internal static class CliApplication
         buckettie history preview|rewrite <repository> <branch> <expected-old-head> --reason TEXT
             [--author-name X] [--author-email X] [--committer-name X] [--committer-email X] [--allow-signature-removal]
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
+            [--commit-author-name X --commit-author-email X]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
-            [--history-rewrite-branches a,b]
+            [--history-rewrite-branches a,b] [--commit-author-name X --commit-author-email X]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>
@@ -684,11 +785,16 @@ internal static class CliApplication
         repo register/unregister/updateは稼働中サービスのMCPエンドポイントを呼び出します。
         register/updateはサーバーのデスクトップに承認ダイアログを表示し、最大120秒待機します。
         buckettie auth test
-        buckettie auth set|delete <repository>
+        buckettie auth set <repository> [--console-token]
+        buckettie auth delete <repository>
+        auth setは既定でGUI入力を使用します。--console-token指定時のみ非表示のTerminal入力を使用します。
         buckettie mcp status|tools|test|version
         buckettie logs
         buckettie version
         共通オプション: --config <path>
+        commit作成者は登録単位で保持します。register時の既定値は実行者のGit設定です。
+        作成者だけを変更するrepo updateでは、省略したブランチ設定は登録済みの値を維持します。
+        --moyai付きで起動したServerでは、変更操作にMoyai Assertionが必要です。
         """ : """
         buckettie doctor
         buckettie start|stop|restart|status
@@ -702,10 +808,11 @@ internal static class CliApplication
         buckettie history preview|rewrite <repository> <branch> <expected-old-head> --reason TEXT
             [--author-name X] [--author-email X] [--committer-name X] [--committer-email X] [--allow-signature-removal]
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
+            [--commit-author-name X --commit-author-email X]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
-            [--history-rewrite-branches a,b]
+            [--history-rewrite-branches a,b] [--commit-author-name X --commit-author-email X]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>
@@ -722,10 +829,15 @@ internal static class CliApplication
         (repo register/unregister/update call the running service's MCP endpoint; register/update wait for
         interactive Dialog approval on the server's desktop, up to 120s)
         buckettie auth test
-        buckettie auth set|delete <repository>
+        buckettie auth set <repository> [--console-token]
+        buckettie auth delete <repository>
+        auth set uses GUI input by default; --console-token selects terminal input without echo.
         buckettie mcp status|tools|test|version
         buckettie logs
         buckettie version
         Global option: --config <path>
+        The commit author is stored per repository; register defaults to the caller's Git config.
+        An author-only repo update keeps registered branch settings for omitted options.
+        When the server runs with --moyai, change operations require a Moyai assertion.
         """);
 }

@@ -36,7 +36,7 @@ Use `--config <path>` for a nonstandard location.
 
 ## Token Registration
 
-Run from an elevated terminal for each repository. Input is hidden.
+Run from an elevated terminal for each repository. By default, a centered, topmost GUI dialog accepts the Token. Add `--console-token` to use terminal input without echo.
 
 ```powershell
 <install-root>\bin\buckettie.exe auth set <repository-id>

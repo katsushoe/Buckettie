@@ -23,7 +23,7 @@ internal sealed class ApprovalForm : Form
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        _text = ApprovalFormText.ForLanguage(request.Language, CultureInfo.CurrentUICulture);
+        _text = ApprovalFormText.ForLanguage(request.Language, CultureInfo.CurrentUICulture, request.Operation);
         Text = _text.Title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.Manual;

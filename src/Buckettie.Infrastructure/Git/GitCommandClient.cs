@@ -88,8 +88,30 @@ public sealed class GitCommandClient : IGitCommandClient
     public Task<GitCommandResult> CommitAsync(
         string repositoryRoot,
         string message,
+        GitCommitAuthor author,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(author);
+        if (!GitCommitAuthor.IsValid(author.Name, author.Email))
+            throw new ArgumentException("Invalid commit author.", nameof(author));
+        // Environment variables keep the identity out of argument parsing and override the
+        // service account's (usually empty) Git identity for both author and committer.
+        Dictionary<string, string> environment = new(StringComparer.Ordinal)
+        {
+            ["GIT_AUTHOR_NAME"] = author.Name,
+            ["GIT_AUTHOR_EMAIL"] = author.Email,
+            ["GIT_COMMITTER_NAME"] = author.Name,
+            ["GIT_COMMITTER_EMAIL"] = author.Email,
+        };
+        return ExecuteAsync(repositoryRoot, ["commit", "--message", message, "--"], cancellationToken, environment);
+    }
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> GetConfigValueAsync(
+        string repositoryRoot,
+        string key,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryRoot, ["commit", "--message", message, "--"], cancellationToken);
+        ExecuteAsync(repositoryRoot, ["config", "--get", "--", key], cancellationToken);
 
     /// <inheritdoc />
     public Task<GitCommandResult> GetRemoteUrlAsync(

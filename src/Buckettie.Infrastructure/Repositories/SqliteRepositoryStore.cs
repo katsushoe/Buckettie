@@ -48,13 +48,17 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 tag_target_branch TEXT NOT NULL,
                 tag_pattern TEXT NOT NULL,
                 require_clean_working_tree INTEGER NOT NULL,
-                history_rewrite_branches TEXT NOT NULL DEFAULT '[]'
+                history_rewrite_branches TEXT NOT NULL DEFAULT '[]',
+                commit_author_name TEXT NULL,
+                commit_author_email TEXT NULL
             );
             CREATE UNIQUE INDEX IF NOT EXISTS ux_repositories_repository_id_nocase
                 ON repositories(repository_id COLLATE NOCASE);
             """;
         create.ExecuteNonQuery();
-        EnsureHistoryRewriteColumn(connection);
+        EnsureColumn(connection, "history_rewrite_branches", "TEXT NOT NULL DEFAULT '[]'");
+        EnsureColumn(connection, "commit_author_name", "TEXT NULL");
+        EnsureColumn(connection, "commit_author_email", "TEXT NULL");
     }
 
     /// <inheritdoc />
@@ -66,7 +70,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         select.CommandText = """
             SELECT repository_id, workspace, slug, local_root, remote, develop_branch, main_branch,
                    direct_push_branches, pull_branches, protected_branches, tag_target_branch,
-                   tag_pattern, require_clean_working_tree, history_rewrite_branches
+                   tag_pattern, require_clean_working_tree, history_rewrite_branches,
+                   commit_author_name, commit_author_email
             FROM repositories;
             """;
 
@@ -90,6 +95,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 TagPattern = reader.GetString(11),
                 RequireCleanWorkingTree = reader.GetInt64(12) != 0,
                 HistoryRewriteBranches = DeserializeSet(reader.GetString(13)),
+                CommitAuthorName = reader.IsDBNull(14) ? null : reader.GetString(14),
+                CommitAuthorEmail = reader.IsDBNull(15) ? null : reader.GetString(15),
             };
         }
 
@@ -109,11 +116,13 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
             INSERT OR IGNORE INTO repositories
                 (repository_id, workspace, slug, local_root, remote, develop_branch, main_branch,
                  direct_push_branches, pull_branches, protected_branches, tag_target_branch,
-                 tag_pattern, require_clean_working_tree, history_rewrite_branches)
+                 tag_pattern, require_clean_working_tree, history_rewrite_branches,
+                 commit_author_name, commit_author_email)
             VALUES
                 (@id, @workspace, @slug, @localRoot, @remote, @developBranch, @mainBranch,
                  @directPushBranches, @pullBranches, @protectedBranches, @tagTargetBranch,
-                 @tagPattern, @requireCleanWorkingTree, @historyRewriteBranches);
+                 @tagPattern, @requireCleanWorkingTree, @historyRewriteBranches,
+                 @commitAuthorName, @commitAuthorEmail);
             """;
         BindOptions(insert, repositoryId, options);
         int affected = await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -143,7 +152,9 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 tag_target_branch = @tagTargetBranch,
                 tag_pattern = @tagPattern,
                 require_clean_working_tree = @requireCleanWorkingTree,
-                history_rewrite_branches = @historyRewriteBranches
+                history_rewrite_branches = @historyRewriteBranches,
+                commit_author_name = @commitAuthorName,
+                commit_author_email = @commitAuthorEmail
             WHERE repository_id = @id COLLATE NOCASE;
             """;
         BindOptions(update, repositoryId, options);
@@ -187,9 +198,12 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         command.Parameters.AddWithValue("@tagPattern", options.TagPattern);
         command.Parameters.AddWithValue("@requireCleanWorkingTree", options.RequireCleanWorkingTree ? 1 : 0);
         command.Parameters.AddWithValue("@historyRewriteBranches", SerializeSet(options.HistoryRewriteBranches));
+        command.Parameters.AddWithValue("@commitAuthorName", (object?)options.CommitAuthorName ?? DBNull.Value);
+        command.Parameters.AddWithValue("@commitAuthorEmail", (object?)options.CommitAuthorEmail ?? DBNull.Value);
     }
 
-    private static void EnsureHistoryRewriteColumn(SqliteConnection connection)
+    /// <summary>既存DBへ後から追加した列を補います。</summary>
+    private static void EnsureColumn(SqliteConnection connection, string name, string definition)
     {
         using SqliteCommand columns = connection.CreateCommand();
         columns.CommandText = "PRAGMA table_info(repositories);";
@@ -197,7 +211,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         bool exists = false;
         while (reader.Read())
         {
-            if (string.Equals(reader.GetString(1), "history_rewrite_branches", StringComparison.Ordinal))
+            if (string.Equals(reader.GetString(1), name, StringComparison.Ordinal))
             {
                 exists = true;
                 break;
@@ -206,7 +220,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         reader.Close();
         if (exists) return;
         using SqliteCommand alter = connection.CreateCommand();
-        alter.CommandText = "ALTER TABLE repositories ADD COLUMN history_rewrite_branches TEXT NOT NULL DEFAULT '[]';";
+        // Column names and definitions are compile-time constants, never caller input.
+        alter.CommandText = $"ALTER TABLE repositories ADD COLUMN {name} {definition};";
         alter.ExecuteNonQuery();
     }
 

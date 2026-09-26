@@ -20,6 +20,7 @@ public sealed class BuckettieMcpTools
     private readonly IRepositoryUpdateService _update;
     private readonly RepositoryAllowlist? _allowlist;
     private readonly string _language;
+    private readonly ProviderIntegrationMode _integration;
 
     /// <summary>MCP Toolを初期化します。</summary>
     public BuckettieMcpTools(
@@ -29,7 +30,8 @@ public sealed class BuckettieMcpTools
         IRepositoryUnregistrationService unregistration,
         IRepositoryUpdateService update,
         BuckettieOptions? options = null,
-        RepositoryAllowlist? allowlist = null)
+        RepositoryAllowlist? allowlist = null,
+        ProviderIntegrationMode? integration = null)
     {
         ArgumentNullException.ThrowIfNull(git);
         ArgumentNullException.ThrowIfNull(bitbucket);
@@ -43,6 +45,7 @@ public sealed class BuckettieMcpTools
         _update = update;
         _allowlist = allowlist;
         _language = options?.Language ?? "en-US";
+        _integration = integration ?? new ProviderIntegrationMode(false);
     }
 
     /// <summary>稼働中のBuckettieバージョンを取得します。</summary>
@@ -91,7 +94,9 @@ public sealed class BuckettieMcpTools
             true,
             "provider_capabilities",
             string.Empty,
-            new BitbucketProviderCapabilities("bitbucket", operations),
+            new BitbucketProviderCapabilities("bitbucket", operations,
+                Authentication: new ProviderAuthenticationCapabilities(ProviderToolPolicy.Capability.ToolScopes,
+                    IntegrationMode: _integration.Name)),
             null));
     }
 
@@ -443,10 +448,14 @@ public sealed class BuckettieMcpTools
         [Description("検証して使用するHTTPS Gitリモート名。 / HTTPS Git remote name to validate and use.")] string remote = "origin",
         [Description("開発ブランチ名。 / Development branch name.")] string developBranch = "develop",
         [Description("主要ブランチ名。 / Main branch name.")] string mainBranch = "main",
+        [Description("commit作成者名。作成者メールアドレスと対で指定します。 / Commit author name, specified together with the email.")] string? commitAuthorName = null,
+        [Description("commit作成者メールアドレス。 / Commit author email address.")] string? commitAuthorEmail = null,
         CancellationToken cancellationToken = default)
     {
+        GitCommitAuthor? author = commitAuthorName is null && commitAuthorEmail is null
+            ? null : new GitCommitAuthor(commitAuthorName ?? string.Empty, commitAuthorEmail ?? string.Empty);
         RepositoryRegistrationOutcome outcome = await _registration.RegisterAsync(
-            repository, localRoot, remote, developBranch, mainBranch, cancellationToken).ConfigureAwait(false);
+            repository, localRoot, remote, developBranch, mainBranch, cancellationToken, author).ConfigureAwait(false);
         return outcome.IsSuccess
             ? new(true, "bitbucket_repository_register", repository,
                 new BuckettieRepositoryRegistrationData(
@@ -459,9 +468,8 @@ public sealed class BuckettieMcpTools
     /// <summary>登録済みRepositoryをAllowlistから削除します。Push/PR/Tag権限を削減するだけの操作のため、承認は不要です。</summary>
     [McpServerTool(Name = "bitbucket_repository_unregister", ReadOnly = false, Destructive = true,
         Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("登録済みリポジトリを許可リストから削除します。権限を減らす操作のため対話承認は不要です。 / " +
-        "Removes a registered repository from the allowlist. Since this only revokes push/PR/tag " +
-        "rights, no interactive approval is required.")]
+    [Description("登録済みリポジトリを許可リストから削除します。対話Desktopでの人間承認が必要です。 / " +
+        "Removes a registered repository from the allowlist after interactive desktop approval.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryUnregistrationData>> UnregisterRepositoryAsync(
         [Description("登録解除するBuckettieリポジトリID。 / Buckettie repository ID to unregister.")] string repository,
         CancellationToken cancellationToken = default)
@@ -492,11 +500,13 @@ public sealed class BuckettieMcpTools
         [Description("許可するリリースタグ名が一致すべき正規表現。 / Regular expression allowed release tag names must match.")] string tagPattern,
         [Description("pushにクリーンな作業ツリーを要求するか。 / Whether push requires a clean working tree.")] bool requireCleanWorkingTree = true,
         [Description("履歴書き換えを明示許可するブランチ。 / Branches explicitly allowed for history rewriting.")] HashSet<string>? historyRewriteBranches = null,
+        [Description("commit作成者名。省略時は変更しません。メールアドレスと対で指定します。 / Commit author name; unchanged when omitted, specified together with the email.")] string? commitAuthorName = null,
+        [Description("commit作成者メールアドレス。 / Commit author email address.")] string? commitAuthorEmail = null,
         CancellationToken cancellationToken = default)
     {
         RepositoryUpdateRequest request = new(
             directPushBranches, pullBranches, protectedBranches, tagTargetBranch, tagPattern,
-            requireCleanWorkingTree, historyRewriteBranches);
+            requireCleanWorkingTree, historyRewriteBranches, commitAuthorName, commitAuthorEmail);
         RepositoryUpdateOutcome outcome = await _update
             .UpdateAsync(repository, request, cancellationToken).ConfigureAwait(false);
         return outcome.IsSuccess

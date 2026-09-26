@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Buckettie.Server;
 
@@ -17,9 +19,24 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        try { return await ExecuteAsync(args).ConfigureAwait(false); }
+        catch (Exception exception) when (exception is Moyai.ProviderAuthentication.ProviderAuthenticationException
+            or System.Security.Cryptography.CryptographicException or InvalidOperationException
+            or ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            using ILoggerFactory logs = LoggerFactory.Create(builder => builder.AddConsole());
+            logs.CreateLogger("Buckettie.Startup").LogError("[Startup] authentication_or_configuration_unavailable {ExceptionType}",
+                exception.GetType().Name);
+            return 2;
+        }
+    }
+
+    private static async Task<int> ExecuteAsync(string[] args)
+    {
         BuckettiePathLayout paths = BuckettiePathLayout.FromBinaryDirectory(AppContext.BaseDirectory);
-        string configurationPath = args.Length > 0
-            ? Path.GetFullPath(args[0])
+        ServerArguments arguments = ServerArguments.Parse(args);
+        string configurationPath = arguments.ConfigurationPath is { } configured
+            ? Path.GetFullPath(configured)
             : Path.Combine(paths.ConfigurationDirectory, "buckettie.json");
         string askPassExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.AskPass.exe");
         string approvalPromptExecutable = Path.Combine(AppContext.BaseDirectory, "Buckettie.ApprovalPrompt.exe");
@@ -38,7 +55,7 @@ internal static class Program
         {
             if (result.IsSuccess)
             {
-                await RunServerAsync(result.Services!, paths, CancellationToken.None).ConfigureAwait(false);
+                await RunServerAsync(result.Services!, paths, arguments, CancellationToken.None).ConfigureAwait(false);
                 return 0;
             }
 
@@ -54,22 +71,42 @@ internal static class Program
     private static async Task RunServerAsync(
         IServiceProvider buckettieServices,
         BuckettiePathLayout paths,
+        ServerArguments arguments,
         CancellationToken cancellationToken)
     {
         BuckettieOptions options = buckettieServices.GetRequiredService<BuckettieOptions>();
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
         builder.Logging.AddProvider(new DailyFileLoggerProvider(paths.LogDirectory));
         builder.Services.AddWindowsService(service => service.ServiceName = "Buckettie");
-        builder.WebHost.ConfigureKestrel(server => server.ListenLocalhost(options.McpPort));
+        if (options.AdministratorEndpoint is { } administrator)
+            AdministratorCertificates.Validate(administrator, options.McpPort);
+        using X509Certificate2? serverCertificate = options.AdministratorEndpoint is { } adminOptions
+            ? AdministratorCertificates.Load(adminOptions.ServerCertificateThumbprint, StoreLocation.LocalMachine) : null;
+        builder.WebHost.ConfigureKestrel(server =>
+        {
+            server.ListenLocalhost(options.McpPort);
+            if (options.AdministratorEndpoint is { } admin)
+                server.ListenLocalhost(admin.Port, listener => listener.UseHttps(https =>
+                {
+                    https.ServerCertificate = serverCertificate;
+                    https.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
+                    https.ClientCertificateValidation = (certificate, _, _) =>
+                        AdministratorCertificates.IsAllowed(certificate, admin.ClientCertificateThumbprints);
+                }));
+        });
         builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton(new ProviderIntegrationMode(arguments.MoyaiIntegration));
         builder.Services.AddSingleton(buckettieServices.GetRequiredService<RepositoryAllowlist>());
         builder.Services.AddSingleton<IBuckettieAuditLogger, BuckettieAuditLogger>();
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<IGitGateway>(provider => new AuditedGitGateway(
             buckettieServices.GetRequiredService<IGitGateway>(),
-            provider.GetRequiredService<IBuckettieAuditLogger>()));
+            provider.GetRequiredService<IBuckettieAuditLogger>(),
+            tool => ProviderAuthenticationBoundary.EnsureCurrentAsync(provider.GetRequiredService<IHttpContextAccessor>().HttpContext, tool)));
         builder.Services.AddSingleton<IBitbucketRepositoryGateway>(provider => new AuditedBitbucketRepositoryGateway(
             buckettieServices.GetRequiredService<IBitbucketRepositoryGateway>(),
-            provider.GetRequiredService<IBuckettieAuditLogger>()));
+            provider.GetRequiredService<IBuckettieAuditLogger>(),
+            tool => ProviderAuthenticationBoundary.EnsureCurrentAsync(provider.GetRequiredService<IHttpContextAccessor>().HttpContext, tool)));
         builder.Services.AddSingleton<IRepositoryRegistrationService>(provider =>
             new AuditedRepositoryRegistrationService(
                 buckettieServices.GetRequiredService<IRepositoryRegistrationService>(),
@@ -90,10 +127,16 @@ internal static class Program
             .WithPrompts<BuckettieMcpGuidance>(BuckettieMcpJson.CreateOptions());
 
         await using WebApplication app = builder.Build();
+        ProviderAuthenticationBoundary authentication = await ProviderAuthenticationBoundary.CreateAsync(options,
+            buckettieServices.GetRequiredService<RepositoryAllowlist>(),
+            app.Services.GetRequiredService<ILogger<ProviderAuthenticationBoundary>>(), cancellationToken,
+            buckettieServices.GetRequiredService<RepositoryMutationGate>(), arguments.MoyaiIntegration).ConfigureAwait(false);
+        app.Services.GetRequiredService<ILogger<ProviderAuthenticationBoundary>>()
+            .LogWarning("[Startup] integration_mode {Mode}", new ProviderIntegrationMode(arguments.MoyaiIntegration).Name);
         app.Use(async (context, next) =>
         {
             if (context.Request.Path.StartsWithSegments(options.McpPath)
-                && !McpOriginValidator.IsAllowed(context.Request.Headers.Origin, options.McpPort))
+                && !McpOriginValidator.IsAllowed(context.Request.Headers.Origin, context.Connection.LocalPort))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -101,6 +144,7 @@ internal static class Program
 
             await next(context).ConfigureAwait(false);
         });
+        app.Use(authentication.InvokeAsync);
         app.MapMcp(options.McpPath);
         await app.StartAsync(cancellationToken).ConfigureAwait(false);
         await app.WaitForShutdownAsync(cancellationToken).ConfigureAwait(false);

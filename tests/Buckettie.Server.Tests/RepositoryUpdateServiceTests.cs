@@ -106,6 +106,48 @@ public sealed class RepositoryUpdateServiceTests
             Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task UpdateAsync_WithCommitAuthor_StoresPairAndKeepsItWhenOmittedLater()
+    {
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        FakeRepositoryStore store = new();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+        _approvalPrompt.RequestApprovalAsync(
+                Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ApprovalPromptOutcome.Approved());
+        RepositoryUpdateService service = new(allowlist, store, _approvalPrompt, new RepositoryMutationGate());
+
+        (await service.UpdateAsync("buckettie", CreateRequest() with
+            { CommitAuthorName = "Registered Author", CommitAuthorEmail = "registered@example.com" },
+            TestContext.Current.CancellationToken)).IsSuccess.Should().BeTrue();
+        (await service.UpdateAsync("buckettie", CreateRequest() with { TagTargetBranch = "release" },
+            TestContext.Current.CancellationToken)).IsSuccess.Should().BeTrue();
+
+        RepositoryOptions stored = (await store.LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"];
+        stored.CommitAuthorName.Should().Be("Registered Author");
+        stored.CommitAuthorEmail.Should().Be("registered@example.com");
+        stored.TagTargetBranch.Should().Be("release");
+    }
+
+    [Theory]
+    [InlineData("Only Name", null)]
+    [InlineData(null, "only@example.com")]
+    [InlineData("Name", "not-an-email")]
+    [InlineData("Bad\nName", "a@example.com")]
+    public async Task UpdateAsync_WithIncompleteOrInvalidAuthor_NeverRequestsApproval(string? name, string? email)
+    {
+        RepositoryUpdateService service = new(
+            CreateAllowlist(), new FakeRepositoryStore(), _approvalPrompt, new RepositoryMutationGate());
+
+        RepositoryUpdateOutcome outcome = await service.UpdateAsync("buckettie",
+            CreateRequest() with { CommitAuthorName = name, CommitAuthorEmail = email },
+            TestContext.Current.CancellationToken);
+
+        outcome.Error!.Code.Should().Be("commit_author_invalid");
+        await _approvalPrompt.DidNotReceive().RequestApprovalAsync(
+            Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
     private static RepositoryAllowlist CreateAllowlist() => new(new BuckettieOptions
     {
         AtlassianEmail = "developer@example.com",

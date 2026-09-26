@@ -8,6 +8,22 @@ namespace Buckettie.Cli.Tests;
 
 public sealed class RepositoryLifecycleCommandTests : IDisposable
 {
+    [Fact]
+    public async Task RepoList_WithoutAdministratorConfiguration_AsksServiceInsteadOfReadingLocalRegistrations()
+    {
+        int port = GetFreePort();
+        string path = WriteConfiguration(port);
+        using HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/mcp/");
+        listener.Start();
+        Task<string> serverTask = RespondOnceAsync(listener, """{"result":{"ok":true}}""");
+        StringWriter output = new();
+        int exitCode = await CliApplication.RunAsync(["--config", path, "repo", "list"], output,
+            new StringWriter(), TestContext.Current.CancellationToken);
+        (await serverTask).Should().Contain("\"name\":\"list_projects\"");
+        exitCode.Should().Be(0);
+    }
+
     private readonly string _directory =
         Path.Combine(Path.GetTempPath(), $"buckettie-cli-repo-{Guid.NewGuid():N}");
 
@@ -64,7 +80,7 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
     }
 
     [Fact]
-    public async Task RepoUpdate_WhenServiceRespondsOk_PrintsResponseBody()
+    public async Task RepoUpdate_WithoutAdministratorConfiguration_UsesLoopbackEndpointForDesktopApproval()
     {
         int port = GetFreePort();
         string path = WriteConfiguration(port);
@@ -83,11 +99,56 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
                 "--tag-pattern", "^v[0-9]+.*$"],
             output, new StringWriter(), TestContext.Current.CancellationToken);
 
-        string requestBody = await serverTask;
+        (await serverTask).Should().Contain("\"name\":\"bitbucket_repository_update\"");
         exitCode.Should().Be(0);
-        output.ToString().Should().Contain("[OK] bitbucket_repository_update: example");
-        output.ToString().Should().Contain("\"ok\":true");
-        requestBody.Should().Contain("bitbucket_repository_update").And.Contain("tools/call");
+    }
+
+    [Fact]
+    public async Task RepoUpdate_WithCommitAuthor_SendsAuthorPair()
+    {
+        int port = GetFreePort();
+        string path = WriteConfiguration(port);
+        using HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/mcp/");
+        listener.Start();
+        Task<string> serverTask = RespondOnceAsync(listener, """{"result":{"ok":true}}""");
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "repo", "update", "example",
+                "--direct-push-branches", "develop", "--pull-branches", "develop,main",
+                "--protected-branches", "main", "--tag-target-branch", "main", "--tag-pattern", "^v[0-9]+.*$",
+                "--commit-author-name", "Registered Author", "--commit-author-email", "registered@example.com"],
+            new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken);
+
+        string request = await serverTask;
+        exitCode.Should().Be(0);
+        request.Should().Contain("\"commitAuthorName\":\"Registered Author\"")
+            .And.Contain("\"commitAuthorEmail\":\"registered@example.com\"");
+    }
+
+    [Fact]
+    public async Task RepoRegister_WithExplicitCommitAuthor_SendsItInsteadOfGitConfig()
+    {
+        int port = GetFreePort();
+        string path = WriteConfiguration(port);
+        WriteGitRepository(_directory);
+        using HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/mcp/");
+        listener.Start();
+        Task<string> serverTask = RespondOnceAsync(listener, """{"result":{"ok":true}}""");
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "repo", "register", "authorrepo", _directory,
+                "--commit-author-name", "Registered Author", "--commit-author-email", "registered@example.com"],
+            new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken,
+            tokenPrompt: (_, _, _, _) => Task.FromResult<string?>("test-token"));
+
+        string request = await serverTask;
+        exitCode.Should().Be(0);
+        request.Should().Contain("\"name\":\"bitbucket_repository_register\"")
+            .And.Contain("\"commitAuthorName\":\"Registered Author\"")
+            .And.Contain("\"commitAuthorEmail\":\"registered@example.com\"")
+            .And.NotContain("test-token");
     }
 
     [Theory]
@@ -105,6 +166,7 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
     [InlineData("tag|get|example|v1.0.0", "bitbucket_tag_get", "\"tag\":\"v1.0.0\"")]
     [InlineData("tag|create|example|v1.0.0|main|--message|Release", "bitbucket_tag_create", "\"source\":\"main\"")]
     [InlineData("mcp|version", "get_version", "\"arguments\":{}")]
+    [InlineData("repo|unregister|example", "bitbucket_repository_unregister", "\"repository\":\"example\"")]
     [InlineData("branch|create|example|develop|main", "bitbucket_branch_create", "\"source\":\"main\"")]
     [InlineData("branch|create|example|feature/test|0123456789abcdef0123456789abcdef01234567", "bitbucket_branch_create", "\"source\":\"0123456789abcdef0123456789abcdef01234567\"")]
     public async Task McpEquivalentCommand_CallsExpectedTool(

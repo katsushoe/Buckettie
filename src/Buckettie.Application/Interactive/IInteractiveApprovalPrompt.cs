@@ -35,7 +35,21 @@ public sealed record ApprovalPromptRequest(
     string LocalRoot,
     string RemoteUrl,
     bool TokenRequired = false,
-    string Language = "auto");
+    string Language = "auto",
+    ApprovalOperation Operation = ApprovalOperation.Register);
+
+/// <summary>承認Dialogが利用者へ示す操作の種類です。</summary>
+public enum ApprovalOperation
+{
+    /// <summary>Repositoryの新規登録です。</summary>
+    Register,
+
+    /// <summary>登録済みBranch Policyの修正です。</summary>
+    Update,
+
+    /// <summary>Repositoryの登録解除です。</summary>
+    Unregister,
+}
 
 /// <summary>承認要求の結果です。</summary>
 public sealed record ApprovalPromptOutcome(ApprovalOutcome Outcome, string? Token = null)

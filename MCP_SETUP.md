@@ -1,5 +1,12 @@
 # MCP Setup
 
+Buckettie does not require Moyai. By default (no `--moyai` server option), direct loopback connections may use
+every repository tool. When the server starts with `--moyai`, direct loopback connections keep Bootstrap and read
+operations (`list_projects` and tools that require only `repository.read`), while `fetch`, `pull` and change
+operations need a Moyai assertion. Registration/update/removal from direct loopback always require interactive
+desktop approval (or a management client certificate).
+See [Provider authentication](docs/provider-authentication.md) before following the connection steps below.
+
 [English](MCP_SETUP.md) | [日本語](MCP_SETUP.ja.md)
 
 This guide separates values you enter, files a client generates, and results you verify. Follow one recommended path for each client. Alternative project-scoped configuration is in a separate section.

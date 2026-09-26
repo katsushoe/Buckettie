@@ -5,6 +5,12 @@
 /// </summary>
 public sealed record BuckettieOptions
 {
+    /// <summary>MoyaiのProvider認証設定です。未構成時はRepository操作を拒否します。</summary>
+    public ProviderAuthenticationOptions? ProviderAuthentication { get; init; }
+
+    /// <summary>任意の管理者用相互TLS Endpoint設定です。</summary>
+    public AdministratorEndpointOptions? AdministratorEndpoint { get; init; }
+
     /// <summary>UI表示言語です。auto、ja-JP、en-USのいずれかを指定します。</summary>
     public string Language { get; init; } = "auto";
 
@@ -73,4 +79,13 @@ public sealed record RepositoryOptions
 
     /// <summary>履歴書き換え操作を明示的に許可するブランチです。</summary>
     public HashSet<string> HistoryRewriteBranches { get; init; } = [];
+
+    /// <summary>
+    /// commitの作成者名です。サービス実行アカウントのGit設定に依存しないよう登録単位で保持します。
+    /// 未設定の場合はRepositoryのGit設定を使います。
+    /// </summary>
+    public string? CommitAuthorName { get; init; }
+
+    /// <summary>commitの作成者メールアドレスです。<see cref="CommitAuthorName"/>と対で使います。</summary>
+    public string? CommitAuthorEmail { get; init; }
 }

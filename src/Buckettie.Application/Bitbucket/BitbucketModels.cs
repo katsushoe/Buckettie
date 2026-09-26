@@ -44,7 +44,18 @@ public sealed record BitbucketProviderCapabilities(
     int ContractVersion = 3,
     bool BranchSourceRequired = true,
     bool TagSourceRequired = true,
-    bool RepositoryStatusNullable = true);
+    bool RepositoryStatusNullable = true,
+    ProviderAuthenticationCapabilities? Authentication = null);
+
+/// <summary>Projectや秘密を含まないProvider認証Capabilityです。</summary>
+public sealed record ProviderAuthenticationCapabilities(
+    IReadOnlyDictionary<string, string[]> ToolScopes,
+    string ProviderId = "buckettie",
+    string RequiredAudience = "buckettie",
+    string ProtocolVersion = "1",
+    string Algorithm = "ES256",
+    bool ReplayProtection = true,
+    string IntegrationMode = "standalone");
 
 /// <summary>Pull Requestの状態です。</summary>
 public enum BitbucketPullRequestState

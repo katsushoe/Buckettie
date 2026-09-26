@@ -139,6 +139,7 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.ProtectedBranch => "protected_branch",
         GitGatewayError.NothingToPush => "nothing_to_push",
         GitGatewayError.NothingToCommit => "nothing_to_commit",
+        GitGatewayError.AuthorIdentityMissing => "author_identity_missing",
         GitGatewayError.InvalidCommitMessage => "commit_message_invalid",
         GitGatewayError.NonFastForward => "non_fast_forward",
         GitGatewayError.Timeout => "timeout",
@@ -198,6 +199,7 @@ internal static class BuckettieToolResultMapper
             RepositoryValidationError.RemoteUrlInvalid => "remote_url_invalid",
             RepositoryValidationError.SshRemoteNotSupported => "ssh_remote_not_supported",
             RepositoryValidationError.TagPatternInvalid => "tag_pattern_invalid",
+        RepositoryValidationError.CommitAuthorInvalid => "commit_author_invalid",
             RepositoryValidationError.LocalRootNotFound
                 or RepositoryValidationError.GitMetadataNotFound
                 or RepositoryValidationError.LocalPathReparsePoint => "local_repository_invalid",
@@ -326,6 +328,7 @@ internal static class BuckettieToolResultMapper
         : code switch
         {
             "authentication_failed" => "configure_authentication",
+            "author_identity_missing" => "configure_commit_author",
             "permission_denied" => "request_permission",
             "protected_branch" or "branch_not_allowed" or "pull_request_merge_blocked"
                 or "pull_request_route_not_allowed" => "review_policy",
@@ -386,6 +389,8 @@ internal static class BuckettieToolResultMapper
         "protected_branch" => "Direct push to the protected branch is not allowed.",
         "nothing_to_push" => "There is nothing to push.",
         "nothing_to_commit" => "There are no changes to commit.",
+        "commit_author_invalid" => "The commit author name or email is invalid. Specify both a name and an email address without control characters or angle brackets.",
+        "author_identity_missing" => "No commit author is registered for this repository and none is set in its Git config. Register one with buckettie repo update <repository-id> --commit-author-name <name> --commit-author-email <email>.",
         "commit_message_invalid" => "The commit message is invalid.",
         "non_fast_forward" => "The operation is not a fast-forward.",
         "authentication_failed" => "Bitbucket authentication failed.",
@@ -418,8 +423,8 @@ internal static class BuckettieToolResultMapper
         "repository_already_registered" => "The repository is already registered.",
         "repository_not_registered" => "The repository is not registered.",
         "remote_url_invalid" => "The local repository's Git remote is not a valid Bitbucket repository.",
-        "approval_denied" => "The repository registration was denied.",
-        "approval_timed_out" => "The repository registration approval timed out.",
+        "approval_denied" => "The repository operation was denied.",
+        "approval_timed_out" => "The repository operation approval timed out.",
         "no_interactive_session" => "No interactive desktop session is available to approve the request.",
         "approval_launch_failed" => "The approval prompt could not be launched.",
         "registration_in_progress" => "Another repository registration is already in progress.",
@@ -449,6 +454,8 @@ internal static class BuckettieToolResultMapper
         "protected_branch" => "保護ブランチへの直接pushは許可されていません。",
         "nothing_to_push" => "pushする変更がありません。",
         "nothing_to_commit" => "commitする変更がありません。",
+        "commit_author_invalid" => "commit作成者の名前またはメールアドレスが無効です。制御文字や山括弧を含まない名前とメールアドレスを両方指定してください。",
+        "author_identity_missing" => "このRepositoryにはcommit作成者が登録されておらず、Git設定にも作成者がありません。buckettie repo update <repository-id> --commit-author-name <名前> --commit-author-email <メールアドレス>で登録してください。",
         "commit_message_invalid" => "commitメッセージが無効です。",
         "non_fast_forward" => "fast-forwardできないため操作を完了できません。",
         "authentication_failed" => "Bitbucketの認証に失敗しました。",
@@ -481,8 +488,8 @@ internal static class BuckettieToolResultMapper
         "repository_already_registered" => "リポジトリは既に登録されています。",
         "repository_not_registered" => "リポジトリは登録されていません。",
         "remote_url_invalid" => "ローカルリポジトリのGitリモートは有効なBitbucketリポジトリではありません。",
-        "approval_denied" => "リポジトリ登録は承認されませんでした。",
-        "approval_timed_out" => "リポジトリ登録の承認がタイムアウトしました。",
+        "approval_denied" => "リポジトリ操作は承認されませんでした。",
+        "approval_timed_out" => "リポジトリ操作の承認がタイムアウトしました。",
         "no_interactive_session" => "承認に使用できる対話型デスクトップセッションがありません。",
         "approval_launch_failed" => "承認ダイアログを起動できませんでした。",
         "registration_in_progress" => "別のリポジトリ登録が進行中です。",
