@@ -1,4 +1,5 @@
 using Buckettie.Application.Configuration;
+using Buckettie.Application.Git;
 using Buckettie.Application.Interactive;
 using Buckettie.Application.Repositories;
 
@@ -12,7 +13,9 @@ public sealed record RepositoryUpdateRequest(
     string TagTargetBranch,
     string TagPattern,
     bool RequireCleanWorkingTree,
-    HashSet<string>? HistoryRewriteBranches = null);
+    HashSet<string>? HistoryRewriteBranches = null,
+    string? CommitAuthorName = null,
+    string? CommitAuthorEmail = null);
 
 /// <summary>Repository修正要求を1つの流れとして実行する境界です。</summary>
 public interface IRepositoryUpdateService
@@ -72,6 +75,14 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
                 BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.TagPatternInvalid));
         }
 
+        // The author is changed only as a pair so a half-updated identity can never be stored.
+        bool authorSpecified = request.CommitAuthorName is not null || request.CommitAuthorEmail is not null;
+        if (authorSpecified && !GitCommitAuthor.IsValid(request.CommitAuthorName, request.CommitAuthorEmail))
+        {
+            return RepositoryUpdateOutcome.Failure(
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.CommitAuthorInvalid));
+        }
+
         if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
         {
             return RepositoryUpdateOutcome.Failure(BuckettieToolResultMapper.RegistrationInProgressError());
@@ -87,7 +98,8 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
             }
 
             ApprovalPromptRequest promptRequest = new(
-                repositoryId, existing.Workspace, existing.Slug, existing.LocalRoot, existing.Remote);
+                repositoryId, existing.Workspace, existing.Slug, existing.LocalRoot, existing.Remote,
+                Operation: ApprovalOperation.Update);
             ApprovalPromptOutcome approval = await _approvalPrompt
                 .RequestApprovalAsync(promptRequest, ApprovalTimeout, cancellationToken)
                 .ConfigureAwait(false);
@@ -106,6 +118,8 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
                 TagPattern = request.TagPattern,
                 RequireCleanWorkingTree = request.RequireCleanWorkingTree,
                 HistoryRewriteBranches = request.HistoryRewriteBranches ?? existing.HistoryRewriteBranches,
+                CommitAuthorName = authorSpecified ? request.CommitAuthorName : existing.CommitAuthorName,
+                CommitAuthorEmail = authorSpecified ? request.CommitAuthorEmail : existing.CommitAuthorEmail,
             };
 
             bool written = await _repositoryStore.UpdateAsync(repositoryId, updated, cancellationToken)

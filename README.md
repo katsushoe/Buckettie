@@ -4,7 +4,7 @@
 
 Buckettie is a Windows gateway that lets MCP clients operate explicitly allowed local Git repositories and Bitbucket Cloud repositories. Repository allowlists, branch protection, audit logs, and DPAPI-protected API tokens expose only the operations an AI client needs.
 
-Current release: `1.3.27.0`
+Current release: `1.3.35.0`
 
 Bitbucket Release lifecycle semantics are documented in [docs/bitbucket-release-provider.md](docs/bitbucket-release-provider.md).
 Provider error response semantics are documented in [docs/provider-error-contract.md](docs/provider-error-contract.md).
@@ -58,7 +58,7 @@ The standard layout is `<install-root>\bin`, `config`, `logs`, and `data`. DPAPI
 
 For a ZIP deployment, run `service install` once before `start`. See [Configuration](CONFIG.md) for every setting and its constraints.
 
-`repo register` opens a topmost centered Token dialog by default. The dialog displays the requesting project name (the repository ID passed to the command) and the target repository URL resolved from the selected remote. Use `--console-token` only when terminal input is required.
+`repo register` and `auth set` open a topmost centered Token dialog by default. The dialog displays the requesting project name (the repository ID passed to the command) and the target repository URL resolved from the selected remote. Use `--console-token` only when terminal input without echo is required. There is no input deadline; the command waits until the dialog is submitted or cancelled. For auth set, cancellation and launch failure (including a dialog that exits before connecting) report `TokenPromptCancelled` and `TokenPromptLaunchFailed`; token storage failures report the store error code. These failures return exit code 1 without printing the Token.
 Repository IDs must match the Itoguruma Project Inbox ID rule `^[a-z][a-z0-9]*$`. Repository lookup is case-insensitive.
 
 ## Usage

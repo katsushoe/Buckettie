@@ -1,4 +1,5 @@
 using System.Globalization;
+using Buckettie.Application.Interactive;
 
 namespace Buckettie.ApprovalPrompt;
 
@@ -16,7 +17,11 @@ internal sealed record ApprovalFormText(
     string CountdownFormat)
 {
     /// <summary>設定言語または指定UI Cultureに対応する表示文字列を返します。</summary>
-    public static ApprovalFormText ForLanguage(string language, CultureInfo fallbackCulture)
+    /// <param name="language">設定言語。</param>
+    /// <param name="fallbackCulture">設定言語が自動の場合に使うUI Culture。</param>
+    /// <param name="operation">利用者が承認する操作。Titleへ表示します。</param>
+    public static ApprovalFormText ForLanguage(string language, CultureInfo fallbackCulture,
+        ApprovalOperation operation = ApprovalOperation.Register)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(language);
         ArgumentNullException.ThrowIfNull(fallbackCulture);
@@ -29,7 +34,12 @@ internal sealed record ApprovalFormText(
         };
         return useJapanese
             ? new(
-                "Buckettie - リポジトリ操作の承認",
+                operation switch
+                {
+                    ApprovalOperation.Update => "Buckettie - リポジトリ設定変更の承認",
+                    ApprovalOperation.Unregister => "Buckettie - リポジトリ登録解除の承認",
+                    _ => "Buckettie - リポジトリ登録の承認",
+                },
                 "リポジトリID",
                 "ワークスペース",
                 "スラッグ",
@@ -40,7 +50,12 @@ internal sealed record ApprovalFormText(
                 "拒否(&D)",
                 "応答がない場合、{0}秒後に自動的に拒否します。")
             : new(
-                "Buckettie - Repository Operation Approval",
+                operation switch
+                {
+                    ApprovalOperation.Update => "Buckettie - Approve Repository Policy Update",
+                    ApprovalOperation.Unregister => "Buckettie - Approve Repository Unregistration",
+                    _ => "Buckettie - Approve Repository Registration",
+                },
                 "Repository ID",
                 "Workspace",
                 "Slug",

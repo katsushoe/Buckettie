@@ -179,6 +179,25 @@ public sealed class GitGateway : IGitGateway
             ?? GitGatewayResult.Success(operation, repository, diff: result.StandardOutput);
     }
 
+    /// <summary>
+    /// commit作成者を決定します。登録値を優先し、なければRepositoryから見えるGit設定を使います。
+    /// サービス実行アカウントの作成者へは暗黙に退避しません。
+    /// </summary>
+    private async Task<GitCommitAuthor?> ResolveCommitAuthorAsync(
+        RepositoryOptions options, CancellationToken cancellationToken)
+    {
+        if (GitCommitAuthor.IsValid(options.CommitAuthorName, options.CommitAuthorEmail))
+            return new GitCommitAuthor(options.CommitAuthorName!, options.CommitAuthorEmail!);
+        GitCommandResult name = await _git.GetConfigValueAsync(options.LocalRoot, "user.name", cancellationToken)
+            .ConfigureAwait(false);
+        GitCommandResult email = await _git.GetConfigValueAsync(options.LocalRoot, "user.email", cancellationToken)
+            .ConfigureAwait(false);
+        string configuredName = name.IsSuccess ? name.StandardOutput.Trim() : string.Empty;
+        string configuredEmail = email.IsSuccess ? email.StandardOutput.Trim() : string.Empty;
+        return GitCommitAuthor.IsValid(configuredName, configuredEmail)
+            ? new GitCommitAuthor(configuredName, configuredEmail) : null;
+    }
+
     /// <inheritdoc />
     public async Task<GitGatewayResult> CommitAsync(
         string repository,
@@ -226,6 +245,14 @@ public sealed class GitGateway : IGitGateway
             return GitGatewayResult.Failure(operation, repository, GitGatewayError.NothingToCommit, branch);
         }
 
+        GitCommitAuthor? author = await ResolveCommitAuthorAsync(boundary.Repository, cancellationToken)
+            .ConfigureAwait(false);
+        if (author is null)
+        {
+            // Checked before staging so a missing identity leaves the index untouched.
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.AuthorIdentityMissing, branch);
+        }
+
         GitCommandResult stageResult = await _git.StageAllAsync(
             boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
         GitGatewayResult? stageError = MapCommandFailure(operation, repository, stageResult, branch);
@@ -235,7 +262,7 @@ public sealed class GitGateway : IGitGateway
         }
 
         GitCommandResult commitResult = await _git.CommitAsync(
-            boundary.Repository.LocalRoot, message, cancellationToken).ConfigureAwait(false);
+            boundary.Repository.LocalRoot, message, author, cancellationToken).ConfigureAwait(false);
         GitGatewayResult? commitError = MapCommandFailure(operation, repository, commitResult, branch);
         if (commitError is not null)
         {

@@ -94,6 +94,7 @@ public static class BuckettieCompositionRoot
         services.AddSingleton<IRepositoryUnregistrationService>(provider => new RepositoryUnregistrationService(
             provider.GetRequiredService<RepositoryAllowlist>(),
             provider.GetRequiredService<IRepositoryStore>(),
+            provider.GetRequiredService<IInteractiveApprovalPrompt>(),
             provider.GetRequiredService<RepositoryMutationGate>()));
         services.AddSingleton<IRepositoryUpdateService>(provider => new RepositoryUpdateService(
             provider.GetRequiredService<RepositoryAllowlist>(),

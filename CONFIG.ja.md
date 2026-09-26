@@ -1,5 +1,11 @@
 # Buckettie設定
 
+Buckettieは既定で単体動作します。loopbackのMCPクライアントは、Allowlist・Branch Policy・監査ログの範囲で
+すべてのRepository操作を利用できます。Serverを`--moyai`付きで起動した場合だけMoyai連携モードになり、
+[認証設定](docs/provider-authentication.md)が必須、変更操作にMoyai Provider Assertionが必要になります。
+`--moyai`なしで起動した場合、`provider_authentication`は保持したまま使用しません。
+Bitbucket外部API Tokenは変更しません。
+
 [English](CONFIG.md) | [日本語](CONFIG.ja.md)
 
 ## 設定ファイル
@@ -40,7 +46,9 @@ TokenはBinary Directory基準の`..\data\secrets`へDPAPI LocalMachine暗号化
 
 `register`と`update`はいずれも、Serverマシンの対話Desktop SessionでNative Dialogへの人間による承認が必須です。呼び出し元のMCP Clientから承認することはできません。信頼境界の詳細は[SECURITY.md](SECURITY.md#repository-registration-approval)、設計は[ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md)・[ADR 0013](docs/adr/0013-repository-store-and-live-lifecycle.md)を参照してください。
 
-`bitbucket_repository_unregister` MCP Tool（またはCLIの`buckettie repo unregister`）はDialogなしで即座にRepositoryを削除します。権限を削減するだけの操作であり、侵害されたClientや誤操作によって得をする余地がないためです。
+`bitbucket_repository_unregister` MCP Tool（またはCLIの`buckettie repo unregister`）は、登録・修正と同じ対話Desktop承認Dialogで承認された場合だけRepositoryを削除します。管理者用Endpointを構成していない場合、登録・修正・登録解除はloopbackの通常MCP Portから受け付け、この承認を操作の認可とします。
+
+ServiceはLocalSystemで動作し、そのGit作成者は通常未設定のため、Repositoryごとにcommit作成者（`commit_author_name`、`commit_author_email`）を保持します。`buckettie repo register`は実行者のGit設定の`user.name`／`user.email`を既定値とし、`--commit-author-name`／`--commit-author-email`（またはregister/updateの同名MCP引数）で明示指定できます。名前とメールアドレスは両方必要で、制御文字や山括弧は使えません（`commit_author_invalid`）。`bitbucket_repository_commit`は登録済みの作成者を使い、なければRepository自身のGit設定を使います。どちらもない場合はStage前に`author_identity_missing`で失敗します。作成者は`GIT_AUTHOR_*`／`GIT_COMMITTER_*`で渡し、サービス実行アカウントの設定には依存しません。
 
 これら3操作はいずれも`stop`/`restart`を必要としません。これらのToolが対応しない形の登録・修正が必要な場合は、引き続き手動編集フロー（対象がSQLite Databaseへ変わった点を除き[Repository保存先](#repository保存先)参照）を使用します。
 

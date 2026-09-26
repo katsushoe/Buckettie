@@ -17,6 +17,7 @@ public enum RepositoryValidationError
     RepositoryAlreadyRegistered,
     RepositoryNotRegistered,
     TagPatternInvalid,
+    CommitAuthorInvalid,
 }
 
 /// <summary>

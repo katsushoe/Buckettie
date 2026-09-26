@@ -19,17 +19,17 @@
 | `buckettie repo list` | 設定済みRepository IDを一覧表示します。 |
 | `buckettie repo status <id>` | ローカルRepositoryを検証して状態を表示します。 |
 | `buckettie repo diff <id>` | `HEAD`に対する作業ツリー差分を取得します。 |
-| `buckettie repo commit <id> <message>` | 作業ツリーの変更をすべてStageし、Policyで許可された現在Branchへlocal commitします。 |
+| `buckettie repo commit <id> <message>` | 作業ツリーの変更をすべてStageし、Policyで許可された現在Branchへlocal commitします。commit作成者は登録済みの作成者、なければRepositoryのGit設定の`user.name`／`user.email`です。どちらもない場合はStage前に`author_identity_missing`で失敗します。 |
 | `buckettie repo fetch\|pull\|push <id>` | MCPサービス経由でポリシー検証付きGit操作を実行します。 |
 | `buckettie repo list` / MCP `list_projects` | 操作前に選択する登録済みリポジトリIDを一覧します。MCPクライアントは毎回のpush前に`list_projects`を呼び出します。 |
-| `buckettie repo register <id> <local-root> ...` | 最前面・画面中央のDialogでAPI Tokenを入力してからMCPサービス経由でRepositoryを登録します。MCPから直接登録する場合も、未登録TokenをMCP引数へ露出せずホスト上で入力します。`--console-token`では非表示のTerminal入力を使用します。 |
-| `buckettie repo unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。 |
+| `buckettie repo register <id> <local-root> ...` | 最前面・画面中央のDialogでAPI Tokenを入力してからMCPサービス経由でRepositoryを登録します。MCPから直接登録する場合も、未登録TokenをMCP引数へ露出せずホスト上で入力します。`--console-token`では非表示のTerminal入力を使用します。commit作成者の既定値は実行者のGit設定の`user.name`／`user.email`で、`--commit-author-name`と`--commit-author-email`で指定できます。 |
+| `buckettie repo unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。`repo update <id> --commit-author-name X --commit-author-email Y`は作成者だけを変更し、省略したブランチ設定は登録済みの値を維持します。 |
 | `buckettie branch list\|get\|create\|delete ...` | Bitbucketブランチを一覧・取得・作成・削除します。作成元の明示指定が必須です。develop、main、保護ブランチは削除できません。 |
 | `buckettie pr list\|get\|diff\|create\|merge ...` | Bitbucketプルリクエストの一覧・詳細・差分・作成・マージを実行します。 |
 | `buckettie tag list\|get\|create\|delete\|push ...` | ポリシー準拠タグの一覧・取得・作成・削除・明示的pushを実行します。作成元の明示指定が必須です。 |
 | `buckettie provider capabilities` | Repository diff・commitを含むRepository Contract操作の対応可否を表示します。 |
 | `buckettie auth test` | 値を表示せず各Repositoryの認証情報を読めるか確認します。 |
-| `buckettie auth set <id>` | 非表示でTokenを読み、DPAPI LocalMachineで保護して保存します。 |
+| `buckettie auth set <id> [--console-token]` | 既定では最前面・画面中央のGUI DialogでTokenを入力し、Repository単位でDPAPI LocalMachine保護して保存します。`--console-token`指定時のみ非表示のTerminal入力を使用します。 |
 | `buckettie auth delete <id>` | Repository単位の暗号化Tokenファイルを削除します。 |
 | `buckettie mcp status` | MCP initialize Requestを実行します。 |
 | `buckettie mcp tools` | MCP Tool一覧を取得します。 |

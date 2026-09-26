@@ -1,5 +1,10 @@
 # Buckettie Configuration
 
+Buckettie works on its own by default: local loopback MCP clients can use every repository tool under the
+allowlist, branch policies and audit log. Moyai integration is enabled only when the server starts with
+`--moyai`; it then requires [`provider_authentication`](docs/provider-authentication.md) and change tools
+require a Moyai Provider Assertion. Without `--moyai`, `provider_authentication` is kept but not used.
+
 [English](CONFIG.md) | [日本語](CONFIG.ja.md)
 
 ## Configuration File
@@ -42,7 +47,9 @@ The `bitbucket_repository_update` MCP tool (or `buckettie repo update`) changes 
 
 Both `register` and `update` require a human to approve a native Dialog on the server machine's interactive desktop session; it cannot be approved from the calling MCP client. See [SECURITY.md](SECURITY.md#repository-registration-approval) for the trust boundary and [ADR 0012](docs/adr/0012-interactive-repository-registration-approval.md) / [ADR 0013](docs/adr/0013-repository-store-and-live-lifecycle.md) for the design.
 
-The `bitbucket_repository_unregister` MCP tool (or `buckettie repo unregister`) removes a repository immediately, with no Dialog — since it only revokes push/PR/tag rights, there is no privilege for a compromised or over-eager caller to gain by calling it.
+The `bitbucket_repository_unregister` MCP tool (or `buckettie repo unregister`) removes a repository only after the same interactive desktop approval dialog as registration and update. Without a configured administrator endpoint, register/update/unregister are accepted on the ordinary loopback MCP port and this approval authorizes the change.
+
+The service runs as LocalSystem, whose Git identity is normally empty, so each repository stores a commit author (`commit_author_name`, `commit_author_email`). `buckettie repo register` defaults it to the caller's Git `user.name`/`user.email`, and `--commit-author-name`/`--commit-author-email` (or the same MCP arguments on register/update) set it explicitly; both values are required together and must not contain control characters or angle brackets (`commit_author_invalid`). `bitbucket_repository_commit` uses the registered author, falls back to the repository's own Git config, and otherwise fails with `author_identity_missing` before staging. The author is passed through `GIT_AUTHOR_*`/`GIT_COMMITTER_*`, never through the service account's configuration.
 
 None of these three operations need `stop`/`restart`. A registration or update that needs a different shape than these tools support still uses the manual edit flow (now against the SQLite database — see [Repository Storage](#repository-storage)).
 

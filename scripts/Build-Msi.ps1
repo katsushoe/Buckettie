@@ -1,6 +1,6 @@
 param(
-    [string]$DisplayVersion = '1.3.27.0',
-    [string]$ProductVersion = '1.3.27',
+    [string]$DisplayVersion = '1.3.35.0',
+    [string]$ProductVersion = '1.3.35',
     [string]$RuntimeIdentifier = 'win-x64',
     [switch]$NoRestore
 )
@@ -9,14 +9,16 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $installerWorkDirectory = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.local\installer'))
 $publishDirectory = Join-Path $repositoryRoot '.local\installer\publish'
+$projectPublishDirectory = Join-Path $installerWorkDirectory 'projects'
 $installerConfigDirectory = Join-Path $repositoryRoot '.local\installer\config'
 $outputDirectory = Join-Path $repositoryRoot '.local\installer\output'
 $installerProject = Join-Path $repositoryRoot 'installer\Buckettie.Installer\Buckettie.Installer.wixproj'
+# Merge isolated outputs with the CLI last to retain its newer dependencies.
 $projects = @(
-    'src\Buckettie.Cli\Buckettie.Cli.csproj',
-    'src\Buckettie.Server\Buckettie.Server.csproj',
+    'src\Buckettie.ApprovalPrompt\Buckettie.ApprovalPrompt.csproj',
     'src\Buckettie.AskPass\Buckettie.AskPass.csproj',
-    'src\Buckettie.ApprovalPrompt\Buckettie.ApprovalPrompt.csproj'
+    'src\Buckettie.Server\Buckettie.Server.csproj',
+    'src\Buckettie.Cli\Buckettie.Cli.csproj'
 )
 
 if (-not $NoRestore) {
@@ -28,7 +30,7 @@ if (-not $NoRestore) {
     if ($LASTEXITCODE -ne 0) { throw 'Installer restore failed.' }
 }
 
-foreach ($directory in @($publishDirectory, $installerConfigDirectory, $outputDirectory)) {
+foreach ($directory in @($publishDirectory, $projectPublishDirectory, $installerConfigDirectory, $outputDirectory)) {
     $resolvedDirectory = [IO.Path]::GetFullPath($directory)
     if (-not $resolvedDirectory.StartsWith("$installerWorkDirectory\", [StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to remove a directory outside the installer work directory: $resolvedDirectory"
@@ -36,6 +38,7 @@ foreach ($directory in @($publishDirectory, $installerConfigDirectory, $outputDi
 }
 
 if (Test-Path -LiteralPath $publishDirectory) { Remove-Item -LiteralPath $publishDirectory -Recurse -Force }
+if (Test-Path -LiteralPath $projectPublishDirectory) { Remove-Item -LiteralPath $projectPublishDirectory -Recurse -Force }
 if (Test-Path -LiteralPath $installerConfigDirectory) { Remove-Item -LiteralPath $installerConfigDirectory -Recurse -Force }
 if (Test-Path -LiteralPath $outputDirectory) { Remove-Item -LiteralPath $outputDirectory -Recurse -Force }
 New-Item -ItemType Directory -Path $publishDirectory, $installerConfigDirectory, $outputDirectory -Force | Out-Null
@@ -54,8 +57,15 @@ foreach ($language in @('ja-JP', 'en-US')) {
 }
 
 foreach ($project in $projects) {
-    dotnet publish (Join-Path $repositoryRoot $project) -c Release -r $RuntimeIdentifier --self-contained true -o $publishDirectory --nologo --no-restore
+    $projectOutput = Join-Path $projectPublishDirectory ([IO.Path]::GetFileNameWithoutExtension($project))
+    dotnet publish (Join-Path $repositoryRoot $project) -c Release -r $RuntimeIdentifier --self-contained true -o $projectOutput --nologo --no-restore
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed: $project" }
+    Copy-Item -Path (Join-Path $projectOutput '*') -Destination $publishDirectory -Recurse -Force
+}
+
+$publishedVersion = & (Join-Path $publishDirectory 'buckettie.exe') version
+if ($LASTEXITCODE -ne 0 -or $publishedVersion -ne $DisplayVersion) {
+    throw 'Published CLI failed its version smoke test.'
 }
 
 dotnet build $installerProject -c Release --nologo --no-restore -p:DisplayVersion=$DisplayVersion -p:ProductVersion=$ProductVersion -p:PublishDir=$publishDirectory -p:InstallerConfigDir=$installerConfigDirectory -p:OutputPath=$outputDirectory

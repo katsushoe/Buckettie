@@ -19,17 +19,17 @@ The management executable is `buckettie.exe`. Its default configuration is `..\c
 | `buckettie repo list` | List configured Repository IDs. |
 | `buckettie repo status <id>` | Validate and show local repository status. |
 | `buckettie repo diff <id>` | Return the working-tree diff against `HEAD`. |
-| `buckettie repo commit <id> <message>` | Stage all working-tree changes and create a local commit on the current policy-allowed branch. |
+| `buckettie repo commit <id> <message>` | Stage all working-tree changes and create a local commit on the current policy-allowed branch. The commit author is the repository's registered author, or else `user.name`/`user.email` from its Git config; if neither exists the command fails with `author_identity_missing` before staging. |
 | `buckettie repo fetch\|pull\|push <id>` | Run the corresponding policy-checked Git operation through the MCP service. |
 | `buckettie repo list` / MCP `list_projects` | List registered repository IDs to select the project name before operations. MCP clients must call `list_projects` before every push. |
-| `buckettie repo register <id> <local-root> ...` | Enter the API Token in a topmost centered dialog, then register the repository through the MCP service. Direct MCP registration also collects a missing Token locally without exposing it in MCP arguments. Use `--console-token` to read the Token from the terminal without echo. |
-| `buckettie repo unregister\|update ...` | Manage the repository allowlist and branch policy through the MCP service. |
+| `buckettie repo register <id> <local-root> ...` | Enter the API Token in a topmost centered dialog, then register the repository through the MCP service. Direct MCP registration also collects a missing Token locally without exposing it in MCP arguments. Use `--console-token` to read the Token from the terminal without echo. The commit author defaults to the caller's Git `user.name`/`user.email`; override with `--commit-author-name` and `--commit-author-email`. |
+| `buckettie repo unregister\|update ...` | Manage the repository allowlist and branch policy through the MCP service. `repo update <id> --commit-author-name X --commit-author-email Y` changes only the commit author; omitted branch settings keep their registered values. |
 | `buckettie branch list\|get\|create\|delete ...` | List, inspect, create, or delete Bitbucket branches. Creation requires an explicit source; develop, main, and protected branches cannot be deleted. |
 | `buckettie pr list\|get\|diff\|create\|merge ...` | List, inspect, create, or merge Bitbucket pull requests. |
 | `buckettie tag list\|get\|create\|delete\|push ...` | List, inspect, create, delete, or explicitly push policy-compliant Bitbucket tags. Creation requires an explicit source. |
 | `buckettie provider capabilities` | Print support flags for Repository Contract operations, including repository diff and commit. |
 | `buckettie auth test` | Check that each repository credential is readable without printing it. |
-| `buckettie auth set <id>` | Read a Token without echo and save it with DPAPI LocalMachine protection. |
+| `buckettie auth set <id> [--console-token]` | Enter a Token in the centered, topmost GUI dialog and save it per repository with DPAPI LocalMachine protection. Use `--console-token` for terminal input without echo. |
 | `buckettie auth delete <id>` | Delete the repository-scoped encrypted Token file. |
 | `buckettie mcp status` | Perform an MCP initialize request. |
 | `buckettie mcp tools` | Request the MCP tool list. |

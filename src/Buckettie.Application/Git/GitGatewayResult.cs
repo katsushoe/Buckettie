@@ -34,6 +34,7 @@ public enum GitGatewayError
     NoIdentityChange,
     SignedCommitConfirmationRequired,
     RemoteVerificationFailed,
+    AuthorIdentityMissing,
 }
 
 /// <summary>Git commitの氏名とメールアドレスです。</summary>

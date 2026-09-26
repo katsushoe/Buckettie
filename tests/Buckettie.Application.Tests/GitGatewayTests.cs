@@ -1,4 +1,4 @@
-﻿using Buckettie.Application.Configuration;
+using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Repositories;
 using FluentAssertions;
@@ -167,7 +167,8 @@ public sealed class GitGatewayTests
             .Returns(GitCommandResult.Success(" M file.cs\n"));
         _git.StageAllAsync(RepositoryRoot, Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success());
-        _git.CommitAsync(RepositoryRoot, "feat: change", Arg.Any<CancellationToken>())
+        ConfigureGitAuthor("Repository User", "user@example.com");
+        _git.CommitAsync(RepositoryRoot, "feat: change", Arg.Any<GitCommitAuthor>(), Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success());
         _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>())
             .Returns(GitCommandResult.Success("abc123\n"));
@@ -178,6 +179,45 @@ public sealed class GitGatewayTests
         result.IsSuccess.Should().BeTrue();
         result.Branch.Should().Be("develop");
         result.CommitHash.Should().Be("abc123");
+        await _git.Received(1).CommitAsync(RepositoryRoot, "feat: change",
+            new GitCommitAuthor("Repository User", "user@example.com"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CommitAsync_WithRegisteredAuthor_UsesItWithoutReadingGitConfig()
+    {
+        GitGateway gateway = CreateGateway(CreateRepository() with
+        { CommitAuthorName = "Registered Author", CommitAuthorEmail = "registered@example.com" });
+        ConfigureCommittableChange();
+        _git.CommitAsync(RepositoryRoot, "feat: change", Arg.Any<GitCommitAuthor>(), Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("abc123"));
+
+        GitGatewayResult result = await gateway.CommitAsync(
+            "buckettie", "feat: change", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        await _git.Received(1).CommitAsync(RepositoryRoot, "feat: change",
+            new GitCommitAuthor("Registered Author", "registered@example.com"), Arg.Any<CancellationToken>());
+        await _git.DidNotReceiveWithAnyArgs().GetConfigValueAsync(default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("Only Name", null)]
+    [InlineData(null, "only@example.com")]
+    public async Task CommitAsync_WithoutAnyAuthor_ReturnsAuthorIdentityMissingBeforeStaging(string? name, string? email)
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureCommittableChange();
+        ConfigureGitAuthor(name, email);
+
+        GitGatewayResult result = await gateway.CommitAsync(
+            "buckettie", "feat: change", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.AuthorIdentityMissing);
+        await _git.DidNotReceiveWithAnyArgs().StageAllAsync(default!, TestContext.Current.CancellationToken);
+        await _git.DidNotReceiveWithAnyArgs().CommitAsync(default!, default!, default!, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -494,7 +534,24 @@ public sealed class GitGatewayTests
             .Returns(GitCommandResult.Success($"{OldHead}\trefs/heads/develop\n"));
     }
 
-    private GitGateway CreateGateway()
+    private void ConfigureCommittableChange()
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(" M file.cs\n"));
+        _git.StageAllAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+    }
+
+    /// <summary>RepositoryのGit設定を模します。nullは未設定（git configの終了コード1）です。</summary>
+    private void ConfigureGitAuthor(string? name, string? email)
+    {
+        _git.GetConfigValueAsync(RepositoryRoot, "user.name", Arg.Any<CancellationToken>())
+            .Returns(name is null ? GitCommandResult.Failed(GitCommandFailure.Failed) : GitCommandResult.Success(name + "\n"));
+        _git.GetConfigValueAsync(RepositoryRoot, "user.email", Arg.Any<CancellationToken>())
+            .Returns(email is null ? GitCommandResult.Failed(GitCommandFailure.Failed) : GitCommandResult.Success(email + "\n"));
+    }
+
+    private GitGateway CreateGateway(RepositoryOptions? repository = null)
     {
         BuckettieOptions options = new()
         {
@@ -502,7 +559,7 @@ public sealed class GitGatewayTests
             BitbucketUsername = "developer",
             Repositories = new Dictionary<string, RepositoryOptions>
             {
-                ["buckettie"] = CreateRepository(),
+                ["buckettie"] = repository ?? CreateRepository(),
             },
         };
         return new(
