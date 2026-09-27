@@ -216,7 +216,7 @@ internal sealed class AuditedRepositoryRegistrationService(
     public async Task<RepositoryRegistrationOutcome> RegisterAsync(
         string repositoryId,
         string localRoot,
-        string remote,
+        string? remote,
         string developBranch,
         string mainBranch,
         CancellationToken cancellationToken,

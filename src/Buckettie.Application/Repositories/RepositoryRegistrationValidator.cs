@@ -12,6 +12,7 @@ public sealed class RepositoryRegistrationValidator
     private readonly RepositoryAllowlist _allowlist;
     private readonly IRepositoryEnvironment _environment;
     private readonly IGitCommandClient _git;
+    private readonly GitRemoteResolver _remoteResolver;
 
     /// <summary>Validatorを初期化します。</summary>
     public RepositoryRegistrationValidator(
@@ -25,15 +26,17 @@ public sealed class RepositoryRegistrationValidator
         _allowlist = allowlist;
         _environment = environment;
         _git = git;
+        _remoteResolver = new GitRemoteResolver(git);
     }
 
     /// <summary>
     /// 登録候補を検証し、Git Remoteから導出したWorkspace／Slugを返します。
+    /// Remote名を省略した場合は、HTTPS形式のBitbucket Remoteを自動で解決します。
     /// </summary>
     public async Task<RepositoryRegistrationValidationResult> ValidateAsync(
         string repositoryId,
         string localRoot,
-        string remote,
+        string? remote,
         CancellationToken cancellationToken)
     {
         if (!RepositoryId.IsValid(repositoryId))
@@ -42,7 +45,7 @@ public sealed class RepositoryRegistrationValidator
                 RepositoryValidationError.RepositoryIdInvalid);
         }
 
-        if (string.IsNullOrWhiteSpace(localRoot) || string.IsNullOrWhiteSpace(remote))
+        if (string.IsNullOrWhiteSpace(localRoot))
         {
             return RepositoryRegistrationValidationResult.Invalid(
                 RepositoryValidationError.LocalRootNotFound);
@@ -84,15 +87,41 @@ public sealed class RepositoryRegistrationValidator
                 RepositoryValidationError.GitMetadataNotFound);
         }
 
-        GitCommandResult remoteResult = await _git.GetRemoteUrlAsync(fullRoot, remote, cancellationToken)
-            .ConfigureAwait(false);
-        if (!remoteResult.IsSuccess)
+        string remoteUrl;
+        if (string.IsNullOrWhiteSpace(remote))
         {
-            return RepositoryRegistrationValidationResult.Invalid(
-                RepositoryValidationError.RemoteUrlInvalid);
+            GitRemoteResolution discovered = await _remoteResolver.DiscoverAsync(fullRoot, cancellationToken)
+                .ConfigureAwait(false);
+            if (!discovered.IsResolved)
+            {
+                return RepositoryRegistrationValidationResult.Invalid(discovered.Status switch
+                {
+                    GitRemoteResolutionStatus.NotFound => RepositoryValidationError.RemoteNotFound,
+                    GitRemoteResolutionStatus.Ambiguous => RepositoryValidationError.RemoteAmbiguous,
+                    _ => RepositoryValidationError.RemoteUrlInvalid,
+                });
+            }
+
+            remoteUrl = discovered.Url!;
+        }
+        else
+        {
+            if (!GitRemoteResolver.IsValidRemoteName(remote))
+            {
+                return RepositoryRegistrationValidationResult.Invalid(RepositoryValidationError.RemoteNotFound);
+            }
+
+            GitCommandResult remoteResult = await _git.GetRemoteUrlAsync(fullRoot, remote, cancellationToken)
+                .ConfigureAwait(false);
+            if (!remoteResult.IsSuccess)
+            {
+                return RepositoryRegistrationValidationResult.Invalid(
+                    RepositoryValidationError.RemoteUrlInvalid);
+            }
+
+            remoteUrl = remoteResult.StandardOutput.Trim();
         }
 
-        string remoteUrl = remoteResult.StandardOutput.Trim();
         if (BitbucketRemoteUrlValidator.IsSshRemote(remoteUrl))
         {
             return RepositoryRegistrationValidationResult.Invalid(

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
@@ -67,6 +67,17 @@ public sealed class BuckettieMcpTools
             true, "list_projects", string.Empty, new BuckettieProjectListData(projects), null));
     }
 
+    private const string RemoteDescription =
+        "使用するGitリモート名（MoyaiのgitRemoteName）。省略時はBitbucketリポジトリとURLが一致するリモートを自動で解決します。 / " +
+        "Git remote name to use (Moyai gitRemoteName). When omitted, the remote whose URL matches the Bitbucket repository is resolved automatically.";
+
+    /// <summary>MCP引数で指定されたRemote名を、Git操作の非同期フローへ引き渡します。</summary>
+    private static async Task<GitGatewayResult> WithRemoteAsync(string? remote, Func<Task<GitGatewayResult>> operation)
+    {
+        using IDisposable scope = GitRemoteSelection.Use(remote);
+        return await operation().ConfigureAwait(false);
+    }
+
     /// <summary>Repository Contractで利用可能な操作を返します。</summary>
     [McpServerTool(Name = "bitbucket_provider_capabilities", ReadOnly = true, Destructive = false,
         Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -96,7 +107,9 @@ public sealed class BuckettieMcpTools
             string.Empty,
             new BitbucketProviderCapabilities("bitbucket", operations,
                 Authentication: new ProviderAuthenticationCapabilities(ProviderToolPolicy.Capability.ToolScopes,
-                    IntegrationMode: _integration.Name)),
+                    IntegrationMode: _integration.Name),
+                RemoteResolution: new RemoteResolutionCapabilities(
+                    GitRemoteResolver.ContractVersion, GitRemoteResolver.ContractMode)),
             null));
     }
 
@@ -107,8 +120,10 @@ public sealed class BuckettieMcpTools
     [Description("設定済みリポジトリのローカルブランチ、HEAD、作業ツリー状態を返します。 / Returns the configured repository's local branch, HEAD, and working-tree status.")]
     public Task<BuckettieToolResult<BuckettieGitData>> RepositoryStatusAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description(RemoteDescription)] string? remote = null,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.GetStatusAsync(repository, cancellationToken), _language);
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.GetStatusAsync(repository, cancellationToken)), _language);
 
     /// <summary>RepositoryのHEADに対する作業ツリー差分を取得します。</summary>
     [McpServerTool(Name = "bitbucket_repository_diff", ReadOnly = true, Destructive = false,
@@ -116,8 +131,10 @@ public sealed class BuckettieMcpTools
     [Description("登録済みリポジトリのHEADに対する作業ツリー差分を返します。 / Returns the working-tree diff against HEAD for an allowed repository.")]
     public Task<BuckettieToolResult<BuckettieGitData>> RepositoryDiffAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description(RemoteDescription)] string? remote = null,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.GetDiffAsync(repository, cancellationToken), _language);
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.GetDiffAsync(repository, cancellationToken)), _language);
 
     /// <summary>Policyに従って作業ツリーの変更をlocal commitします。</summary>
     [McpServerTool(Name = "bitbucket_repository_commit", ReadOnly = false, Destructive = true,
@@ -126,9 +143,10 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieGitData>> RepositoryCommitAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         [Description("commitメッセージ。 / Commit message.")] string message,
+        [Description(RemoteDescription)] string? remote = null,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(
-            _git.CommitAsync(repository, message, cancellationToken), _language);
+            WithRemoteAsync(remote, () => _git.CommitAsync(repository, message, cancellationToken)), _language);
 
     /// <summary>最新commitのidentity書き換えを事前確認します。</summary>
     [McpServerTool(Name = "bitbucket_history_rewrite_preview", ReadOnly = true, Destructive = false,
@@ -138,10 +156,11 @@ public sealed class BuckettieMcpTools
         string repository, string branch, string expectedOldHead, string reason,
         string? authorName = null, string? authorEmail = null,
         string? committerName = null, string? committerEmail = null,
-        bool allowSignatureRemoval = false, CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.PreviewHistoryRewriteAsync(repository,
+        bool allowSignatureRemoval = false, [Description(RemoteDescription)] string? remote = null,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(WithRemoteAsync(remote, () => _git.PreviewHistoryRewriteAsync(repository,
             new(branch, expectedOldHead, reason, authorName, authorEmail, committerName, committerEmail,
-                allowSignatureRemoval), cancellationToken), _language);
+                allowSignatureRemoval), cancellationToken)), _language);
 
     /// <summary>最新commitのidentityを書き換えます。</summary>
     [McpServerTool(Name = "bitbucket_history_rewrite_execute", ReadOnly = false, Destructive = true,
@@ -151,10 +170,11 @@ public sealed class BuckettieMcpTools
         string repository, string branch, string expectedOldHead, string reason,
         string? authorName = null, string? authorEmail = null,
         string? committerName = null, string? committerEmail = null,
-        bool allowSignatureRemoval = false, CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.RewriteHistoryAsync(repository,
+        bool allowSignatureRemoval = false, [Description(RemoteDescription)] string? remote = null,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(WithRemoteAsync(remote, () => _git.RewriteHistoryAsync(repository,
             new(branch, expectedOldHead, reason, authorName, authorEmail, committerName, committerEmail,
-                allowSignatureRemoval), cancellationToken), _language);
+                allowSignatureRemoval), cancellationToken)), _language);
 
     /// <summary>実Remoteを照合してforce-with-lease pushします。</summary>
     [McpServerTool(Name = "bitbucket_force_push_with_lease", ReadOnly = false, Destructive = true,
@@ -162,9 +182,9 @@ public sealed class BuckettieMcpTools
     [Description("実Remote HEADを期待SHAと照合し、無条件forceへ切り替えずに対象branchだけをpushします。 / Compares the actual remote HEAD and pushes only the target branch without unconditional force fallback.")]
     public Task<BuckettieToolResult<BuckettieGitData>> ForcePushWithLeaseAsync(
         string repository, string branch, string expectedLocalHead, string expectedRemoteHead,
-        string reason, CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.ForcePushWithLeaseAsync(repository,
-            new(branch, expectedLocalHead, expectedRemoteHead, reason), cancellationToken), _language);
+        string reason, [Description(RemoteDescription)] string? remote = null, CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(WithRemoteAsync(remote, () => _git.ForcePushWithLeaseAsync(repository,
+            new(branch, expectedLocalHead, expectedRemoteHead, reason), cancellationToken)), _language);
 
     /// <summary>設定済みRemoteからfetchします。</summary>
     [McpServerTool(Name = "bitbucket_fetch", Destructive = false, Idempotent = true, OpenWorld = true,
@@ -172,8 +192,10 @@ public sealed class BuckettieMcpTools
     [Description("設定済みBitbucketリモートからrefを取得します。 / Fetches refs from the repository's configured Bitbucket remote.")]
     public Task<BuckettieToolResult<BuckettieGitData>> FetchAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description(RemoteDescription)] string? remote = null,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.FetchAsync(repository, cancellationToken), _language);
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.FetchAsync(repository, cancellationToken)), _language);
 
     /// <summary>現在Branchをfast-forward限定でpullします。</summary>
     [McpServerTool(Name = "bitbucket_pull", Destructive = false, Idempotent = true, OpenWorld = true,
@@ -181,8 +203,10 @@ public sealed class BuckettieMcpTools
     [Description("許可された現在のブランチをfast-forward限定でpullします。 / Pulls the current allowed branch using fast-forward only.")]
     public Task<BuckettieToolResult<BuckettieGitData>> PullAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description(RemoteDescription)] string? remote = null,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.PullAsync(repository, cancellationToken), _language);
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.PullAsync(repository, cancellationToken)), _language);
 
     /// <summary>現在の許可Branchをpushします。</summary>
     [McpServerTool(Name = "bitbucket_push", Destructive = true, Idempotent = true, OpenWorld = true,
@@ -190,9 +214,10 @@ public sealed class BuckettieMcpTools
     [Description("リポジトリと保護ブランチのポリシーを適用して現在のブランチをpushします。 / Pushes the current branch after applying repository and protected-branch policies.")]
     public Task<BuckettieToolResult<BuckettieGitData>> PushAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description(RemoteDescription)] string? remote = null,
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(
-            _git.PushAsync(repository, cancellationToken), _language, _allowlist?.ListIds());
+            WithRemoteAsync(remote, () => _git.PushAsync(repository, cancellationToken)), _language, _allowlist?.ListIds());
 
     /// <summary>Remote Branch一覧を取得します。</summary>
     [McpServerTool(Name = "bitbucket_branch_list", ReadOnly = true, Destructive = false,
@@ -432,8 +457,10 @@ public sealed class BuckettieMcpTools
     public Task<BuckettieToolResult<BuckettieGitData>> PushTagAsync(
         [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
         [Description("pushするタグ名。 / Tag name to push.")] string tag,
+        [Description(RemoteDescription)] string? remote = null,
         CancellationToken cancellationToken = default) =>
-        BuckettieToolResultMapper.MapGitAsync(_git.PushTagAsync(repository, tag, cancellationToken), _language);
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.PushTagAsync(repository, tag, cancellationToken)), _language);
 
     /// <summary>新規RepositoryをAllowlistへ登録します。対話Desktopでの人間承認が必須です。</summary>
     [McpServerTool(Name = "bitbucket_repository_register", ReadOnly = false, Destructive = true,
@@ -441,11 +468,12 @@ public sealed class BuckettieMcpTools
     [Description("新しいリポジトリの許可リスト登録を提案し、サーバーのデスクトップで対話承認を要求します。 / " +
         "Proposes registering a new repository in the allowlist; requires interactive human approval " +
         "on the server's desktop session. Workspace/Slug are always derived from the local Git remote, never " +
-        "from caller input, branch policy fields are server-defaulted, and the Git remote must use HTTPS.")]
+        "from caller input, branch policy fields are server-defaulted, and the Git remote must use HTTPS. " +
+        "When remote is omitted, it is resolved automatically per the Moyai Repository Provider Contract.")]
     public async Task<BuckettieToolResult<BuckettieRepositoryRegistrationData>> RegisterRepositoryAsync(
         [Description("登録する新しいBuckettieリポジトリID。 / New Buckettie repository ID to register.")] string repository,
         [Description("登録する既存Gitリポジトリの絶対ローカルパス。 / Absolute local path of the existing Git repository to register.")] string localRoot,
-        [Description("検証して使用するHTTPS Gitリモート名。 / HTTPS Git remote name to validate and use.")] string remote = "origin",
+        [Description("使用するHTTPS Gitリモート名。省略時は操作ごとにBitbucketリポジトリとURLが一致するリモートを自動で解決します。 / HTTPS Git remote name to use. When omitted, the remote whose URL matches the Bitbucket repository is resolved automatically for each operation.")] string? remote = null,
         [Description("開発ブランチ名。 / Development branch name.")] string developBranch = "develop",
         [Description("主要ブランチ名。 / Main branch name.")] string mainBranch = "main",
         [Description("commit作成者名。作成者メールアドレスと対で指定します。 / Commit author name, specified together with the email.")] string? commitAuthorName = null,

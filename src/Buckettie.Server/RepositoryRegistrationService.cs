@@ -13,7 +13,7 @@ public interface IRepositoryRegistrationService
     Task<RepositoryRegistrationOutcome> RegisterAsync(
         string repositoryId,
         string localRoot,
-        string remote,
+        string? remote,
         string developBranch,
         string mainBranch,
         CancellationToken cancellationToken,
@@ -65,7 +65,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
     public async Task<RepositoryRegistrationOutcome> RegisterAsync(
         string repositoryId,
         string localRoot,
-        string remote,
+        string? remote,
         string developBranch,
         string mainBranch,
         CancellationToken cancellationToken,
@@ -77,6 +77,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
                 BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.CommitAuthorInvalid));
         }
 
+        remote = string.IsNullOrWhiteSpace(remote) ? null : remote.Trim();
         if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
         {
             return RepositoryRegistrationOutcome.Failure(BuckettieToolResultMapper.RegistrationInProgressError());
@@ -158,7 +159,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
         string workspace,
         string slug,
         string localRoot,
-        string remote,
+        string? remote,
         string developBranch,
         string mainBranch) => new()
     {

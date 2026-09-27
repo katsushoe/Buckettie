@@ -8,6 +8,8 @@ public enum GitGatewayError
     RepositoryNotAllowed,
     LocalRepositoryInvalid,
     RemoteMismatch,
+    RemoteNotFound,
+    RemoteAmbiguous,
     SshRemoteNotSupported,
     GitNotFound,
     GitFailed,

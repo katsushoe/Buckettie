@@ -223,15 +223,16 @@ internal static class CliApplication
             else
             {
                 var options = services.GetRequiredService<BuckettieOptions>().Repositories[repository];
-                GitCommandResult remote = await services.GetRequiredService<IGitCommandClient>()
-                    .GetRemoteUrlAsync(options.LocalRoot, options.Remote, cancellationToken).ConfigureAwait(false);
-                if (!remote.IsSuccess || string.IsNullOrWhiteSpace(remote.StandardOutput))
+                GitRemoteResolution remote = await new GitRemoteResolver(services.GetRequiredService<IGitCommandClient>())
+                    .ResolveAsync(options.LocalRoot, options.Workspace, options.Slug, options.Remote, cancellationToken)
+                    .ConfigureAwait(false);
+                if (!remote.IsResolved)
                 {
                     error.WriteLine("[NG] API Token: RemoteUrlUnavailable");
                     return 1;
                 }
                 token = await (tokenPrompt ?? TokenPromptClient.ReadTokenAsync)(repository,
-                    remote.StandardOutput.Trim(), japanese ? "ja-JP" : "en-US", cancellationToken).ConfigureAwait(false);
+                    remote.Url!, japanese ? "ja-JP" : "en-US", cancellationToken).ConfigureAwait(false);
             }
         }
         catch (TokenPromptException exception)
@@ -273,6 +274,16 @@ internal static class CliApplication
         return 0;
     }
 
+    private static async Task<GitCommandResult> DiscoverRemoteUrlAsync(
+        IGitCommandClient git, string localRoot, CancellationToken cancellationToken)
+    {
+        GitRemoteResolution discovered = await new GitRemoteResolver(git).DiscoverAsync(localRoot, cancellationToken)
+            .ConfigureAwait(false);
+        return discovered.IsResolved
+            ? GitCommandResult.Success(discovered.Url!)
+            : GitCommandResult.Failed(GitCommandFailure.Failed);
+    }
+
     private static async Task<int> RegisterRepositoryAsync(
         IServiceProvider services,
         string repository,
@@ -294,9 +305,11 @@ internal static class CliApplication
         }
         else
         {
-            string remote = GetOption(rest, "--remote") ?? "origin";
-            GitCommandResult remoteResult = await services.GetRequiredService<IGitCommandClient>()
-                .GetRemoteUrlAsync(localRoot, remote, cancellationToken).ConfigureAwait(false);
+            string? remote = GetOption(rest, "--remote");
+            IGitCommandClient git = services.GetRequiredService<IGitCommandClient>();
+            GitCommandResult remoteResult = remote is null
+                ? await DiscoverRemoteUrlAsync(git, localRoot, cancellationToken).ConfigureAwait(false)
+                : await git.GetRemoteUrlAsync(localRoot, remote, cancellationToken).ConfigureAwait(false);
             if (!remoteResult.IsSuccess || string.IsNullOrWhiteSpace(remoteResult.StandardOutput))
             {
                 error.WriteLine(japanese
@@ -344,10 +357,10 @@ internal static class CliApplication
         Dictionary<string, object?> arguments = new()
         {
             ["localRoot"] = localRoot,
-            ["remote"] = GetOption(rest, "--remote") ?? "origin",
             ["developBranch"] = GetOption(rest, "--develop-branch") ?? "develop",
             ["mainBranch"] = GetOption(rest, "--main-branch") ?? "main",
         };
+        if (GetOption(rest, "--remote") is { } requestedRemote) arguments["remote"] = requestedRemote;
         // The service runs as LocalSystem, so the default author comes from the registering user's Git config.
         (string? authorName, string? authorEmail) = await ResolveRegistrationAuthorAsync(
             services, localRoot, rest, cancellationToken).ConfigureAwait(false);

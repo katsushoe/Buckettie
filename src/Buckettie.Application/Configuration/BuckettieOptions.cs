@@ -50,8 +50,11 @@ public sealed record RepositoryOptions
     /// <summary>ローカルRepositoryのルートです。</summary>
     public required string LocalRoot { get; init; }
 
-    /// <summary>検証対象のGit Remote名です。</summary>
-    public required string Remote { get; init; }
+    /// <summary>
+    /// 使用するGit Remote名です。<see langword="null"/>の場合は、操作ごとにWorkspace/Slugと
+    /// URLが一致するRemoteを自動で解決します（Moyai Repository Provider Contract）。
+    /// </summary>
+    public string? Remote { get; init; }
 
     /// <summary>開発ブランチ名です。</summary>
     public required string DevelopBranch { get; init; }

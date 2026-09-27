@@ -32,23 +32,21 @@ public sealed class GitGateway : IGitGateway
     private static readonly Regex WhitespacePattern = new("\\s+", RegexOptions.CultureInvariant);
     private readonly RepositoryAllowlist _allowlist;
     private readonly LocalPathValidator _pathValidator;
-    private readonly BitbucketRemoteUrlValidator _remoteValidator;
+    private readonly GitRemoteResolver _remoteResolver;
     private readonly IGitCommandClient _git;
 
     /// <summary>Git Gatewayを初期化します。</summary>
     public GitGateway(
         RepositoryAllowlist allowlist,
         LocalPathValidator pathValidator,
-        BitbucketRemoteUrlValidator remoteValidator,
         IGitCommandClient git)
     {
         ArgumentNullException.ThrowIfNull(allowlist);
         ArgumentNullException.ThrowIfNull(pathValidator);
-        ArgumentNullException.ThrowIfNull(remoteValidator);
         ArgumentNullException.ThrowIfNull(git);
         _allowlist = allowlist;
         _pathValidator = pathValidator;
-        _remoteValidator = remoteValidator;
+        _remoteResolver = new GitRemoteResolver(git);
         _git = git;
     }
 
@@ -93,7 +91,7 @@ public sealed class GitGateway : IGitGateway
 
         GitCommandResult developHead = await _git.GetRemoteHeadAsync(
             boundary.Repository.LocalRoot,
-            boundary.Repository.Remote,
+            boundary.Remote,
             boundary.Repository.DevelopBranch,
             cancellationToken).ConfigureAwait(false);
         GitGatewayResult? developHeadError = MapCommandFailure(operation, repository, developHead);
@@ -104,7 +102,7 @@ public sealed class GitGateway : IGitGateway
 
         GitCommandResult mainHead = await _git.GetRemoteHeadAsync(
             boundary.Repository.LocalRoot,
-            boundary.Repository.Remote,
+            boundary.Remote,
             boundary.Repository.MainBranch,
             cancellationToken).ConfigureAwait(false);
         GitGatewayResult? mainHeadError = MapCommandFailure(operation, repository, mainHead);
@@ -113,7 +111,7 @@ public sealed class GitGateway : IGitGateway
             return mainHeadError;
         }
 
-        string comparisonReference = $"refs/remotes/{boundary.Repository.Remote}/{boundary.Repository.DevelopBranch}";
+        string comparisonReference = $"refs/remotes/{boundary.Remote}/{boundary.Repository.DevelopBranch}";
         List<string> missingReferences = [];
         int? ahead = null;
         int? behind = null;
@@ -124,7 +122,7 @@ public sealed class GitGateway : IGitGateway
         else
         {
             GitCommandResult divergence = await _git.GetAheadBehindAsync(
-                boundary.Repository.LocalRoot, boundary.Repository.Remote,
+                boundary.Repository.LocalRoot, boundary.Remote,
                 boundary.Repository.DevelopBranch, cancellationToken).ConfigureAwait(false);
             GitGatewayResult? divergenceError = MapCommandFailure(operation, repository, divergence);
             if (divergenceError is not null)
@@ -141,7 +139,7 @@ public sealed class GitGateway : IGitGateway
         }
         if (!mainHead.IsSuccess)
         {
-            missingReferences.Add($"refs/remotes/{boundary.Repository.Remote}/{boundary.Repository.MainBranch}");
+            missingReferences.Add($"refs/remotes/{boundary.Remote}/{boundary.Repository.MainBranch}");
         }
 
         string branchName = branch.StandardOutput.Trim();
@@ -290,7 +288,7 @@ public sealed class GitGateway : IGitGateway
 
         GitCommandResult result = await _git.FetchAsync(
             boundary.Repository.LocalRoot,
-            boundary.Repository.Remote,
+            boundary.Remote,
             repository,
             cancellationToken).ConfigureAwait(false);
         return MapCommandFailure(operation, repository, result)
@@ -326,7 +324,7 @@ public sealed class GitGateway : IGitGateway
 
         GitCommandResult result = await _git.PullFastForwardOnlyAsync(
             boundary.Repository.LocalRoot,
-            boundary.Repository.Remote,
+            boundary.Remote,
             branch,
             repository,
             cancellationToken).ConfigureAwait(false);
@@ -374,7 +372,7 @@ public sealed class GitGateway : IGitGateway
 
         GitCommandResult result = await _git.PushAsync(
             boundary.Repository.LocalRoot,
-            boundary.Repository.Remote,
+            boundary.Remote,
             branch,
             repository,
             cancellationToken).ConfigureAwait(false);
@@ -405,7 +403,7 @@ public sealed class GitGateway : IGitGateway
 
         GitCommandResult result = await _git.PushTagAsync(
             boundary.Repository.LocalRoot,
-            boundary.Repository.Remote,
+            boundary.Remote,
             tag,
             repository,
             cancellationToken).ConfigureAwait(false);
@@ -492,7 +490,7 @@ public sealed class GitGateway : IGitGateway
         if (localFailure is not null) return localFailure;
 
         GitCommandResult remoteBefore = await _git.GetActualRemoteHeadAsync(
-            options.LocalRoot, options.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
+            options.LocalRoot, boundary.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
         GitGatewayResult? remoteError = MapCommandFailure(operation, repository, remoteBefore, request.Branch);
         if (remoteError is not null) return remoteError;
         string actual = ParseRemoteHead(remoteBefore.StandardOutput);
@@ -500,19 +498,19 @@ public sealed class GitGateway : IGitGateway
             return GitGatewayResult.Failure(operation, repository, GitGatewayError.ExpectedHeadMismatch, request.Branch);
 
         GitCommandResult push = await _git.ForcePushWithLeaseAsync(
-            options.LocalRoot, options.Remote, request.Branch, request.ExpectedRemoteHead, repository, cancellationToken)
+            options.LocalRoot, boundary.Remote, request.Branch, request.ExpectedRemoteHead, repository, cancellationToken)
             .ConfigureAwait(false);
         GitGatewayResult? pushError = MapCommandFailure(operation, repository, push, request.Branch);
         if (pushError is not null) return pushError;
         GitCommandResult remoteAfter = await _git.GetActualRemoteHeadAsync(
-            options.LocalRoot, options.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
+            options.LocalRoot, boundary.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
         GitGatewayResult? verifyError = MapCommandFailure(operation, repository, remoteAfter, request.Branch);
         if (verifyError is not null) return verifyError;
         string verified = ParseRemoteHead(remoteAfter.StandardOutput);
         if (!string.Equals(verified, request.ExpectedLocalHead, StringComparison.OrdinalIgnoreCase))
             return GitGatewayResult.Failure(operation, repository, GitGatewayError.RemoteVerificationFailed, request.Branch);
         return new(true, operation, repository, request.Branch, null, null,
-            ForceWithLease: new(options.Remote, request.Branch, request.ExpectedRemoteHead,
+            ForceWithLease: new(boundary.Remote, request.Branch, request.ExpectedRemoteHead,
                 request.ExpectedLocalHead, verified, true));
     }
 
@@ -547,12 +545,12 @@ public sealed class GitGateway : IGitGateway
         if (signed && !request.AllowSignatureRemoval)
             return GitGatewayResult.Failure(operation, repository, GitGatewayError.SignedCommitConfirmationRequired, request.Branch);
         GitCommandResult remote = await _git.GetActualRemoteHeadAsync(
-            options.LocalRoot, options.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
+            options.LocalRoot, boundary.Remote, request.Branch, repository, cancellationToken).ConfigureAwait(false);
         GitGatewayResult? remoteError = MapCommandFailure(operation, repository, remote, request.Branch);
         if (remoteError is not null) return remoteError;
         bool remoteUpdateRequired = string.Equals(ParseRemoteHead(remote.StandardOutput), request.ExpectedOldHead,
             StringComparison.OrdinalIgnoreCase);
-        GitHistoryRewriteData data = new(options.Remote, request.Branch, request.ExpectedOldHead, null,
+        GitHistoryRewriteData data = new(boundary.Remote, request.Branch, request.ExpectedOldHead, null,
             authorBefore, authorAfter, committerBefore, committerAfter, f[5], f[8], true,
             signed, signed, remoteUpdateRequired, null, false);
         return new(true, operation, repository, request.Branch, null, null, HistoryRewrite: data);
@@ -641,24 +639,26 @@ public sealed class GitGateway : IGitGateway
                 GitGatewayError.LocalRepositoryInvalid));
         }
 
-        GitCommandResult remote = await _git.GetRemoteUrlAsync(
+        GitRemoteResolution remote = await _remoteResolver.ResolveAsync(
             options.LocalRoot,
-            options.Remote,
-            cancellationToken).ConfigureAwait(false);
-        GitGatewayResult? commandError = MapCommandFailure(operation, repository, remote);
-        if (commandError is not null)
-        {
-            return BoundaryResult.Invalid(commandError);
-        }
-
-        RepositoryValidationResult remoteValidation = _remoteValidator.Validate(
             options.Workspace,
             options.Slug,
-            remote.StandardOutput.Trim());
-        if (remoteValidation.IsValid) return BoundaryResult.Valid(options);
-        GitGatewayError error = remoteValidation.Error == RepositoryValidationError.SshRemoteNotSupported
-            ? GitGatewayError.SshRemoteNotSupported
-            : GitGatewayError.RemoteMismatch;
+            GitRemoteSelection.Current ?? options.Remote,
+            cancellationToken).ConfigureAwait(false);
+        if (remote.IsResolved) return BoundaryResult.Valid(options, remote.Name!);
+        if (remote.FailedCommand is not null)
+        {
+            return BoundaryResult.Invalid(MapCommandFailure(operation, repository, remote.FailedCommand)
+                ?? GitGatewayResult.Failure(operation, repository, GitGatewayError.GitFailed));
+        }
+
+        GitGatewayError error = remote.Status switch
+        {
+            GitRemoteResolutionStatus.NotFound => GitGatewayError.RemoteNotFound,
+            GitRemoteResolutionStatus.Ambiguous => GitGatewayError.RemoteAmbiguous,
+            GitRemoteResolutionStatus.SshRemoteNotSupported => GitGatewayError.SshRemoteNotSupported,
+            _ => GitGatewayError.RemoteMismatch,
+        };
         return BoundaryResult.Invalid(GitGatewayResult.Failure(operation, repository, error));
     }
 
@@ -772,10 +772,12 @@ public sealed class GitGateway : IGitGateway
     private sealed record BoundaryResult(
         bool IsValid,
         RepositoryOptions? Repository,
+        string Remote,
         GitGatewayResult? Failure)
     {
-        internal static BoundaryResult Valid(RepositoryOptions repository) => new(true, repository, null);
+        internal static BoundaryResult Valid(RepositoryOptions repository, string remote) =>
+            new(true, repository, remote, null);
 
-        internal static BoundaryResult Invalid(GitGatewayResult failure) => new(false, null, failure);
+        internal static BoundaryResult Invalid(GitGatewayResult failure) => new(false, null, string.Empty, failure);
     }
 }

@@ -114,6 +114,11 @@ public sealed class GitCommandClient : IGitCommandClient
         ExecuteAsync(repositoryRoot, ["config", "--get", "--", key], cancellationToken);
 
     /// <inheritdoc />
+    public Task<GitCommandResult> ListRemoteUrlsAsync(string repositoryRoot, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["config", "--get-regexp", "^remote\\..*\\.url$"], cancellationToken,
+            missingReferenceAllowed: true);
+
+    /// <inheritdoc />
     public Task<GitCommandResult> GetRemoteUrlAsync(
         string repositoryRoot,
         string remote,

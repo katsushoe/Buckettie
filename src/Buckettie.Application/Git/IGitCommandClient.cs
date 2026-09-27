@@ -42,6 +42,12 @@ public interface IGitCommandClient
     public Task<GitCommandResult> GetConfigValueAsync(
         string repositoryRoot, string key, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Repositoryに設定された全Remoteの<c>remote.&lt;name&gt;.url</c>を取得します。
+    /// Remoteが1つもない場合は<see cref="GitCommandFailure.ReferenceNotFound"/>を返します。
+    /// </summary>
+    public Task<GitCommandResult> ListRemoteUrlsAsync(string repositoryRoot, CancellationToken cancellationToken);
+
     /// <summary>設定済みRemote URLを取得します。</summary>
     public Task<GitCommandResult> GetRemoteUrlAsync(
         string repositoryRoot,

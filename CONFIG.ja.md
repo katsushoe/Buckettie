@@ -52,6 +52,18 @@ ServiceはLocalSystemで動作し、そのGit作成者は通常未設定のた�
 
 これら3操作はいずれも`stop`/`restart`を必要としません。これらのToolが対応しない形の登録・修正が必要な場合は、引き続き手動編集フロー（対象がSQLite Databaseへ変わった点を除き[Repository保存先](#repository保存先)参照）を使用します。
 
+## Gitリモートの解決
+
+BuckettieはMoyai Repository Provider Contract（`remote_resolution` version 1、mode `repository_url`）に従い、対応を`bitbucket_provider_capabilities.data.remote_resolution`で表明します。ローカルGit操作の直前に、次の順でリモートを決めます。
+
+1. Git系Tool（`repository_status`、`repository_diff`、`repository_commit`、`fetch`、`pull`、`push`、`tag_push`、`history_rewrite_*`、`force_push_with_lease`）の任意引数`remote`。Moyaiは`gitRemoteName`をここへ渡します。
+2. 登録時に指定して保存した`remote`。
+3. どちらもなければ自動解決します。対象RepositoryのリモートのうちHTTPS URLが登録済みの`bitbucket.org/<workspace>/<slug>`を指すもの（`.git`と末尾`/`は無視、パスの大文字小文字は区別）を候補とします。SSHリモートと、資格情報・query・fragmentを含むURLは除外します。候補が1つならそれを使い、複数なら命名規則`<ホスト>-origin-<接続方式>`（例: `bitbucket-origin-https`）に合う名前が1つだけの場合にそれを使います。
+
+`origin`への暗黙の退避は行いません。失敗時は共通エラーコード`provider_remote_not_found`（一致するリモートがない、または指定名のリモートがない）、`provider_remote_ambiguous`（複数一致し命名規則でも1つに決まらない）、`provider_remote_mismatch`（指定名のリモートが別Repositoryを指す）を返します。指定名のリモートがSSHの場合は、従来どおり`ssh_remote_not_supported`です。
+
+登録時の`remote`は省略できます。省略時は、ローカルRepositoryのHTTPS形式Bitbucketリモート（すべて同じRepositoryを指す必要があります）から`workspace`／`slug`を導出し、リモート名は保存せず操作ごとに自動解決します。既存の登録は保存済みのリモート名を引き続き使います。
+
 ## 検証エラー
 
 | Code | 意味 |

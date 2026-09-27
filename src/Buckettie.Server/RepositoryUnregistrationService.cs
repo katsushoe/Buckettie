@@ -66,7 +66,7 @@ internal sealed class RepositoryUnregistrationService : IRepositoryUnregistratio
             }
 
             ApprovalPromptRequest promptRequest = new(
-                repositoryId, existing.Workspace, existing.Slug, existing.LocalRoot, existing.Remote,
+                repositoryId, existing.Workspace, existing.Slug, existing.LocalRoot, existing.Remote ?? BitbucketRemoteUrlValidator.RepositoryUrl(existing.Workspace, existing.Slug),
                 Operation: ApprovalOperation.Unregister);
             ApprovalPromptOutcome approval = await _approvalPrompt
                 .RequestApprovalAsync(promptRequest, ApprovalTimeout, cancellationToken)

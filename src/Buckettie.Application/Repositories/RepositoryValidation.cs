@@ -13,6 +13,8 @@ public enum RepositoryValidationError
     RemoteUrlInvalid,
     SshRemoteNotSupported,
     RemoteMismatch,
+    RemoteNotFound,
+    RemoteAmbiguous,
     RepositoryIdInvalid,
     RepositoryAlreadyRegistered,
     RepositoryNotRegistered,

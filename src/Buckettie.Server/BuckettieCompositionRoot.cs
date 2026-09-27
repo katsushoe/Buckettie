@@ -61,7 +61,6 @@ public static class BuckettieCompositionRoot
         services.AddSingleton<IRepositoryEnvironment, SystemRepositoryEnvironment>();
         services.AddSingleton<RepositoryAllowlist>();
         services.AddSingleton<LocalPathValidator>();
-        services.AddSingleton<BitbucketRemoteUrlValidator>();
         services.AddSingleton<IGitCommandClient>(_ => new GitCommandClient(
             gitCommandTimeout,
             askPassExecutable,

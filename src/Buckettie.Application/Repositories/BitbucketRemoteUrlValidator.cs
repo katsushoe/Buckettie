@@ -68,6 +68,9 @@ public sealed class BitbucketRemoteUrlValidator
         return true;
     }
 
+    /// <summary>Workspace/SlugからBitbucket RepositoryのHTTPS URLを組み立てます。</summary>
+    public static string RepositoryUrl(string workspace, string slug) => $"https://{BitbucketHost}/{workspace}/{slug}";
+
     /// <summary>SSH形式のRemote URLか判定します。</summary>
     public static bool IsSshRemote(string remoteUrl)
     {

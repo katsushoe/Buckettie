@@ -85,7 +85,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 Workspace = reader.GetString(1),
                 Slug = reader.GetString(2),
                 LocalRoot = reader.GetString(3),
-                Remote = reader.GetString(4),
+                // remote列はNOT NULLのため、自動解決（null）は空文字列で保存します。
+                Remote = reader.GetString(4) is { Length: > 0 } remote ? remote : null,
                 DevelopBranch = reader.GetString(5),
                 MainBranch = reader.GetString(6),
                 DirectPushBranches = DeserializeSet(reader.GetString(7)),
@@ -188,7 +189,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         command.Parameters.AddWithValue("@workspace", options.Workspace);
         command.Parameters.AddWithValue("@slug", options.Slug);
         command.Parameters.AddWithValue("@localRoot", options.LocalRoot);
-        command.Parameters.AddWithValue("@remote", options.Remote);
+        command.Parameters.AddWithValue("@remote", options.Remote ?? string.Empty);
         command.Parameters.AddWithValue("@developBranch", options.DevelopBranch);
         command.Parameters.AddWithValue("@mainBranch", options.MainBranch);
         command.Parameters.AddWithValue("@directPushBranches", SerializeSet(options.DirectPushBranches));
