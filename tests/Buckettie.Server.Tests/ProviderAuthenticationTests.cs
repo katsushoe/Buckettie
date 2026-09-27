@@ -512,6 +512,63 @@ public sealed class ProviderAuthenticationTests
         called.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("bitbucket_push")]
+    [InlineData("bitbucket_fetch")]
+    [InlineData("bitbucket_pull")]
+    [InlineData("bitbucket_repository_commit")]
+    public async Task Boundary_DirectUnrestricted_DispatchesHeaderlessLoopbackChanges(string tool)
+    {
+        using Fixture fixture = new();
+        ProviderAuthenticationBoundary boundary = await fixture.CreateDirectUnrestrictedAsync();
+        DefaultHttpContext context = fixture.DirectRequest(tool);
+        bool executed = false;
+        await boundary.InvokeAsync(context, async _ =>
+        {
+            await ProviderAuthenticationBoundary.EnsureCurrentAsync(context, tool);
+            executed = true;
+        });
+        executed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Boundary_DirectUnrestricted_InvalidAssertionDoesNotFallBackToDirectAccess()
+    {
+        using Fixture fixture = new();
+        ProviderAuthenticationBoundary boundary = await fixture.CreateDirectUnrestrictedAsync();
+        DefaultHttpContext asserted = fixture.DirectRequest("bitbucket_push");
+        asserted.Request.Headers.Authorization = "Bearer invalid";
+        await AssertRejected(boundary, asserted, "auth_assertion_invalid");
+    }
+
+    [Fact]
+    public async Task Boundary_DirectUnrestricted_ValidatesMoyaiAssertion()
+    {
+        using Fixture fixture = new();
+        ProviderAuthenticationBoundary boundary = await fixture.CreateDirectUnrestrictedAsync();
+        bool called = false;
+        await boundary.InvokeAsync(fixture.Request(fixture.Sign()), current =>
+        {
+            called = true;
+            current.Items[typeof(AssertionPrincipal)].Should().BeOfType<AssertionPrincipal>();
+            return Task.CompletedTask;
+        });
+        called.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Boundary_DirectUnrestrictedFromNonLoopbackOrOtherPort_RequiresAssertion()
+    {
+        using Fixture fixture = new();
+        ProviderAuthenticationBoundary boundary = await fixture.CreateDirectUnrestrictedAsync();
+        DefaultHttpContext remote = fixture.DirectRequest("bitbucket_push");
+        remote.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.10");
+        await AssertRejected(boundary, remote, "auth_assertion_missing");
+        DefaultHttpContext otherPort = fixture.DirectRequest("bitbucket_push");
+        otherPort.Connection.LocalPort = fixture.Options.McpPort + 1;
+        await AssertRejected(boundary, otherPort, "auth_assertion_missing");
+    }
+
     [Fact]
     public async Task Boundary_ConfiguredMoyaiIntegration_StillRequiresAssertionForChanges()
     {
@@ -673,6 +730,11 @@ public sealed class ProviderAuthenticationTests
 
         internal Task<ProviderAuthenticationBoundary> CreateAsync() => ProviderAuthenticationBoundary.CreateAsync(Options,
             new RepositoryAllowlist(Options), NullLogger<ProviderAuthenticationBoundary>.Instance, TestContext.Current.CancellationToken, moyaiIntegration: true);
+
+        /// <summary>連携モードのまま直接接続を単体モード相当にした境界です。</summary>
+        internal Task<ProviderAuthenticationBoundary> CreateDirectUnrestrictedAsync() => ProviderAuthenticationBoundary.CreateAsync(
+            Options, new RepositoryAllowlist(Options), NullLogger<ProviderAuthenticationBoundary>.Instance,
+            TestContext.Current.CancellationToken, moyaiIntegration: true, directUnrestricted: true);
 
         /// <summary>Moyai連携を構成しない単体モードの境界です。</summary>
         internal Task<ProviderAuthenticationBoundary> CreateStandaloneAsync()

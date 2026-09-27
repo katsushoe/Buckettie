@@ -59,7 +59,8 @@ public sealed record ProviderAuthenticationCapabilities(
     string ProtocolVersion = "1",
     string Algorithm = "ES256",
     bool ReplayProtection = true,
-    string IntegrationMode = "standalone");
+    string IntegrationMode = "standalone",
+    string DirectConnection = "unrestricted");
 
 /// <summary>Pull Requestの状態です。</summary>
 public enum BitbucketPullRequestState

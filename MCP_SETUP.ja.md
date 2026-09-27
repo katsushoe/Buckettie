@@ -3,6 +3,8 @@
 BuckettieはMoyaiを前提としません。既定（Serverの`--moyai`オプションなし）では、loopbackからの直接接続ですべての
 Repository操作を利用できます。Serverを`--moyai`付きで起動した場合、直接接続で利用できるのはBootstrapと読み取り操作
 （`list_projects`と`repository.read`だけを要求するTool）で、`fetch`・`pull`と変更操作にはMoyai Assertionが必要です。
+さらに`--direct-unrestricted`を付けた場合（`--moyai --direct-unrestricted`）は、`Authorization`付きの要求をMoyai Assertionとして
+検証したまま、Authorizationなしのloopback直接接続では単体モードと同じくすべてのRepository操作を利用できます。
 loopbackからの登録・更新・登録解除には、常にデスクトップでの対話承認（または管理者用クライアント証明書）が必要です。
 接続設定の前に[認証設定](docs/provider-authentication.md)を確認してください。
 

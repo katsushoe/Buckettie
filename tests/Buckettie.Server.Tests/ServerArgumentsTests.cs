@@ -42,4 +42,28 @@ public sealed class ServerArgumentsTests
     [InlineData(true, "moyai")]
     public void IntegrationMode_Name_MatchesCapabilityValue(bool moyai, string expected) =>
         new ProviderIntegrationMode(moyai).Name.Should().Be(expected);
+
+    [Fact]
+    public void Parse_DirectUnrestrictedWithMoyai_EnablesUnrestrictedDirectConnection()
+    {
+        ServerArguments parsed = ServerArguments.Parse(["--moyai", "--direct-unrestricted"]);
+
+        parsed.MoyaiIntegration.Should().BeTrue();
+        parsed.DirectUnrestricted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Parse_DirectUnrestrictedWithoutMoyai_Rejects()
+    {
+        Action parse = () => ServerArguments.Parse(["--direct-unrestricted"]);
+
+        parse.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData(false, false, "unrestricted")]
+    [InlineData(true, false, "read_only")]
+    [InlineData(true, true, "unrestricted")]
+    public void IntegrationMode_DirectConnection_MatchesContractValue(bool moyai, bool direct, string expected) =>
+        new ProviderIntegrationMode(moyai, direct).DirectConnection.Should().Be(expected);
 }

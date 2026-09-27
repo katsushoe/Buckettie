@@ -4,6 +4,9 @@ Buckettieは既定で単体動作します。loopbackのMCPクライアントは
 すべてのRepository操作を利用できます。Serverを`--moyai`付きで起動した場合だけMoyai連携モードになり、
 [認証設定](docs/provider-authentication.md)が必須、変更操作にMoyai Provider Assertionが必要になります。
 `--moyai`なしで起動した場合、`provider_authentication`は保持したまま使用しません。
+`--moyai --direct-unrestricted`では、Moyai経由の要求を検証したまま、Authorizationなしのloopback直接接続にすべての
+Repository操作を許可します。MSIプロパティ`MOYAI=1`／`DIRECT_UNRESTRICTED=1`でサービス引数へ設定でき、更新後も引き継がれます
+（[認証設定](docs/provider-authentication.md)参照）。
 Bitbucket外部API Tokenは変更しません。
 
 [English](CONFIG.md) | [日本語](CONFIG.ja.md)

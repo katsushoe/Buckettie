@@ -107,7 +107,7 @@ public sealed class BuckettieMcpTools
             string.Empty,
             new BitbucketProviderCapabilities("bitbucket", operations,
                 Authentication: new ProviderAuthenticationCapabilities(ProviderToolPolicy.Capability.ToolScopes,
-                    IntegrationMode: _integration.Name),
+                    IntegrationMode: _integration.Name, DirectConnection: _integration.DirectConnection),
                 RemoteResolution: new RemoteResolutionCapabilities(
                     GitRemoteResolver.ContractVersion, GitRemoteResolver.ContractMode)),
             null));

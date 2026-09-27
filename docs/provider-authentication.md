@@ -78,10 +78,22 @@ where the direct-read and assertion rules above apply. In this mode a missing or
 `integration_mode`, and `bitbucket_provider_capabilities.data.authentication.integration_mode` reports
 `standalone` or `moyai` so Moyai can refuse a Buckettie that is not in integration mode. To run standalone
 temporarily, stop the service and start `Buckettie.Server.exe` without `--moyai` from an administrator
-console; ending that process ends standalone mode. For a Moyai-managed service, add `--moyai` to the service
-arguments (for example with `sc.exe config Buckettie binPath= ...`); an MSI upgrade currently rewrites the
-service arguments, so re-apply the option after upgrading. Existing Bitbucket API tokens remain in their
-current provider-owned store.
+console; ending that process ends standalone mode. Existing Bitbucket API tokens remain in their current
+provider-owned store.
+
+`--direct-unrestricted` (valid only together with `--moyai`) implements the Moyai Consumer Contract setting
+`direct_connection: unrestricted`. `integration_mode` stays `moyai`, so Moyai keeps delegating to it, and every
+request carrying `Authorization` is still fully validated as a Moyai assertion; a failed assertion never falls
+back to direct access. Header-less loopback calls on `mcp_port` may then use every repository tool, as in
+standalone mode, which means any local process can change repositories without Moyai (accepted by the user on
+2026-09-27). `bitbucket_provider_capabilities.data.authentication.direct_connection` reports `read_only`
+(`--moyai` only) or `unrestricted` (standalone or `--direct-unrestricted`), and the startup log records it.
+
+The MSI sets the service options through the properties `MOYAI=1` (adds `--moyai`) and `DIRECT_UNRESTRICTED=1`
+(adds `--direct-unrestricted`, ignored without `MOYAI=1`). Both values are remembered under
+`HKLM\SOFTWARE\Akatsukisoft\Buckettie`, so an upgrade keeps them; pass `MOYAI=0` or `DIRECT_UNRESTRICTED=0`
+to turn an option off. For example:
+`msiexec /i Buckettie-<version>-win-x64.msi MOYAI=1 DIRECT_UNRESTRICTED=1`.
 
 For local reproduction, restore with the repository NuGet.Config and run the Server and CLI tests.
 Integration uses a separate loopback port, disposable issuer keys, separate trust/repository DBs, one shared

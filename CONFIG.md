@@ -4,6 +4,9 @@ Buckettie works on its own by default: local loopback MCP clients can use every 
 allowlist, branch policies and audit log. Moyai integration is enabled only when the server starts with
 `--moyai`; it then requires [`provider_authentication`](docs/provider-authentication.md) and change tools
 require a Moyai Provider Assertion. Without `--moyai`, `provider_authentication` is kept but not used.
+`--moyai --direct-unrestricted` keeps that check for Moyai calls while header-less loopback clients keep every
+repository tool. The MSI properties `MOYAI=1` and `DIRECT_UNRESTRICTED=1` set these service options and are kept
+across upgrades (see [Provider authentication](docs/provider-authentication.md)).
 
 [English](CONFIG.md) | [日本語](CONFIG.ja.md)
 

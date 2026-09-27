@@ -3,7 +3,9 @@
 Buckettie does not require Moyai. By default (no `--moyai` server option), direct loopback connections may use
 every repository tool. When the server starts with `--moyai`, direct loopback connections keep Bootstrap and read
 operations (`list_projects` and tools that require only `repository.read`), while `fetch`, `pull` and change
-operations need a Moyai assertion. Registration/update/removal from direct loopback always require interactive
+operations need a Moyai assertion. Adding `--direct-unrestricted` (`--moyai --direct-unrestricted`) keeps Moyai
+assertion checks for requests that carry `Authorization` while letting header-less direct loopback connections use
+every repository tool, as in standalone mode. Registration/update/removal from direct loopback always require interactive
 desktop approval (or a management client certificate).
 See [Provider authentication](docs/provider-authentication.md) before following the connection steps below.
 

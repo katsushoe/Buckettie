@@ -18,11 +18,17 @@ internal sealed class ProviderAuthenticationBoundary
     private readonly IAssertionValidator? _validator;
     private readonly ILogger<ProviderAuthenticationBoundary> _logger;
     private readonly RepositoryMutationGate _gate;
+    private readonly bool _directUnrestricted;
 
     /// <summary>構成済みValidatorをHTTP入口へ接続します。</summary>
+    /// <param name="directUnrestricted">
+    /// 連携モードで、Authorizationなしのloopback直接接続にすべてのRepository Toolを許可するならtrueです。
+    /// </param>
     public ProviderAuthenticationBoundary(BuckettieOptions options, RepositoryAllowlist repositories,
-        IAssertionValidator? validator, ILogger<ProviderAuthenticationBoundary> logger, RepositoryMutationGate? gate = null)
+        IAssertionValidator? validator, ILogger<ProviderAuthenticationBoundary> logger, RepositoryMutationGate? gate = null,
+        bool directUnrestricted = false)
     {
+        _directUnrestricted = directUnrestricted;
         _options = options;
         _repositories = repositories;
         _validator = validator;
@@ -34,9 +40,10 @@ internal sealed class ProviderAuthenticationBoundary
     /// <param name="moyaiIntegration">
     /// <c>--moyai</c>で起動した連携モードならtrueです。falseの単体動作では認証設定があっても使いません。
     /// </param>
+    /// <param name="directUnrestricted"><c>--direct-unrestricted</c>で起動した場合はtrueです。</param>
     public static async Task<ProviderAuthenticationBoundary> CreateAsync(BuckettieOptions options,
         RepositoryAllowlist repositories, ILogger<ProviderAuthenticationBoundary> logger, CancellationToken cancellationToken,
-        RepositoryMutationGate? gate = null, bool moyaiIntegration = false)
+        RepositoryMutationGate? gate = null, bool moyaiIntegration = false, bool directUnrestricted = false)
     {
         IAssertionValidator? validator = null;
         if (moyaiIntegration)
@@ -49,7 +56,7 @@ internal sealed class ProviderAuthenticationBoundary
             validator = new Es256AssertionValidator(new FileAssertionTrustStore(auth.TrustBundlePath), replay,
                 new AssertionOptions(auth.Issuer), ProviderToolPolicy.Capability);
         }
-        return new(options, repositories, validator, logger, gate);
+        return new(options, repositories, validator, logger, gate, directUnrestricted);
     }
 
     /// <summary>認証失敗時は次のMiddlewareを実行しません。</summary>
@@ -147,10 +154,13 @@ internal sealed class ProviderAuthenticationBoundary
             _logger.LogInformation("[ProviderAuth] direct_administration {Tool}", tool);
             return;
         }
-        if (_validator is null && ProviderToolPolicy.Scopes(tool) is not null && IsDirectLoopback(context))
+        if ((_validator is null || _directUnrestricted) && ProviderToolPolicy.Scopes(tool) is not null
+            && IsDirectLoopback(context))
         {
             // Buckettie must work without Moyai: unless started with --moyai, local clients use every
             // repository tool under the gateway's own allowlist, branch policies and audit log.
+            // --direct-unrestricted keeps that for header-less loopback calls in integration mode;
+            // IsDirectLoopback excludes any request carrying Authorization, so a failed Assertion never lands here.
             context.Items[StandaloneKey] = tool;
             _logger.LogInformation("[ProviderAuth] standalone {Tool}", tool);
             return;
