@@ -64,7 +64,7 @@ Buckettie follows the Moyai Repository Provider Contract (`remote_resolution` ve
 2. The `remote` stored at registration, when one was specified.
 3. Otherwise automatic resolution: among the repository's remotes, those whose HTTPS URL points to the registered `bitbucket.org/<workspace>/<slug>` (ignoring `.git` and a trailing `/`; path case is kept). SSH remotes and URLs with credentials, query, or fragment are excluded. One match is used; with several, the only name following `<host>-origin-<protocol>` (for example `bitbucket-origin-https`) is used.
 
-There is no implicit fallback to `origin`. Failures use the common codes `provider_remote_not_found` (no matching remote, or the named remote does not exist), `provider_remote_ambiguous` (several matches and the naming rule does not select one), and `provider_remote_mismatch` (the named remote points elsewhere). A named SSH remote still returns `ssh_remote_not_supported`.
+There is no implicit fallback to `origin`. Failures use the common codes `provider_remote_not_found` (no matching remote, or the named remote does not exist), `provider_remote_ambiguous` (several matches and the naming rule does not select one), and `provider_remote_mismatch` (the named remote points elsewhere). A named SSH remote returns `provider_remote_not_found` with `error.provider.code` `ssh_remote_not_supported`.
 
 `remote` is optional at registration. When omitted, Buckettie derives `workspace`/`slug` from the HTTPS Bitbucket remotes of the local repository (they must all point to the same repository) and stores no remote name, so each operation resolves it automatically. Existing registrations keep their stored remote name.
 

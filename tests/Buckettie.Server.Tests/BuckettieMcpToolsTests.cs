@@ -369,7 +369,8 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult), "ja-JP");
 
-        result.Error!.Code.Should().Be("ssh_remote_not_supported");
+        result.Error!.Code.Should().Be("provider_remote_not_found");
+        result.Error.Provider!.Code.Should().Be("ssh_remote_not_supported");
         result.Error.Message.Should().Be(
             "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。");
     }

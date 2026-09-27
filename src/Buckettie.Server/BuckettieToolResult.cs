@@ -251,14 +251,17 @@ internal static class BuckettieToolResultMapper
         bool japanese = BuckettieLanguage.IsJapanese(language);
         string message = japanese ? JapaneseMessage(providerCode) : EnglishMessage(providerCode);
         string outcome = GitOutcome(operation, gatewayError);
-        return new(providerCode, message, $"Git {operation}: {message}",
-            SuggestedAction(providerCode, outcome), IsRetryable(providerCode) && outcome != "unknown", correlationId,
-            ProjectCandidates: providerCode == "repository_not_allowed" ? projectCandidates : null,
-            Category: providerCode,
+        // Repository Provider Contract: an unsupported protocol is excluded from resolution, so a named SSH
+        // remote is reported with the common code while error.provider.code keeps the specific reason.
+        string code = providerCode == "ssh_remote_not_supported" ? "provider_remote_not_found" : providerCode;
+        return new(code, message, $"Git {operation}: {message}",
+            SuggestedAction(code, outcome), IsRetryable(code) && outcome != "unknown", correlationId,
+            ProjectCandidates: code == "repository_not_allowed" ? projectCandidates : null,
+            Category: code,
             Details: errorDetail,
             Outcome: outcome,
             Provider: new("Buckettie", providerCode, errorDetail),
-            CommonCode: MapCommonCode(providerCode));
+            CommonCode: MapCommonCode(code));
     }
 
     private static BuckettieToolError CreateError(string code, string language = "en-US") =>

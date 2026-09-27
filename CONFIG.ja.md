@@ -63,7 +63,7 @@ BuckettieはMoyai Repository Provider Contract（`remote_resolution` version 1�
 2. 登録時に指定して保存した`remote`。
 3. どちらもなければ自動解決します。対象RepositoryのリモートのうちHTTPS URLが登録済みの`bitbucket.org/<workspace>/<slug>`を指すもの（`.git`と末尾`/`は無視、パスの大文字小文字は区別）を候補とします。SSHリモートと、資格情報・query・fragmentを含むURLは除外します。候補が1つならそれを使い、複数なら命名規則`<ホスト>-origin-<接続方式>`（例: `bitbucket-origin-https`）に合う名前が1つだけの場合にそれを使います。
 
-`origin`への暗黙の退避は行いません。失敗時は共通エラーコード`provider_remote_not_found`（一致するリモートがない、または指定名のリモートがない）、`provider_remote_ambiguous`（複数一致し命名規則でも1つに決まらない）、`provider_remote_mismatch`（指定名のリモートが別Repositoryを指す）を返します。指定名のリモートがSSHの場合は、従来どおり`ssh_remote_not_supported`です。
+`origin`への暗黙の退避は行いません。失敗時は共通エラーコード`provider_remote_not_found`（一致するリモートがない、または指定名のリモートがない）、`provider_remote_ambiguous`（複数一致し命名規則でも1つに決まらない）、`provider_remote_mismatch`（指定名のリモートが別Repositoryを指す）を返します。指定名のリモートがSSHの場合は`provider_remote_not_found`を返し、`error.provider.code`を`ssh_remote_not_supported`とします。
 
 登録時の`remote`は省略できます。省略時は、ローカルRepositoryのHTTPS形式Bitbucketリモート（すべて同じRepositoryを指す必要があります）から`workspace`／`slug`を導出し、リモート名は保存せず操作ごとに自動解決します。既存の登録は保存済みのリモート名を引き続き使います。
 
