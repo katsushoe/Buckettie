@@ -95,7 +95,7 @@ internal static class Program
                 }));
         });
         builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton(new ProviderIntegrationMode(arguments.MoyaiIntegration));
+        builder.Services.AddSingleton(new ProviderIntegrationMode(arguments.MoyaiIntegration, arguments.DirectUnrestricted));
         builder.Services.AddSingleton(buckettieServices.GetRequiredService<RepositoryAllowlist>());
         builder.Services.AddSingleton<IBuckettieAuditLogger, BuckettieAuditLogger>();
         builder.Services.AddHttpContextAccessor();
@@ -130,9 +130,12 @@ internal static class Program
         ProviderAuthenticationBoundary authentication = await ProviderAuthenticationBoundary.CreateAsync(options,
             buckettieServices.GetRequiredService<RepositoryAllowlist>(),
             app.Services.GetRequiredService<ILogger<ProviderAuthenticationBoundary>>(), cancellationToken,
-            buckettieServices.GetRequiredService<RepositoryMutationGate>(), arguments.MoyaiIntegration).ConfigureAwait(false);
+            buckettieServices.GetRequiredService<RepositoryMutationGate>(), arguments.MoyaiIntegration,
+            arguments.DirectUnrestricted).ConfigureAwait(false);
+        ProviderIntegrationMode integration = new(arguments.MoyaiIntegration, arguments.DirectUnrestricted);
         app.Services.GetRequiredService<ILogger<ProviderAuthenticationBoundary>>()
-            .LogWarning("[Startup] integration_mode {Mode}", new ProviderIntegrationMode(arguments.MoyaiIntegration).Name);
+            .LogWarning("[Startup] integration_mode {Mode} direct_connection {DirectConnection}",
+                integration.Name, integration.DirectConnection);
         app.Use(async (context, next) =>
         {
             if (context.Request.Path.StartsWithSegments(options.McpPath)

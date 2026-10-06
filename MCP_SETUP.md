@@ -3,7 +3,9 @@
 Buckettie does not require Moyai. By default (no `--moyai` server option), direct loopback connections may use
 every repository tool. When the server starts with `--moyai`, direct loopback connections keep Bootstrap and read
 operations (`list_projects` and tools that require only `repository.read`), while `fetch`, `pull` and change
-operations need a Moyai assertion. Registration/update/removal from direct loopback always require interactive
+operations need a Moyai assertion. Adding `--direct-unrestricted` (`--moyai --direct-unrestricted`) keeps Moyai
+assertion checks for requests that carry `Authorization` while letting header-less direct loopback connections use
+every repository tool, as in standalone mode. Registration/update/removal from direct loopback always require interactive
 desktop approval (or a management client certificate).
 See [Provider authentication](docs/provider-authentication.md) before following the connection steps below.
 
@@ -209,6 +211,8 @@ Pass condition: the result contains the configured repository's branch, HEAD, an
 Pass condition: configuration, Git, API token, repository, Bitbucket API, and MCP checks are all `OK`.
 
 ## Troubleshooting
+
+- Concurrent repository tools share an exclusive gate and wait up to 10 seconds (fixed, no configuration required). If it remains busy, the call is not executed: HTTP 503, JSON-RPC error `-32002`, `data.code=repository_busy`, `retryable=true`, `outcome=not_executed`, and `retry_after_seconds=1` with `Retry-After: 1`. Retry after the delay; Moyai should issue a fresh assertion. Authentication is checked after the wait; authentication failures still return HTTP 401. Cancellation stops waiting without releasing another call's gate. Repository registration/update/unregistration retain their existing immediate contention handling.
 
 - Command contains `<...>`: replace the placeholder; never paste angle brackets literally.
 - `repo status` fails: use the exact case-sensitive ID printed by `repo list`.

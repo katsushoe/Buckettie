@@ -15,6 +15,31 @@
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <Property Id="BUCKETTIE_LANGUAGE" Value="ja-JP" Secure="yes" />
     <Property Id="INSTALLROOT" Value="C:\Buckettie" Secure="yes" />
+
+    <!--
+      Service start options. MOYAI=1 adds the moyai option and DIRECT_UNRESTRICTED=1 adds the direct-unrestricted option.
+      Both are remembered in the registry so that an upgrade reinstalling the service keeps them;
+      an explicit command-line value (including 0) overrides the remembered one.
+    -->
+    <Property Id="MOYAI" Secure="yes">
+      <RegistrySearch Id="RememberedMoyai" Root="HKLM" Key="SOFTWARE\Akatsukisoft\Buckettie" Name="Moyai" Type="raw" />
+    </Property>
+    <Property Id="DIRECT_UNRESTRICTED" Secure="yes">
+      <RegistrySearch Id="RememberedDirectUnrestricted" Root="HKLM" Key="SOFTWARE\Akatsukisoft\Buckettie" Name="DirectUnrestricted" Type="raw" />
+    </Property>
+    <Property Id="MOYAI_CMDLINE" Secure="yes" />
+    <Property Id="DIRECT_UNRESTRICTED_CMDLINE" Secure="yes" />
+    <Property Id="SERVICEOPTIONS" Secure="yes" />
+    <SetProperty Action="SaveMoyaiCmdLine" Id="MOYAI_CMDLINE" Value="[MOYAI]" Before="AppSearch" Sequence="both" Condition="MOYAI" />
+    <SetProperty Action="SaveDirectUnrestrictedCmdLine" Id="DIRECT_UNRESTRICTED_CMDLINE" Value="[DIRECT_UNRESTRICTED]" Before="AppSearch" Sequence="both" Condition="DIRECT_UNRESTRICTED" />
+    <SetProperty Action="RestoreMoyaiCmdLine" Id="MOYAI" Value="[MOYAI_CMDLINE]" After="AppSearch" Sequence="both" Condition="MOYAI_CMDLINE" />
+    <SetProperty Action="RestoreDirectUnrestrictedCmdLine" Id="DIRECT_UNRESTRICTED" Value="[DIRECT_UNRESTRICTED_CMDLINE]" After="AppSearch" Sequence="both" Condition="DIRECT_UNRESTRICTED_CMDLINE" />
+    <SetProperty Action="DefaultMoyai" Id="MOYAI" Value="0" After="RestoreMoyaiCmdLine" Sequence="both" Condition="NOT MOYAI" />
+    <SetProperty Action="DefaultDirectUnrestricted" Id="DIRECT_UNRESTRICTED" Value="0" After="RestoreDirectUnrestrictedCmdLine" Sequence="both" Condition="NOT DIRECT_UNRESTRICTED" />
+    <SetProperty Action="SetMoyaiServiceOptions" Id="SERVICEOPTIONS" Value=" --moyai" After="DefaultDirectUnrestricted" Sequence="both"
+                 Condition="MOYAI = &quot;1&quot; AND DIRECT_UNRESTRICTED &lt;&gt; &quot;1&quot;" />
+    <SetProperty Action="SetDirectUnrestrictedServiceOptions" Id="SERVICEOPTIONS" Value=" --moyai --direct-unrestricted" After="DefaultDirectUnrestricted" Sequence="both"
+                 Condition="MOYAI = &quot;1&quot; AND DIRECT_UNRESTRICTED = &quot;1&quot;" />
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLROOT" />
 
     <UI>
@@ -74,7 +99,7 @@
           Start="auto"
           ErrorControl="normal"
           Account="LocalSystem"
-          Arguments="&quot;[CONFIGDIR]buckettie.json&quot;" />
+          Arguments="&quot;[CONFIGDIR]buckettie.json&quot;[SERVICEOPTIONS]" />
         <ServiceControl
           Id="BuckettieServiceControl"
           Name="Buckettie"
@@ -87,6 +112,12 @@
         <Exclude Files="$(PublishDir)\Buckettie.Server.exe" />
         <Exclude Files="$(PublishDir)\*.pdb" />
       </Files>
+      <Component Id="ServiceOptionsComponent" Guid="5E0C8A41-6B7D-4F2E-9A3C-8D1B2F4E6A70">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Akatsukisoft\Buckettie">
+          <RegistryValue Name="Moyai" Type="string" Value="[MOYAI]" KeyPath="yes" />
+          <RegistryValue Name="DirectUnrestricted" Type="string" Value="[DIRECT_UNRESTRICTED]" />
+        </RegistryKey>
+      </Component>
       <Component Id="PathEnvironmentComponent" Guid="C3CEFC74-B760-44B4-B8E4-F8904C46C8E7">
         <Environment Id="BuckettiePathEnvironment" Name="PATH" Value="[INSTALLROOT]bin" Action="set" Part="last" Permanent="no" System="yes" />
       </Component>

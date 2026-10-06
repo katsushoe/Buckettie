@@ -223,15 +223,16 @@ internal static class CliApplication
             else
             {
                 var options = services.GetRequiredService<BuckettieOptions>().Repositories[repository];
-                GitCommandResult remote = await services.GetRequiredService<IGitCommandClient>()
-                    .GetRemoteUrlAsync(options.LocalRoot, options.Remote, cancellationToken).ConfigureAwait(false);
-                if (!remote.IsSuccess || string.IsNullOrWhiteSpace(remote.StandardOutput))
+                GitRemoteResolution remote = await new GitRemoteResolver(services.GetRequiredService<IGitCommandClient>())
+                    .ResolveAsync(options.LocalRoot, options.Workspace, options.Slug, options.Remote, cancellationToken)
+                    .ConfigureAwait(false);
+                if (!remote.IsResolved)
                 {
                     error.WriteLine("[NG] API Token: RemoteUrlUnavailable");
                     return 1;
                 }
                 token = await (tokenPrompt ?? TokenPromptClient.ReadTokenAsync)(repository,
-                    remote.StandardOutput.Trim(), japanese ? "ja-JP" : "en-US", cancellationToken).ConfigureAwait(false);
+                    remote.Url!, japanese ? "ja-JP" : "en-US", cancellationToken).ConfigureAwait(false);
             }
         }
         catch (TokenPromptException exception)
@@ -273,6 +274,16 @@ internal static class CliApplication
         return 0;
     }
 
+    private static async Task<GitCommandResult> DiscoverRemoteUrlAsync(
+        IGitCommandClient git, string localRoot, CancellationToken cancellationToken)
+    {
+        GitRemoteResolution discovered = await new GitRemoteResolver(git).DiscoverAsync(localRoot, cancellationToken)
+            .ConfigureAwait(false);
+        return discovered.IsResolved
+            ? GitCommandResult.Success(discovered.Url!)
+            : GitCommandResult.Failed(GitCommandFailure.Failed);
+    }
+
     private static async Task<int> RegisterRepositoryAsync(
         IServiceProvider services,
         string repository,
@@ -294,9 +305,11 @@ internal static class CliApplication
         }
         else
         {
-            string remote = GetOption(rest, "--remote") ?? "origin";
-            GitCommandResult remoteResult = await services.GetRequiredService<IGitCommandClient>()
-                .GetRemoteUrlAsync(localRoot, remote, cancellationToken).ConfigureAwait(false);
+            string? remote = GetOption(rest, "--remote");
+            IGitCommandClient git = services.GetRequiredService<IGitCommandClient>();
+            GitCommandResult remoteResult = remote is null
+                ? await DiscoverRemoteUrlAsync(git, localRoot, cancellationToken).ConfigureAwait(false)
+                : await git.GetRemoteUrlAsync(localRoot, remote, cancellationToken).ConfigureAwait(false);
             if (!remoteResult.IsSuccess || string.IsNullOrWhiteSpace(remoteResult.StandardOutput))
             {
                 error.WriteLine(japanese
@@ -344,15 +357,16 @@ internal static class CliApplication
         Dictionary<string, object?> arguments = new()
         {
             ["localRoot"] = localRoot,
-            ["remote"] = GetOption(rest, "--remote") ?? "origin",
             ["developBranch"] = GetOption(rest, "--develop-branch") ?? "develop",
             ["mainBranch"] = GetOption(rest, "--main-branch") ?? "main",
         };
+        if (GetOption(rest, "--remote") is { } requestedRemote) arguments["remote"] = requestedRemote;
         // The service runs as LocalSystem, so the default author comes from the registering user's Git config.
         (string? authorName, string? authorEmail) = await ResolveRegistrationAuthorAsync(
             services, localRoot, rest, cancellationToken).ConfigureAwait(false);
         if (authorName is not null) arguments["commitAuthorName"] = authorName;
         if (authorEmail is not null) arguments["commitAuthorEmail"] = authorEmail;
+        if (GetOption(rest, "--moyai-project-id") is { } moyaiProjectId) arguments["moyaiProjectId"] = moyaiProjectId;
         int result = await CallRepositoryToolAsync(
             services, output, "bitbucket_repository_register", repository, arguments, cancellationToken)
             .ConfigureAwait(false);
@@ -394,9 +408,12 @@ internal static class CliApplication
         string? historyRewriteBranches = GetOption(rest, "--history-rewrite-branches");
         string? commitAuthorName = GetOption(rest, "--commit-author-name");
         string? commitAuthorEmail = GetOption(rest, "--commit-author-email");
-        // An author-only update keeps the registered branch policy for omitted flags; policy updates still
-        // require every flag so a partial command cannot silently reuse stale values.
-        bool authorOnly = commitAuthorName is not null || commitAuthorEmail is not null;
+        string? moyaiProjectId = GetOption(rest, "--moyai-project-id");
+        bool removeMoyaiProjectId = rest.Contains("--remove-moyai-project-id", StringComparer.Ordinal);
+        // An author- or binding-only update keeps the registered branch policy for omitted flags; policy updates
+        // still require every flag so a partial command cannot silently reuse stale values.
+        bool authorOnly = commitAuthorName is not null || commitAuthorEmail is not null
+            || moyaiProjectId is not null || removeMoyaiProjectId;
         if (authorOnly
             && services.GetRequiredService<BuckettieOptions>().Repositories.TryGetValue(repository, out RepositoryOptions? current))
         {
@@ -432,6 +449,8 @@ internal static class CliApplication
         }
         if (commitAuthorName is not null) arguments["commitAuthorName"] = commitAuthorName;
         if (commitAuthorEmail is not null) arguments["commitAuthorEmail"] = commitAuthorEmail;
+        if (moyaiProjectId is not null) arguments["moyaiProjectId"] = moyaiProjectId;
+        if (removeMoyaiProjectId) arguments["removeMoyaiProjectId"] = true;
         return await CallRepositoryToolAsync(
             services, output, "bitbucket_repository_update", repository, arguments, cancellationToken)
             .ConfigureAwait(false);
@@ -764,11 +783,12 @@ internal static class CliApplication
         buckettie history preview|rewrite <repository> <branch> <expected-old-head> --reason TEXT
             [--author-name X] [--author-email X] [--committer-name X] [--committer-email X] [--allow-signature-removal]
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
-            [--commit-author-name X --commit-author-email X]
+            [--commit-author-name X --commit-author-email X] [--moyai-project-id UUID]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
             [--history-rewrite-branches a,b] [--commit-author-name X --commit-author-email X]
+            [--moyai-project-id UUID | --remove-moyai-project-id]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>
@@ -795,6 +815,8 @@ internal static class CliApplication
         commit作成者は登録単位で保持します。register時の既定値は実行者のGit設定です。
         作成者だけを変更するrepo updateでは、省略したブランチ設定は登録済みの値を維持します。
         --moyai付きで起動したServerでは、変更操作にMoyai Assertionが必要です。
+        Moyai経由で操作するRepositoryは、register/updateの--moyai-project-idでMoyai Project IDを対応付けます。
+        start/stop/restart、service install/uninstallは管理者権限のターミナルで実行します。
         """ : """
         buckettie doctor
         buckettie start|stop|restart|status
@@ -808,11 +830,12 @@ internal static class CliApplication
         buckettie history preview|rewrite <repository> <branch> <expected-old-head> --reason TEXT
             [--author-name X] [--author-email X] [--committer-name X] [--committer-email X] [--allow-signature-removal]
         buckettie repo register <repository> <local-root> [--remote X] [--develop-branch X] [--main-branch X] [--console-token]
-            [--commit-author-name X --commit-author-email X]
+            [--commit-author-name X --commit-author-email X] [--moyai-project-id UUID]
         buckettie repo unregister <repository>
         buckettie repo update <repository> --direct-push-branches a,b --pull-branches a,b
             --protected-branches a,b --tag-target-branch X --tag-pattern REGEX [--allow-dirty-working-tree]
             [--history-rewrite-branches a,b] [--commit-author-name X --commit-author-email X]
+            [--moyai-project-id UUID | --remove-moyai-project-id]
         buckettie branch list <repository>
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>

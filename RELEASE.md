@@ -1,3 +1,16 @@
+# Release 1.3.39.0
+
+Physical-machine validation date: 2026-10-06. GitHub publication is pending final approval.
+
+- Includes the repository concurrency gate and approved Moyai Project binding registration/update support from the current working tree.
+- Fixes a CLI service-management compilation error; adds four binding approval tests and Japanese/English binding instructions.
+- Automated tests: 564 passed, 0 failed. MSI build: 0 warnings, 0 errors.
+- Windows x64 self-contained MSI; display version `1.3.39.0`, Windows Installer version `1.3.3900` (newer than `1.3.3801`).
+- MSI SHA-256: `3B14DB2ADC1A4157FD05156C10CB76F994C3F4573A3AD699BAB670EC409673C4`.
+- Upgrade to `C:\Buckettie`: installer exit 0, no reboot required; CLI/MCP report 1.3.39.0, service Running.
+- Configuration, repository configuration, nine stored tokens and `--moyai --direct-unrestricted` preserved. Backup: installation result records its machine-specific path.
+- AC37 isolated Moyai integration and the full Binding CR acceptance checks remain separate pending work.
+
 # Release 1.3.35.0
 
 Release date: 2026-09-27

@@ -124,7 +124,9 @@ internal static class BuckettieToolResultMapper
     {
         GitGatewayError.RepositoryNotAllowed => "repository_not_allowed",
         GitGatewayError.LocalRepositoryInvalid => "local_repository_invalid",
-        GitGatewayError.RemoteMismatch => "remote_mismatch",
+        GitGatewayError.RemoteMismatch => "provider_remote_mismatch",
+        GitGatewayError.RemoteNotFound => "provider_remote_not_found",
+        GitGatewayError.RemoteAmbiguous => "provider_remote_ambiguous",
         GitGatewayError.SshRemoteNotSupported => "ssh_remote_not_supported",
         GitGatewayError.GitNotFound => "git_not_found",
         GitGatewayError.GitFailed => "git_failed",
@@ -198,8 +200,12 @@ internal static class BuckettieToolResultMapper
             RepositoryValidationError.RepositoryNotRegistered => "repository_not_registered",
             RepositoryValidationError.RemoteUrlInvalid => "remote_url_invalid",
             RepositoryValidationError.SshRemoteNotSupported => "ssh_remote_not_supported",
+            RepositoryValidationError.RemoteNotFound => "provider_remote_not_found",
+            RepositoryValidationError.RemoteAmbiguous => "provider_remote_ambiguous",
             RepositoryValidationError.TagPatternInvalid => "tag_pattern_invalid",
         RepositoryValidationError.CommitAuthorInvalid => "commit_author_invalid",
+            RepositoryValidationError.MoyaiProjectIdInvalid => "moyai_project_id_invalid",
+            RepositoryValidationError.MoyaiProjectIdConflict => "moyai_project_id_conflict",
             RepositoryValidationError.LocalRootNotFound
                 or RepositoryValidationError.GitMetadataNotFound
                 or RepositoryValidationError.LocalPathReparsePoint => "local_repository_invalid",
@@ -247,14 +253,17 @@ internal static class BuckettieToolResultMapper
         bool japanese = BuckettieLanguage.IsJapanese(language);
         string message = japanese ? JapaneseMessage(providerCode) : EnglishMessage(providerCode);
         string outcome = GitOutcome(operation, gatewayError);
-        return new(providerCode, message, $"Git {operation}: {message}",
-            SuggestedAction(providerCode, outcome), IsRetryable(providerCode) && outcome != "unknown", correlationId,
-            ProjectCandidates: providerCode == "repository_not_allowed" ? projectCandidates : null,
-            Category: providerCode,
+        // Repository Provider Contract: an unsupported protocol is excluded from resolution, so a named SSH
+        // remote is reported with the common code while error.provider.code keeps the specific reason.
+        string code = providerCode == "ssh_remote_not_supported" ? "provider_remote_not_found" : providerCode;
+        return new(code, message, $"Git {operation}: {message}",
+            SuggestedAction(code, outcome), IsRetryable(code) && outcome != "unknown", correlationId,
+            ProjectCandidates: code == "repository_not_allowed" ? projectCandidates : null,
+            Category: code,
             Details: errorDetail,
             Outcome: outcome,
             Provider: new("Buckettie", providerCode, errorDetail),
-            CommonCode: MapCommonCode(providerCode));
+            CommonCode: MapCommonCode(code));
     }
 
     private static BuckettieToolError CreateError(string code, string language = "en-US") =>
@@ -348,7 +357,9 @@ internal static class BuckettieToolResultMapper
         "conflict" => "Resolve the Git conflict locally, then retry.",
         "non_fast_forward" => "Fetch and integrate the remote changes before retrying.",
         "working_tree_dirty" => "Commit or stash local changes before retrying.",
-        "remote_mismatch" => "Verify the configured remote and repository registration.",
+        "provider_remote_mismatch" => "Verify the configured remote and repository registration.",
+        "provider_remote_not_found" => "Add an HTTPS remote whose URL matches the Bitbucket repository, or specify an existing remote name.",
+        "provider_remote_ambiguous" => "Name the intended remote bitbucket-origin-https, or specify the remote name explicitly.",
         "git_failed" => "Use the correlation ID to inspect the Buckettie audit log.",
         "timeout" => "Check connectivity and retry the operation.",
         _ => "Correct the reported condition before retrying.",
@@ -362,7 +373,9 @@ internal static class BuckettieToolResultMapper
         "conflict" => "Git競合をローカルで解消してから再試行してください。",
         "non_fast_forward" => "リモート変更をfetchして統合してから再試行してください。",
         "working_tree_dirty" => "ローカル変更をcommitまたはstashしてから再試行してください。",
-        "remote_mismatch" => "設定済みリモートとリポジトリ登録を確認してください。",
+        "provider_remote_mismatch" => "設定済みリモートとリポジトリ登録を確認してください。",
+        "provider_remote_not_found" => "BitbucketリポジトリとURLが一致するHTTPSリモートを追加するか、既存のリモート名を指定してください。",
+        "provider_remote_ambiguous" => "使用するリモートの名前をbitbucket-origin-httpsにするか、リモート名を明示してください。",
         "git_failed" => "相関IDを使用してBuckettie監査ログを確認してください。",
         "timeout" => "接続状態を確認して操作を再試行してください。",
         _ => "報告された状態を修正してから再試行してください。",
@@ -377,7 +390,9 @@ internal static class BuckettieToolResultMapper
         "repository_not_found" => "The repository was not found.",
         "repository_not_allowed" => "The repository is not allowed.",
         "local_repository_invalid" => "The local repository boundary is invalid.",
-        "remote_mismatch" => "The configured Git remote does not match the repository.",
+        "provider_remote_mismatch" => "The configured Git remote does not match the repository.",
+        "provider_remote_not_found" => "No HTTPS Git remote matches the Bitbucket repository, or the specified remote does not exist.",
+        "provider_remote_ambiguous" => "Multiple HTTPS Git remotes match the Bitbucket repository and the naming rule does not select exactly one.",
         "ssh_remote_not_supported" => "SSH Git remotes are not supported. Change the remote to the Bitbucket HTTPS URL.",
         "git_not_found" => "Git was not found.",
         "git_failed" => "The Git operation failed.",
@@ -390,6 +405,8 @@ internal static class BuckettieToolResultMapper
         "nothing_to_push" => "There is nothing to push.",
         "nothing_to_commit" => "There are no changes to commit.",
         "commit_author_invalid" => "The commit author name or email is invalid. Specify both a name and an email address without control characters or angle brackets.",
+        "moyai_project_id_invalid" => "The Moyai Project ID must be a non-empty UUID, and it cannot be set and removed in the same request.",
+        "moyai_project_id_conflict" => "The Moyai Project ID is already bound to another repository, or this repository has a different binding in the configuration file.",
         "author_identity_missing" => "No commit author is registered for this repository and none is set in its Git config. Register one with buckettie repo update <repository-id> --commit-author-name <name> --commit-author-email <email>.",
         "commit_message_invalid" => "The commit message is invalid.",
         "non_fast_forward" => "The operation is not a fast-forward.",
@@ -442,7 +459,9 @@ internal static class BuckettieToolResultMapper
         "repository_not_found" => "リポジトリが見つかりません。",
         "repository_not_allowed" => "このリポジトリは許可されていません。",
         "local_repository_invalid" => "ローカルリポジトリの境界が無効です。",
-        "remote_mismatch" => "設定されたGitリモートがリポジトリと一致しません。",
+        "provider_remote_mismatch" => "設定されたGitリモートがリポジトリと一致しません。",
+        "provider_remote_not_found" => "BitbucketリポジトリとURLが一致するHTTPS Gitリモートがないか、指定したリモートが存在しません。",
+        "provider_remote_ambiguous" => "BitbucketリポジトリとURLが一致するHTTPS Gitリモートが複数あり、命名規則でも1つに決まりません。",
         "ssh_remote_not_supported" => "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。",
         "git_not_found" => "Gitが見つかりません。",
         "git_failed" => "Git操作に失敗しました。",
@@ -455,6 +474,8 @@ internal static class BuckettieToolResultMapper
         "nothing_to_push" => "pushする変更がありません。",
         "nothing_to_commit" => "commitする変更がありません。",
         "commit_author_invalid" => "commit作成者の名前またはメールアドレスが無効です。制御文字や山括弧を含まない名前とメールアドレスを両方指定してください。",
+        "moyai_project_id_invalid" => "Moyai Project IDは空でないUUIDで指定してください。設定と解除は同時に指定できません。",
+        "moyai_project_id_conflict" => "このMoyai Project IDは別のリポジトリに対応付け済みか、設定ファイルにこのリポジトリの別の対応付けがあります。",
         "author_identity_missing" => "このRepositoryにはcommit作成者が登録されておらず、Git設定にも作成者がありません。buckettie repo update <repository-id> --commit-author-name <名前> --commit-author-email <メールアドレス>で登録してください。",
         "commit_message_invalid" => "commitメッセージが無効です。",
         "non_fast_forward" => "fast-forwardできないため操作を完了できません。",

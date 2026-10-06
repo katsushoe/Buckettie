@@ -45,7 +45,11 @@ public sealed record BitbucketProviderCapabilities(
     bool BranchSourceRequired = true,
     bool TagSourceRequired = true,
     bool RepositoryStatusNullable = true,
-    ProviderAuthenticationCapabilities? Authentication = null);
+    ProviderAuthenticationCapabilities? Authentication = null,
+    RemoteResolutionCapabilities? RemoteResolution = null);
+
+/// <summary>Moyai Repository Provider ContractのGit Remote解決規則への対応表明です。</summary>
+public sealed record RemoteResolutionCapabilities(int Version, string Mode);
 
 /// <summary>Projectや秘密を含まないProvider認証Capabilityです。</summary>
 public sealed record ProviderAuthenticationCapabilities(
@@ -55,7 +59,8 @@ public sealed record ProviderAuthenticationCapabilities(
     string ProtocolVersion = "1",
     string Algorithm = "ES256",
     bool ReplayProtection = true,
-    string IntegrationMode = "standalone");
+    string IntegrationMode = "standalone",
+    string DirectConnection = "unrestricted");
 
 /// <summary>Pull Requestの状態です。</summary>
 public enum BitbucketPullRequestState

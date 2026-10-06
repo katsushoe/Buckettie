@@ -13,11 +13,12 @@ public interface IRepositoryRegistrationService
     Task<RepositoryRegistrationOutcome> RegisterAsync(
         string repositoryId,
         string localRoot,
-        string remote,
+        string? remote,
         string developBranch,
         string mainBranch,
         CancellationToken cancellationToken,
-        GitCommitAuthor? commitAuthor = null);
+        GitCommitAuthor? commitAuthor = null,
+        Guid? moyaiProjectId = null);
 }
 
 /// <summary>
@@ -35,15 +36,18 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
     private readonly IApiTokenStore _tokenStore;
     private readonly IInteractiveApprovalPrompt _approvalPrompt;
     private readonly RepositoryMutationGate _gate;
+    private readonly ProviderAuthenticationOptions? _authentication;
 
     /// <summary>登録Serviceを初期化します。</summary>
+    /// <param name="authentication">設定ファイルのMoyai Binding。Project IDの重複検出に使います。</param>
     public RepositoryRegistrationService(
         RepositoryRegistrationValidator validator,
         RepositoryAllowlist allowlist,
         IRepositoryStore repositoryStore,
         IApiTokenStore tokenStore,
         IInteractiveApprovalPrompt approvalPrompt,
-        RepositoryMutationGate gate)
+        RepositoryMutationGate gate,
+        ProviderAuthenticationOptions? authentication = null)
     {
         ArgumentNullException.ThrowIfNull(validator);
         ArgumentNullException.ThrowIfNull(allowlist);
@@ -57,6 +61,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
         _tokenStore = tokenStore;
         _approvalPrompt = approvalPrompt;
         _gate = gate;
+        _authentication = authentication;
     }
 
     /// <summary>
@@ -65,18 +70,26 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
     public async Task<RepositoryRegistrationOutcome> RegisterAsync(
         string repositoryId,
         string localRoot,
-        string remote,
+        string? remote,
         string developBranch,
         string mainBranch,
         CancellationToken cancellationToken,
-        GitCommitAuthor? commitAuthor = null)
+        GitCommitAuthor? commitAuthor = null,
+        Guid? moyaiProjectId = null)
     {
+        if (moyaiProjectId == Guid.Empty)
+        {
+            return RepositoryRegistrationOutcome.Failure(
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.MoyaiProjectIdInvalid));
+        }
+
         if (commitAuthor is not null && !GitCommitAuthor.IsValid(commitAuthor.Name, commitAuthor.Email))
         {
             return RepositoryRegistrationOutcome.Failure(
                 BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.CommitAuthorInvalid));
         }
 
+        remote = string.IsNullOrWhiteSpace(remote) ? null : remote.Trim();
         if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
         {
             return RepositoryRegistrationOutcome.Failure(BuckettieToolResultMapper.RegistrationInProgressError());
@@ -92,6 +105,13 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
                     BuckettieToolResultMapper.RegistrationValidationError(validation.Error!.Value));
             }
 
+            if (moyaiProjectId is { } projectId
+                && MoyaiBindings.Conflicts(projectId, repositoryId, _allowlist, _authentication))
+            {
+                return RepositoryRegistrationOutcome.Failure(
+                    BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.MoyaiProjectIdConflict));
+            }
+
             bool tokenRequired = !_tokenStore.Read(repositoryId).IsSuccess;
             ApprovalPromptRequest promptRequest = new(
                 repositoryId,
@@ -99,7 +119,8 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
                 validation.Slug!,
                 validation.LocalRoot!,
                 validation.RemoteUrl!,
-                tokenRequired);
+                tokenRequired,
+                MoyaiProjectId: moyaiProjectId?.ToString("D"));
 
             ApprovalPromptOutcome approval = await _approvalPrompt
                 .RequestApprovalAsync(promptRequest, ApprovalTimeout, cancellationToken)
@@ -131,7 +152,12 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
 
             RepositoryOptions newRepository = CreateServerDefaultedOptions(
                 validation.Workspace!, validation.Slug!, validation.LocalRoot!, remote, developBranch, mainBranch)
-                with { CommitAuthorName = commitAuthor?.Name, CommitAuthorEmail = commitAuthor?.Email };
+                with
+                {
+                    CommitAuthorName = commitAuthor?.Name,
+                    CommitAuthorEmail = commitAuthor?.Email,
+                    MoyaiProjectId = moyaiProjectId,
+                };
 
             bool written = await _repositoryStore.InsertAsync(repositoryId, newRepository, cancellationToken)
                 .ConfigureAwait(false);
@@ -158,7 +184,7 @@ internal sealed class RepositoryRegistrationService : IRepositoryRegistrationSer
         string workspace,
         string slug,
         string localRoot,
-        string remote,
+        string? remote,
         string developBranch,
         string mainBranch) => new()
     {

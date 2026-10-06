@@ -30,26 +30,29 @@ internal sealed class ApprovalForm : Form
         MinimizeBox = false;
         MaximizeBox = false;
         TopMost = true;
-        ClientSize = new Size(640, request.TokenRequired ? 540 : 480);
+        // The Moyai Project ID row is shown only when the operation changes the Moyai binding.
+        int bindingOffset = request.MoyaiProjectId is null ? 0 : 60;
+        ClientSize = new Size(640, (request.TokenRequired ? 540 : 480) + bindingOffset);
 
         AddField(_text.RepositoryId, request.RepositoryId, 16);
         AddField(_text.Workspace, request.Workspace, 76);
         AddField(_text.Slug, request.Slug, 136);
         AddField(_text.LocalRoot, request.LocalRoot, 196);
         AddField(_text.RemoteUrl, request.RemoteUrl, 256);
+        if (request.MoyaiProjectId is not null) AddField(_text.MoyaiProjectId, request.MoyaiProjectId, 316);
 
         if (request.TokenRequired)
         {
             Controls.Add(new Label
             {
                 Text = _text.Token,
-                Location = new Point(16, 316),
+                Location = new Point(16, 316 + bindingOffset),
                 AutoSize = true,
                 Font = new Font(Font, FontStyle.Bold),
             });
             _tokenTextBox = new TextBox
             {
-                Location = new Point(16, 338),
+                Location = new Point(16, 338 + bindingOffset),
                 Size = new Size(606, 27),
                 UseSystemPasswordChar = true,
             };
@@ -59,7 +62,7 @@ internal sealed class ApprovalForm : Form
         _countdownLabel = new Label
         {
             AutoSize = true,
-            Location = new Point(16, request.TokenRequired ? 460 : 400),
+            Location = new Point(16, (request.TokenRequired ? 460 : 400) + bindingOffset),
             Text = FormatCountdown(_remainingSeconds),
         };
         Controls.Add(_countdownLabel);
@@ -68,14 +71,14 @@ internal sealed class ApprovalForm : Form
         {
             Text = _text.Approve,
             DialogResult = DialogResult.Yes,
-            Location = new Point(392, request.TokenRequired ? 488 : 428),
+            Location = new Point(392, (request.TokenRequired ? 488 : 428) + bindingOffset),
             Size = new Size(110, 32),
         };
         Button denyButton = new()
         {
             Text = _text.Deny,
             DialogResult = DialogResult.No,
-            Location = new Point(512, request.TokenRequired ? 488 : 428),
+            Location = new Point(512, (request.TokenRequired ? 488 : 428) + bindingOffset),
             Size = new Size(110, 32),
         };
         Controls.Add(approveButton);

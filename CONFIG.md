@@ -4,6 +4,9 @@ Buckettie works on its own by default: local loopback MCP clients can use every 
 allowlist, branch policies and audit log. Moyai integration is enabled only when the server starts with
 `--moyai`; it then requires [`provider_authentication`](docs/provider-authentication.md) and change tools
 require a Moyai Provider Assertion. Without `--moyai`, `provider_authentication` is kept but not used.
+`--moyai --direct-unrestricted` keeps that check for Moyai calls while header-less loopback clients keep every
+repository tool. The MSI properties `MOYAI=1` and `DIRECT_UNRESTRICTED=1` set these service options and are kept
+across upgrades (see [Provider authentication](docs/provider-authentication.md)).
 
 [English](CONFIG.md) | [日本語](CONFIG.ja.md)
 
@@ -52,6 +55,18 @@ The `bitbucket_repository_unregister` MCP tool (or `buckettie repo unregister`) 
 The service runs as LocalSystem, whose Git identity is normally empty, so each repository stores a commit author (`commit_author_name`, `commit_author_email`). `buckettie repo register` defaults it to the caller's Git `user.name`/`user.email`, and `--commit-author-name`/`--commit-author-email` (or the same MCP arguments on register/update) set it explicitly; both values are required together and must not contain control characters or angle brackets (`commit_author_invalid`). `bitbucket_repository_commit` uses the registered author, falls back to the repository's own Git config, and otherwise fails with `author_identity_missing` before staging. The author is passed through `GIT_AUTHOR_*`/`GIT_COMMITTER_*`, never through the service account's configuration.
 
 None of these three operations need `stop`/`restart`. A registration or update that needs a different shape than these tools support still uses the manual edit flow (now against the SQLite database — see [Repository Storage](#repository-storage)).
+
+## Git Remote Resolution
+
+Buckettie follows the Moyai Repository Provider Contract (`remote_resolution` version 1, mode `repository_url`) and reports it in `bitbucket_provider_capabilities.data.remote_resolution`. Before every local Git operation the remote is chosen in this order:
+
+1. The optional `remote` argument of the Git tools (`repository_status`, `repository_diff`, `repository_commit`, `fetch`, `pull`, `push`, `tag_push`, `history_rewrite_*`, `force_push_with_lease`). Moyai passes its `gitRemoteName` here.
+2. The `remote` stored at registration, when one was specified.
+3. Otherwise automatic resolution: among the repository's remotes, those whose HTTPS URL points to the registered `bitbucket.org/<workspace>/<slug>` (ignoring `.git` and a trailing `/`; path case is kept). SSH remotes and URLs with credentials, query, or fragment are excluded. One match is used; with several, the only name following `<host>-origin-<protocol>` (for example `bitbucket-origin-https`) is used.
+
+There is no implicit fallback to `origin`. Failures use the common codes `provider_remote_not_found` (no matching remote, or the named remote does not exist), `provider_remote_ambiguous` (several matches and the naming rule does not select one), and `provider_remote_mismatch` (the named remote points elsewhere). A named SSH remote returns `provider_remote_not_found` with `error.provider.code` `ssh_remote_not_supported`.
+
+`remote` is optional at registration. When omitted, Buckettie derives `workspace`/`slug` from the HTTPS Bitbucket remotes of the local repository (they must all point to the same repository) and stores no remote name, so each operation resolves it automatically. Existing registrations keep their stored remote name.
 
 ## Validation Errors
 

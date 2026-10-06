@@ -4,5 +4,6 @@ obj/
 TestResults/
 .local/
 CR_HANDOFF.md
+CR_HANDOFF.md.lock
 *.user
 *.suo

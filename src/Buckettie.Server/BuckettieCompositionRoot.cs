@@ -61,7 +61,6 @@ public static class BuckettieCompositionRoot
         services.AddSingleton<IRepositoryEnvironment, SystemRepositoryEnvironment>();
         services.AddSingleton<RepositoryAllowlist>();
         services.AddSingleton<LocalPathValidator>();
-        services.AddSingleton<BitbucketRemoteUrlValidator>();
         services.AddSingleton<IGitCommandClient>(_ => new GitCommandClient(
             gitCommandTimeout,
             askPassExecutable,
@@ -90,7 +89,8 @@ public static class BuckettieCompositionRoot
             provider.GetRequiredService<IRepositoryStore>(),
             provider.GetRequiredService<IApiTokenStore>(),
             provider.GetRequiredService<IInteractiveApprovalPrompt>(),
-            provider.GetRequiredService<RepositoryMutationGate>()));
+            provider.GetRequiredService<RepositoryMutationGate>(),
+            options.ProviderAuthentication));
         services.AddSingleton<IRepositoryUnregistrationService>(provider => new RepositoryUnregistrationService(
             provider.GetRequiredService<RepositoryAllowlist>(),
             provider.GetRequiredService<IRepositoryStore>(),
@@ -100,7 +100,8 @@ public static class BuckettieCompositionRoot
             provider.GetRequiredService<RepositoryAllowlist>(),
             provider.GetRequiredService<IRepositoryStore>(),
             provider.GetRequiredService<IInteractiveApprovalPrompt>(),
-            provider.GetRequiredService<RepositoryMutationGate>()));
+            provider.GetRequiredService<RepositoryMutationGate>(),
+            options.ProviderAuthentication));
 
         ServiceProvider provider = services.BuildServiceProvider(
             new ServiceProviderOptions

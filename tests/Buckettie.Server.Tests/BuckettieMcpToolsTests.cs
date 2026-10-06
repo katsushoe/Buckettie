@@ -154,8 +154,8 @@ public sealed class BuckettieMcpToolsTests
             .Select(parameter => parameter.Name!)
             .ToArray();
 
-        diffInputs.Should().Equal("repository");
-        commitInputs.Should().Equal("repository", "message");
+        diffInputs.Should().Equal("repository", "remote");
+        commitInputs.Should().Equal("repository", "message", "remote");
         var branchInputs = typeof(BuckettieMcpTools).GetMethod(nameof(BuckettieMcpTools.CreateBranchAsync))!
             .GetParameters().Where(parameter => parameter.ParameterType != typeof(CancellationToken)).ToArray();
         branchInputs.Select(parameter => parameter.Name).Should().Equal("repository", "branch", "source");
@@ -369,7 +369,8 @@ public sealed class BuckettieMcpToolsTests
         BuckettieToolResult<BuckettieGitData> result = await BuckettieToolResultMapper.MapGitAsync(
             Task.FromResult(gatewayResult), "ja-JP");
 
-        result.Error!.Code.Should().Be("ssh_remote_not_supported");
+        result.Error!.Code.Should().Be("provider_remote_not_found");
+        result.Error.Provider!.Code.Should().Be("ssh_remote_not_supported");
         result.Error.Message.Should().Be(
             "SSH形式のGitリモートには対応していません。BitbucketのHTTPS URLへ変更してください。");
     }
@@ -521,6 +522,10 @@ public sealed class BuckettieMcpToolsTests
         result.Data!.Provider.Should().Be("bitbucket");
         result.Data.ContractVersion.Should().Be(3);
         result.Data.TagSourceRequired.Should().BeTrue();
+        System.Text.Json.JsonSerializer.Serialize(result.Data.RemoteResolution, BuckettieMcpJson.CreateOptions())
+            .Should().Be("{\"version\":1,\"mode\":\"repository_url\"}");
+        System.Text.Json.JsonSerializer.Serialize(result.Data, BuckettieMcpJson.CreateOptions())
+            .Should().Contain("\"remote_resolution\":");
         result.Data.Operations.Should().Contain(
         [
             new KeyValuePair<string, bool>("branch_create", true),
@@ -651,8 +656,9 @@ public sealed class BuckettieMcpToolsTests
     private sealed class UnusedRepositoryRegistrationService : IRepositoryRegistrationService
     {
         public Task<RepositoryRegistrationOutcome> RegisterAsync(
-            string repositoryId, string localRoot, string remote, string developBranch, string mainBranch,
-            CancellationToken cancellationToken, Buckettie.Application.Git.GitCommitAuthor? commitAuthor = null) =>
+            string repositoryId, string localRoot, string? remote, string developBranch, string mainBranch,
+            CancellationToken cancellationToken, Buckettie.Application.Git.GitCommitAuthor? commitAuthor = null,
+            Guid? moyaiProjectId = null) =>
             throw new NotSupportedException();
     }
 

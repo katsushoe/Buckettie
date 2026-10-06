@@ -36,6 +36,37 @@ public sealed class RepositoryRegistrationValidatorTests
     }
 
     [Fact]
+    public async Task ValidateAsync_WhenRemoteIsOmitted_DerivesCoordinatesFromResolvedRemote()
+    {
+        RepositoryRegistrationValidator validator = CreateValidator();
+        ConfigureValidLocalRoot();
+        _git.ListRemoteUrlsAsync(LocalRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(
+            "remote.origin.url git@bitbucket.org:example-workspace/new-repo.git\n" +
+            "remote.buckettie.url https://bitbucket.org/example-workspace/new-repo.git\n"));
+
+        RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
+            "newrepo", LocalRoot, null, TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeTrue();
+        result.Workspace.Should().Be("example-workspace");
+        result.Slug.Should().Be("new-repo");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WhenRemoteIsOmittedAndNoneMatches_ReturnsRemoteNotFound()
+    {
+        RepositoryRegistrationValidator validator = CreateValidator();
+        ConfigureValidLocalRoot();
+        _git.ListRemoteUrlsAsync(LocalRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound));
+
+        RepositoryRegistrationValidationResult result = await validator.ValidateAsync(
+            "newrepo", LocalRoot, null, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(RepositoryValidationError.RemoteNotFound);
+    }
+
+    [Fact]
     public async Task ValidateAsync_WhenRemoteUsesBitbucketSsh_ReturnsDedicatedError()
     {
         RepositoryRegistrationValidator validator = CreateValidator();

@@ -277,6 +277,55 @@ public sealed class GitGatewayTests
     }
 
     [Fact]
+    public async Task FetchAsync_WhenRemoteIsNotRegistered_UsesAutomaticallyResolvedRemote()
+    {
+        GitGateway gateway = CreateGateway(CreateRepository() with { Remote = null });
+        ConfigureLocalPath();
+        _git.ListRemoteUrlsAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(
+            "remote.origin.url git@bitbucket.org:example/buckettie.git\n" +
+            "remote.bitbucket-origin-https.url https://bitbucket.org/example/buckettie.git\n"));
+        _git.FetchAsync(RepositoryRoot, "bitbucket-origin-https", "buckettie", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+
+        GitGatewayResult result = await gateway.FetchAsync("buckettie", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        await _git.DidNotReceive().FetchAsync(RepositoryRoot, "origin", "buckettie", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FetchAsync_WhenNoRemoteMatches_ReturnsRemoteNotFound()
+    {
+        GitGateway gateway = CreateGateway(CreateRepository() with { Remote = null });
+        ConfigureLocalPath();
+        _git.ListRemoteUrlsAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(
+            GitCommandResult.Success("remote.origin.url git@bitbucket.org:example/buckettie.git\n"));
+
+        GitGatewayResult result = await gateway.FetchAsync("buckettie", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.RemoteNotFound);
+    }
+
+    [Fact]
+    public async Task FetchAsync_WhenCallerSpecifiesRemote_OverridesRegisteredRemote()
+    {
+        GitGateway gateway = CreateGateway();
+        ConfigureBoundary();
+        _git.GetRemoteUrlAsync(RepositoryRoot, "other", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("https://bitbucket.org/example/another.git"));
+
+        GitGatewayResult result;
+        using (GitRemoteSelection.Use("other"))
+        {
+            result = await gateway.FetchAsync("buckettie", TestContext.Current.CancellationToken);
+        }
+
+        result.Error.Should().Be(GitGatewayError.RemoteMismatch);
+        GitRemoteSelection.Current.Should().BeNull();
+        await _git.DidNotReceiveWithAnyArgs().FetchAsync(default!, default!, default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task FetchAsync_WhenRemoteDoesNotMatch_DoesNotFetch()
     {
         GitGateway gateway = CreateGateway();
@@ -565,7 +614,6 @@ public sealed class GitGatewayTests
         return new(
             new RepositoryAllowlist(options),
             new LocalPathValidator(_environment),
-            new BitbucketRemoteUrlValidator(),
             _git);
     }
 

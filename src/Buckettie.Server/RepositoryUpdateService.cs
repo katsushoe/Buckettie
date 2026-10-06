@@ -15,7 +15,9 @@ public sealed record RepositoryUpdateRequest(
     bool RequireCleanWorkingTree,
     HashSet<string>? HistoryRewriteBranches = null,
     string? CommitAuthorName = null,
-    string? CommitAuthorEmail = null);
+    string? CommitAuthorEmail = null,
+    Guid? MoyaiProjectId = null,
+    bool RemoveMoyaiProjectId = false);
 
 /// <summary>Repository修正要求を1つの流れとして実行する境界です。</summary>
 public interface IRepositoryUpdateService
@@ -39,13 +41,16 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
     private readonly IRepositoryStore _repositoryStore;
     private readonly IInteractiveApprovalPrompt _approvalPrompt;
     private readonly RepositoryMutationGate _gate;
+    private readonly ProviderAuthenticationOptions? _authentication;
 
     /// <summary>修正Serviceを初期化します。</summary>
+    /// <param name="authentication">設定ファイルのMoyai Binding。Project IDの重複検出に使います。</param>
     public RepositoryUpdateService(
         RepositoryAllowlist allowlist,
         IRepositoryStore repositoryStore,
         IInteractiveApprovalPrompt approvalPrompt,
-        RepositoryMutationGate gate)
+        RepositoryMutationGate gate,
+        ProviderAuthenticationOptions? authentication = null)
     {
         ArgumentNullException.ThrowIfNull(allowlist);
         ArgumentNullException.ThrowIfNull(repositoryStore);
@@ -55,6 +60,7 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
         _repositoryStore = repositoryStore;
         _approvalPrompt = approvalPrompt;
         _gate = gate;
+        _authentication = authentication;
     }
 
     /// <inheritdoc />
@@ -83,6 +89,12 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
                 BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.CommitAuthorInvalid));
         }
 
+        if (request.MoyaiProjectId == Guid.Empty || (request.MoyaiProjectId is not null && request.RemoveMoyaiProjectId))
+        {
+            return RepositoryUpdateOutcome.Failure(
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.MoyaiProjectIdInvalid));
+        }
+
         if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
         {
             return RepositoryUpdateOutcome.Failure(BuckettieToolResultMapper.RegistrationInProgressError());
@@ -97,9 +109,19 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
                         RepositoryValidationError.RepositoryNotRegistered));
             }
 
+            if (request.MoyaiProjectId is { } projectId
+                && MoyaiBindings.Conflicts(projectId, repositoryId, _allowlist, _authentication))
+            {
+                return RepositoryUpdateOutcome.Failure(
+                    BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.MoyaiProjectIdConflict));
+            }
+
+            // The dialog shows the binding change so a human approves exactly which Moyai Project gains access.
+            string? bindingChange = request.MoyaiProjectId?.ToString("D")
+                ?? (request.RemoveMoyaiProjectId ? $"{existing.MoyaiProjectId?.ToString("D") ?? "-"} -> (remove)" : null);
             ApprovalPromptRequest promptRequest = new(
-                repositoryId, existing.Workspace, existing.Slug, existing.LocalRoot, existing.Remote,
-                Operation: ApprovalOperation.Update);
+                repositoryId, existing.Workspace, existing.Slug, existing.LocalRoot, existing.Remote ?? BitbucketRemoteUrlValidator.RepositoryUrl(existing.Workspace, existing.Slug),
+                Operation: ApprovalOperation.Update, MoyaiProjectId: bindingChange);
             ApprovalPromptOutcome approval = await _approvalPrompt
                 .RequestApprovalAsync(promptRequest, ApprovalTimeout, cancellationToken)
                 .ConfigureAwait(false);
@@ -120,6 +142,7 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
                 HistoryRewriteBranches = request.HistoryRewriteBranches ?? existing.HistoryRewriteBranches,
                 CommitAuthorName = authorSpecified ? request.CommitAuthorName : existing.CommitAuthorName,
                 CommitAuthorEmail = authorSpecified ? request.CommitAuthorEmail : existing.CommitAuthorEmail,
+                MoyaiProjectId = request.RemoveMoyaiProjectId ? null : request.MoyaiProjectId ?? existing.MoyaiProjectId,
             };
 
             bool written = await _repositoryStore.UpdateAsync(repositoryId, updated, cancellationToken)

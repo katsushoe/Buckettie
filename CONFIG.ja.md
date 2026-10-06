@@ -4,6 +4,9 @@ Buckettieは既定で単体動作します。loopbackのMCPクライアントは
 すべてのRepository操作を利用できます。Serverを`--moyai`付きで起動した場合だけMoyai連携モードになり、
 [認証設定](docs/provider-authentication.md)が必須、変更操作にMoyai Provider Assertionが必要になります。
 `--moyai`なしで起動した場合、`provider_authentication`は保持したまま使用しません。
+`--moyai --direct-unrestricted`では、Moyai経由の要求を検証したまま、Authorizationなしのloopback直接接続にすべての
+Repository操作を許可します。MSIプロパティ`MOYAI=1`／`DIRECT_UNRESTRICTED=1`でサービス引数へ設定でき、更新後も引き継がれます
+（[認証設定](docs/provider-authentication.md)参照）。
 Bitbucket外部API Tokenは変更しません。
 
 [English](CONFIG.md) | [日本語](CONFIG.ja.md)
@@ -51,6 +54,18 @@ TokenはBinary Directory基準の`..\data\secrets`へDPAPI LocalMachine暗号化
 ServiceはLocalSystemで動作し、そのGit作成者は通常未設定のため、Repositoryごとにcommit作成者（`commit_author_name`、`commit_author_email`）を保持します。`buckettie repo register`は実行者のGit設定の`user.name`／`user.email`を既定値とし、`--commit-author-name`／`--commit-author-email`（またはregister/updateの同名MCP引数）で明示指定できます。名前とメールアドレスは両方必要で、制御文字や山括弧は使えません（`commit_author_invalid`）。`bitbucket_repository_commit`は登録済みの作成者を使い、なければRepository自身のGit設定を使います。どちらもない場合はStage前に`author_identity_missing`で失敗します。作成者は`GIT_AUTHOR_*`／`GIT_COMMITTER_*`で渡し、サービス実行アカウントの設定には依存しません。
 
 これら3操作はいずれも`stop`/`restart`を必要としません。これらのToolが対応しない形の登録・修正が必要な場合は、引き続き手動編集フロー（対象がSQLite Databaseへ変わった点を除き[Repository保存先](#repository保存先)参照）を使用します。
+
+## Gitリモートの解決
+
+BuckettieはMoyai Repository Provider Contract（`remote_resolution` version 1、mode `repository_url`）に従い、対応を`bitbucket_provider_capabilities.data.remote_resolution`で表明します。ローカルGit操作の直前に、次の順でリモートを決めます。
+
+1. Git系Tool（`repository_status`、`repository_diff`、`repository_commit`、`fetch`、`pull`、`push`、`tag_push`、`history_rewrite_*`、`force_push_with_lease`）の任意引数`remote`。Moyaiは`gitRemoteName`をここへ渡します。
+2. 登録時に指定して保存した`remote`。
+3. どちらもなければ自動解決します。対象RepositoryのリモートのうちHTTPS URLが登録済みの`bitbucket.org/<workspace>/<slug>`を指すもの（`.git`と末尾`/`は無視、パスの大文字小文字は区別）を候補とします。SSHリモートと、資格情報・query・fragmentを含むURLは除外します。候補が1つならそれを使い、複数なら命名規則`<ホスト>-origin-<接続方式>`（例: `bitbucket-origin-https`）に合う名前が1つだけの場合にそれを使います。
+
+`origin`への暗黙の退避は行いません。失敗時は共通エラーコード`provider_remote_not_found`（一致するリモートがない、または指定名のリモートがない）、`provider_remote_ambiguous`（複数一致し命名規則でも1つに決まらない）、`provider_remote_mismatch`（指定名のリモートが別Repositoryを指す）を返します。指定名のリモートがSSHの場合は`provider_remote_not_found`を返し、`error.provider.code`を`ssh_remote_not_supported`とします。
+
+登録時の`remote`は省略できます。省略時は、ローカルRepositoryのHTTPS形式Bitbucketリモート（すべて同じRepositoryを指す必要があります）から`workspace`／`slug`を導出し、リモート名は保存せず操作ごとに自動解決します。既存の登録は保存済みのリモート名を引き続き使います。
 
 ## 検証エラー
 
