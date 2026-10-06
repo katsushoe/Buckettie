@@ -657,7 +657,8 @@ public sealed class BuckettieMcpToolsTests
     {
         public Task<RepositoryRegistrationOutcome> RegisterAsync(
             string repositoryId, string localRoot, string? remote, string developBranch, string mainBranch,
-            CancellationToken cancellationToken, Buckettie.Application.Git.GitCommitAuthor? commitAuthor = null) =>
+            CancellationToken cancellationToken, Buckettie.Application.Git.GitCommitAuthor? commitAuthor = null,
+            Guid? moyaiProjectId = null) =>
             throw new NotSupportedException();
     }
 

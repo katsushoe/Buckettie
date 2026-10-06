@@ -36,6 +36,13 @@ internal sealed class ScServiceCommandExecutor : IServiceCommandExecutor
     }
 }
 
+/// <summary>sc.exeの終了コードです。</summary>
+internal static class ServiceCommandExitCodes
+{
+    /// <summary>ERROR_ACCESS_DENIED。サービス制御には管理者権限が必要です。</summary>
+    internal const int AccessDenied = 5;
+}
+
 internal sealed class WindowsServiceManager(
     IServiceCommandExecutor executor,
     string binaryDirectory,
@@ -81,7 +88,7 @@ internal sealed class WindowsServiceManager(
         ServiceCommandResult query = await executor.ExecuteAsync(["query", ServiceName], cancellationToken).ConfigureAwait(false);
         if (query.ExitCode != 0)
         {
-            output.WriteLine(japanese ? "[NG] サービスの再起動" : "[NG] Service restart");
+            output.WriteLine(Failure(japanese ? "サービスの再起動" : "Service restart", query.ExitCode));
             return 1;
         }
         if (query.StandardOutput.Contains("RUNNING", StringComparison.Ordinal))
@@ -89,11 +96,15 @@ internal sealed class WindowsServiceManager(
             ServiceCommandResult stop = await executor.ExecuteAsync(["stop", ServiceName], cancellationToken).ConfigureAwait(false);
             if (stop.ExitCode != 0)
             {
-                output.WriteLine(japanese ? "[NG] サービスの再起動" : "[NG] Service restart");
+                output.WriteLine(Failure(japanese ? "サービスの再起動" : "Service restart", stop.ExitCode));
                 return 1;
             }
         }
-        return await RunAsync(["start", ServiceName], japanese ? "サービスを再起動しました" : "Service restarted", output, cancellationToken).ConfigureAwait(false);
+        ServiceCommandResult start = await executor.ExecuteAsync(["start", ServiceName], cancellationToken).ConfigureAwait(false);
+        output.WriteLine(start.ExitCode == 0
+            ? $"[OK] {(japanese ? "サービスを再起動しました" : "Service restarted")}"
+            : Failure(japanese ? "サービスの再起動" : "Service restart", start.ExitCode));
+        return start.ExitCode == 0 ? 0 : 1;
     }
 
     private async Task<int> StatusAsync(TextWriter output, CancellationToken cancellationToken)
@@ -115,7 +126,16 @@ internal sealed class WindowsServiceManager(
         TextWriter output, CancellationToken cancellationToken)
     {
         ServiceCommandResult result = await executor.ExecuteAsync(arguments, cancellationToken).ConfigureAwait(false);
-        output.WriteLine($"[{(result.ExitCode == 0 ? "OK" : "NG")}] {(result.ExitCode == 0 ? successMessage : successMessage.Split(' ')[0])}");
+        output.WriteLine(result.ExitCode == 0
+            ? $"[OK] {successMessage}"
+            : Failure(japanese ? "サービス操作" : "Service operation", result.ExitCode));
         return result.ExitCode == 0 ? 0 : 1;
     }
+
+    /// <summary>失敗行を返します。権限不足の場合は管理者権限での再実行を案内します。</summary>
+    private string Failure(string operation, int exitCode) => exitCode == ServiceCommandExitCodes.AccessDenied
+        ? japanese
+            ? $"[NG] {operation}（管理者権限が必要です。管理者として実行したターミナルで再実行してください）"
+            : $"[NG] {operation} (Administrator privileges are required. Run the command again from an elevated terminal.)"
+        : $"[NG] {operation}{(japanese ? $"（sc.exe終了コード {exitCode}）" : $" (sc.exe exit code {exitCode})")}";
 }

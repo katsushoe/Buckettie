@@ -67,6 +67,20 @@ public sealed class BuckettieMcpTools
             true, "list_projects", string.Empty, new BuckettieProjectListData(projects), null));
     }
 
+    private const string MoyaiProjectIdDescription =
+        "Moyai連携でこのリポジトリに対応するMoyai Project ID（UUID）。対応するリポジトリ名はGitリモートから導出し、デスクトップ承認後に保存します。 / " +
+        "Moyai Project ID (UUID) bound to this repository for Moyai integration. The repository name is derived from the Git remote, and the binding is stored after desktop approval.";
+
+    /// <summary>Moyai Project ID引数を解析します。省略はnull、UUID以外は失敗です。</summary>
+    private static bool TryParseMoyaiProjectId(string? value, out Guid? projectId)
+    {
+        projectId = null;
+        if (value is null) return true;
+        if (!Guid.TryParseExact(value.Trim(), "D", out Guid parsed) || parsed == Guid.Empty) return false;
+        projectId = parsed;
+        return true;
+    }
+
     private const string RemoteDescription =
         "使用するGitリモート名（MoyaiのgitRemoteName）。省略時はBitbucketリポジトリとURLが一致するリモートを自動で解決します。 / " +
         "Git remote name to use (Moyai gitRemoteName). When omitted, the remote whose URL matches the Bitbucket repository is resolved automatically.";
@@ -478,12 +492,21 @@ public sealed class BuckettieMcpTools
         [Description("主要ブランチ名。 / Main branch name.")] string mainBranch = "main",
         [Description("commit作成者名。作成者メールアドレスと対で指定します。 / Commit author name, specified together with the email.")] string? commitAuthorName = null,
         [Description("commit作成者メールアドレス。 / Commit author email address.")] string? commitAuthorEmail = null,
+        [Description(MoyaiProjectIdDescription)] string? moyaiProjectId = null,
         CancellationToken cancellationToken = default)
     {
+        if (!TryParseMoyaiProjectId(moyaiProjectId, out Guid? projectId))
+        {
+            return new(false, "bitbucket_repository_register", repository, null, BuckettieToolResultMapper.Localize(
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.MoyaiProjectIdInvalid),
+                _language));
+        }
+
         GitCommitAuthor? author = commitAuthorName is null && commitAuthorEmail is null
             ? null : new GitCommitAuthor(commitAuthorName ?? string.Empty, commitAuthorEmail ?? string.Empty);
         RepositoryRegistrationOutcome outcome = await _registration.RegisterAsync(
-            repository, localRoot, remote, developBranch, mainBranch, cancellationToken, author).ConfigureAwait(false);
+            repository, localRoot, remote, developBranch, mainBranch, cancellationToken, author, projectId)
+            .ConfigureAwait(false);
         return outcome.IsSuccess
             ? new(true, "bitbucket_repository_register", repository,
                 new BuckettieRepositoryRegistrationData(
@@ -530,11 +553,21 @@ public sealed class BuckettieMcpTools
         [Description("履歴書き換えを明示許可するブランチ。 / Branches explicitly allowed for history rewriting.")] HashSet<string>? historyRewriteBranches = null,
         [Description("commit作成者名。省略時は変更しません。メールアドレスと対で指定します。 / Commit author name; unchanged when omitted, specified together with the email.")] string? commitAuthorName = null,
         [Description("commit作成者メールアドレス。 / Commit author email address.")] string? commitAuthorEmail = null,
+        [Description(MoyaiProjectIdDescription + " 省略時は変更しません。 / Unchanged when omitted.")] string? moyaiProjectId = null,
+        [Description("trueでMoyai Project IDの対応付けを解除します。 / When true, removes the Moyai Project ID binding.")] bool removeMoyaiProjectId = false,
         CancellationToken cancellationToken = default)
     {
+        if (!TryParseMoyaiProjectId(moyaiProjectId, out Guid? projectId))
+        {
+            return new(false, "bitbucket_repository_update", repository, null, BuckettieToolResultMapper.Localize(
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.MoyaiProjectIdInvalid),
+                _language));
+        }
+
         RepositoryUpdateRequest request = new(
             directPushBranches, pullBranches, protectedBranches, tagTargetBranch, tagPattern,
-            requireCleanWorkingTree, historyRewriteBranches, commitAuthorName, commitAuthorEmail);
+            requireCleanWorkingTree, historyRewriteBranches, commitAuthorName, commitAuthorEmail,
+            projectId, removeMoyaiProjectId);
         RepositoryUpdateOutcome outcome = await _update
             .UpdateAsync(repository, request, cancellationToken).ConfigureAwait(false);
         return outcome.IsSuccess

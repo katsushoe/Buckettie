@@ -96,6 +96,14 @@ to turn an option off. For example:
 `msiexec /i Buckettie-<version>-win-x64.msi MOYAI=1 DIRECT_UNRESTRICTED=1`.
 
 For local reproduction, restore with the repository NuGet.Config and run the Server and CLI tests.
+Repository registration accepts `--moyai-project-id <UUID>`; an existing registration can be bound with
+`buckettie repo update <id> --moyai-project-id <UUID>` or cleared with `--remove-moyai-project-id`.
+The approval dialog displays the binding change. The canonical repository comes from the validated
+Git remote, not a caller-supplied assertion claim. A configured JSON binding takes precedence over a
+registry binding; clearing the registry value does not remove a configured binding. Registry changes
+take effect without restarting the service. Changes to the JSON authentication settings require a restart
+from an elevated terminal. Existing issuer and public trust configuration are still required.
+
 Integration uses a separate loopback port, disposable issuer keys, separate trust/repository DBs, one shared
 replay DB, two project UUIDs and distinct Githubie/Buckettie audiences. No production remote writes or
 service installation are authorized by the CR. The peer must support the advertised scope set and error

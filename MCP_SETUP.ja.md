@@ -211,6 +211,16 @@ Clientから`bitbucket_repository_status`を呼び出し、Repository引数へ`$
 
 ## トラブルシューティング
 
+Moyai連携でRepositoryを追加するときは、`repo register`に`--moyai-project-id <UUID>`を指定します。
+登録済みRepositoryには`buckettie repo update <id> --moyai-project-id <UUID>`で追加し、
+`--remove-moyai-project-id`で登録DBのBindingを解除できます。変更内容は対話承認画面に表示されます。
+正規化Repository名は検証したGit remoteから導出します。設定JSONのBindingが優先されるため、
+登録DBの値を解除しても設定JSONのBindingは消えません。登録DBの更新では再起動不要ですが、
+認証設定JSONを変更した場合は管理者権限のターミナルから再起動してください。
+Issuerと公開Trustの設定は別途必要です。
+
+- Repository Toolの同時呼び出しは共有の排他ロックを最大10秒待機します（固定値、設定追加なし）。解消しない場合は処理を実行せず、HTTP 503、JSON-RPCエラー`-32002`、`data.code=repository_busy`、`retryable=true`、`outcome=not_executed`、`retry_after_seconds=1`、`Retry-After: 1`を返します。指定時間後に再試行し、Moyaiは新しいAssertionを発行してください。認証は待機後に検証し、認証失敗は引き続きHTTP 401です。キャンセルは待機だけを中止し、他の呼び出しのロックを解放しません。Repository登録・更新・解除の既存の即時競合処理は変更しません。
+
 - Commandに`<...>`が残っている：Placeholderを実値へ置換し、山括弧をそのまま入力しません。
 - `repo status`が失敗する：`repo list`が出力した大文字小文字を含む正確なIDを使用します。
 - 接続拒否：Serviceの実行状態を確認し、「確認1」「確認2」を再実行します。

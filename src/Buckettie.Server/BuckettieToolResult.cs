@@ -204,6 +204,8 @@ internal static class BuckettieToolResultMapper
             RepositoryValidationError.RemoteAmbiguous => "provider_remote_ambiguous",
             RepositoryValidationError.TagPatternInvalid => "tag_pattern_invalid",
         RepositoryValidationError.CommitAuthorInvalid => "commit_author_invalid",
+            RepositoryValidationError.MoyaiProjectIdInvalid => "moyai_project_id_invalid",
+            RepositoryValidationError.MoyaiProjectIdConflict => "moyai_project_id_conflict",
             RepositoryValidationError.LocalRootNotFound
                 or RepositoryValidationError.GitMetadataNotFound
                 or RepositoryValidationError.LocalPathReparsePoint => "local_repository_invalid",
@@ -403,6 +405,8 @@ internal static class BuckettieToolResultMapper
         "nothing_to_push" => "There is nothing to push.",
         "nothing_to_commit" => "There are no changes to commit.",
         "commit_author_invalid" => "The commit author name or email is invalid. Specify both a name and an email address without control characters or angle brackets.",
+        "moyai_project_id_invalid" => "The Moyai Project ID must be a non-empty UUID, and it cannot be set and removed in the same request.",
+        "moyai_project_id_conflict" => "The Moyai Project ID is already bound to another repository, or this repository has a different binding in the configuration file.",
         "author_identity_missing" => "No commit author is registered for this repository and none is set in its Git config. Register one with buckettie repo update <repository-id> --commit-author-name <name> --commit-author-email <email>.",
         "commit_message_invalid" => "The commit message is invalid.",
         "non_fast_forward" => "The operation is not a fast-forward.",
@@ -470,6 +474,8 @@ internal static class BuckettieToolResultMapper
         "nothing_to_push" => "pushする変更がありません。",
         "nothing_to_commit" => "commitする変更がありません。",
         "commit_author_invalid" => "commit作成者の名前またはメールアドレスが無効です。制御文字や山括弧を含まない名前とメールアドレスを両方指定してください。",
+        "moyai_project_id_invalid" => "Moyai Project IDは空でないUUIDで指定してください。設定と解除は同時に指定できません。",
+        "moyai_project_id_conflict" => "このMoyai Project IDは別のリポジトリに対応付け済みか、設定ファイルにこのリポジトリの別の対応付けがあります。",
         "author_identity_missing" => "このRepositoryにはcommit作成者が登録されておらず、Git設定にも作成者がありません。buckettie repo update <repository-id> --commit-author-name <名前> --commit-author-email <メールアドレス>で登録してください。",
         "commit_message_invalid" => "commitメッセージが無効です。",
         "non_fast_forward" => "fast-forwardできないため操作を完了できません。",

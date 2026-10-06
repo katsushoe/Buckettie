@@ -20,6 +20,8 @@ public enum RepositoryValidationError
     RepositoryNotRegistered,
     TagPatternInvalid,
     CommitAuthorInvalid,
+    MoyaiProjectIdInvalid,
+    MoyaiProjectIdConflict,
 }
 
 /// <summary>

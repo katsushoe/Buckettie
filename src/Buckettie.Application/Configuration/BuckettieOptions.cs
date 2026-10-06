@@ -91,4 +91,10 @@ public sealed record RepositoryOptions
 
     /// <summary>commitの作成者メールアドレスです。<see cref="CommitAuthorName"/>と対で使います。</summary>
     public string? CommitAuthorEmail { get; init; }
+
+    /// <summary>
+    /// Moyai連携でこのRepositoryに対応するMoyai Project IDです。設定すると、
+    /// <c>bitbucket.org/&lt;Workspace&gt;/&lt;Slug&gt;</c>とのBindingとしてAssertion検証に使います。
+    /// </summary>
+    public Guid? MoyaiProjectId { get; init; }
 }

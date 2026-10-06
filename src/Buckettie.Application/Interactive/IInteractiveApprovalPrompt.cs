@@ -36,7 +36,8 @@ public sealed record ApprovalPromptRequest(
     string RemoteUrl,
     bool TokenRequired = false,
     string Language = "auto",
-    ApprovalOperation Operation = ApprovalOperation.Register);
+    ApprovalOperation Operation = ApprovalOperation.Register,
+    string? MoyaiProjectId = null);
 
 /// <summary>承認Dialogが利用者へ示す操作の種類です。</summary>
 public enum ApprovalOperation

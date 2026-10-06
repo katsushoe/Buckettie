@@ -59,6 +59,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         EnsureColumn(connection, "history_rewrite_branches", "TEXT NOT NULL DEFAULT '[]'");
         EnsureColumn(connection, "commit_author_name", "TEXT NULL");
         EnsureColumn(connection, "commit_author_email", "TEXT NULL");
+        EnsureColumn(connection, "moyai_project_id", "TEXT NULL");
     }
 
     /// <inheritdoc />
@@ -71,7 +72,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
             SELECT repository_id, workspace, slug, local_root, remote, develop_branch, main_branch,
                    direct_push_branches, pull_branches, protected_branches, tag_target_branch,
                    tag_pattern, require_clean_working_tree, history_rewrite_branches,
-                   commit_author_name, commit_author_email
+                   commit_author_name, commit_author_email, moyai_project_id
             FROM repositories;
             """;
 
@@ -98,6 +99,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 HistoryRewriteBranches = DeserializeSet(reader.GetString(13)),
                 CommitAuthorName = reader.IsDBNull(14) ? null : reader.GetString(14),
                 CommitAuthorEmail = reader.IsDBNull(15) ? null : reader.GetString(15),
+                MoyaiProjectId = !reader.IsDBNull(16) && Guid.TryParse(reader.GetString(16), out Guid projectId)
+                    ? projectId : null,
             };
         }
 
@@ -118,12 +121,12 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 (repository_id, workspace, slug, local_root, remote, develop_branch, main_branch,
                  direct_push_branches, pull_branches, protected_branches, tag_target_branch,
                  tag_pattern, require_clean_working_tree, history_rewrite_branches,
-                 commit_author_name, commit_author_email)
+                 commit_author_name, commit_author_email, moyai_project_id)
             VALUES
                 (@id, @workspace, @slug, @localRoot, @remote, @developBranch, @mainBranch,
                  @directPushBranches, @pullBranches, @protectedBranches, @tagTargetBranch,
                  @tagPattern, @requireCleanWorkingTree, @historyRewriteBranches,
-                 @commitAuthorName, @commitAuthorEmail);
+                 @commitAuthorName, @commitAuthorEmail, @moyaiProjectId);
             """;
         BindOptions(insert, repositoryId, options);
         int affected = await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -155,7 +158,8 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
                 require_clean_working_tree = @requireCleanWorkingTree,
                 history_rewrite_branches = @historyRewriteBranches,
                 commit_author_name = @commitAuthorName,
-                commit_author_email = @commitAuthorEmail
+                commit_author_email = @commitAuthorEmail,
+                moyai_project_id = @moyaiProjectId
             WHERE repository_id = @id COLLATE NOCASE;
             """;
         BindOptions(update, repositoryId, options);
@@ -201,6 +205,7 @@ public sealed class SqliteRepositoryStore : IRepositoryStore
         command.Parameters.AddWithValue("@historyRewriteBranches", SerializeSet(options.HistoryRewriteBranches));
         command.Parameters.AddWithValue("@commitAuthorName", (object?)options.CommitAuthorName ?? DBNull.Value);
         command.Parameters.AddWithValue("@commitAuthorEmail", (object?)options.CommitAuthorEmail ?? DBNull.Value);
+        command.Parameters.AddWithValue("@moyaiProjectId", (object?)options.MoyaiProjectId?.ToString("D") ?? DBNull.Value);
     }
 
     /// <summary>既存DBへ後から追加した列を補います。</summary>

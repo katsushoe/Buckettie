@@ -212,6 +212,8 @@ Pass condition: configuration, Git, API token, repository, Bitbucket API, and MC
 
 ## Troubleshooting
 
+- Concurrent repository tools share an exclusive gate and wait up to 10 seconds (fixed, no configuration required). If it remains busy, the call is not executed: HTTP 503, JSON-RPC error `-32002`, `data.code=repository_busy`, `retryable=true`, `outcome=not_executed`, and `retry_after_seconds=1` with `Retry-After: 1`. Retry after the delay; Moyai should issue a fresh assertion. Authentication is checked after the wait; authentication failures still return HTTP 401. Cancellation stops waiting without releasing another call's gate. Repository registration/update/unregistration retain their existing immediate contention handling.
+
 - Command contains `<...>`: replace the placeholder; never paste angle brackets literally.
 - `repo status` fails: use the exact case-sensitive ID printed by `repo list`.
 - Connection refused: confirm the service is running, then repeat Checks 1 and 2.

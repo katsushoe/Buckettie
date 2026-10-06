@@ -12,6 +12,10 @@ internal sealed class RepositoryMutationGate : IDisposable
     public Task<bool> TryEnterAsync(CancellationToken cancellationToken) =>
         _gate.WaitAsync(0, cancellationToken);
 
+    /// <summary>指定した上限時間まで待機してGateを獲得します。</summary>
+    public Task<bool> TryEnterAsync(TimeSpan timeout, CancellationToken cancellationToken) =>
+        _gate.WaitAsync(timeout, cancellationToken);
+
     /// <summary>Gateを解放します。</summary>
     public void Release() => _gate.Release();
 

@@ -11,6 +11,7 @@ namespace Buckettie.Server;
 internal sealed class ProviderAuthenticationBoundary
 {
     private const int MaximumRequestBytes = 1_048_576;
+    private static readonly TimeSpan OperationWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly object DirectReadKey = new();
     private static readonly object StandaloneKey = new();
     private readonly BuckettieOptions _options;
@@ -108,8 +109,12 @@ internal sealed class ProviderAuthenticationBoundary
                 string tool = parameters.GetProperty("name").GetString() ?? throw Error("auth_scope_denied");
                 if (ProviderToolPolicy.Scopes(tool) is not null)
                 {
-                    operationGateHeld = await _gate.TryEnterAsync(context.RequestAborted).ConfigureAwait(false);
-                    if (!operationGateHeld) throw Error("authentication_unavailable");
+                    operationGateHeld = await _gate.TryEnterAsync(OperationWaitTimeout, context.RequestAborted).ConfigureAwait(false);
+                    if (!operationGateHeld)
+                    {
+                        await BusyAsync(context, requestId).ConfigureAwait(false);
+                        return;
+                    }
                 }
                 await AuthorizeToolAsync(context, parameters).ConfigureAwait(false);
             }
@@ -178,14 +183,16 @@ internal sealed class ProviderAuthenticationBoundary
         string token = Bearer(context);
         string repository = parameters.GetProperty("arguments").GetProperty("repository").GetString()
             ?? throw Error("auth_project_mismatch");
-        ProviderProjectBinding? binding = auth.Bindings.SingleOrDefault(item =>
-            string.Equals(item.Repository, repository, StringComparison.OrdinalIgnoreCase));
         Guid project = Guid.Empty;
         string normalized = string.Empty;
-        if (binding is not null && _repositories.TryGet(repository, out RepositoryOptions? registered) && registered is not null)
+        bool bindingMissing = false;
+        if (_repositories.TryGet(repository, out RepositoryOptions? registered) && registered is not null)
         {
-            normalized = $"bitbucket.org/{registered.Workspace}/{registered.Slug}";
-            if (string.Equals(normalized, binding.NormalizedRepository, StringComparison.Ordinal)) project = binding.ProjectId;
+            normalized = MoyaiBindings.Normalize(registered);
+            MoyaiBinding? binding = MoyaiBindings.Resolve(repository, registered, auth);
+            bindingMissing = binding is null;
+            if (binding is not null && string.Equals(normalized, binding.NormalizedRepository, StringComparison.Ordinal))
+                project = binding.ProjectId;
         }
         string operationId = context.Request.Headers["X-Moyai-Operation-Id"].ToString();
         if (operationId.Length is < 1 or > 200 || operationId.Any(character => !char.IsAsciiLetterOrDigit(character)
@@ -193,7 +200,18 @@ internal sealed class ProviderAuthenticationBoundary
         // An unresolved context cannot match any valid Project claim. Still validate the signature first
         // so unauthenticated callers cannot distinguish existing registrations by the public error.
         AssertionContext expected = AssertionContext.ForRepository("buckettie", project, normalized, tool, scopes, operationId);
-        AssertionPrincipal principal = await _validator.ValidateAsync(token, expected, context.RequestAborted).ConfigureAwait(false);
+        AssertionPrincipal principal;
+        try
+        {
+            principal = await _validator.ValidateAsync(token, expected, context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (ProviderAuthenticationException exception) when (bindingMissing && exception.Code == "auth_project_mismatch")
+        {
+            // Project mismatch is reported only after the signature, issuer and audience were accepted, so naming
+            // the missing binding tells nothing to a caller that Moyai did not authenticate.
+            _logger.LogWarning("[ProviderAuth] binding_missing {Repository} {Tool}", repository, tool);
+            throw Error("auth_binding_missing");
+        }
         context.Items[typeof(AssertionPrincipal)] = principal;
         context.Items[typeof(IAssertionExecutionValidator)] = _validator as IAssertionExecutionValidator;
         context.Response.Headers["X-Moyai-Operation-Id"] = principal.Context.OperationId;
@@ -260,6 +278,18 @@ internal sealed class ProviderAuthenticationBoundary
             throw Error("auth_assertion_missing");
         if (value.Length > 16400) throw Error("auth_assertion_invalid");
         return value[7..];
+    }
+
+    private async Task BusyAsync(HttpContext context, JsonElement? id)
+    {
+        const string code = "repository_busy";
+        _logger.LogWarning("[RepositoryGate] rejected {Code}", code);
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        context.Response.Headers.RetryAfter = "1";
+        await context.Response.WriteAsJsonAsync(new { jsonrpc = "2.0", id,
+            error = new { code = -32002, message = code,
+                data = new { code, retryable = true, retry_after_seconds = 1, outcome = "not_executed" } } },
+            context.RequestAborted).ConfigureAwait(false);
     }
 
     private async Task RejectAsync(HttpContext context, JsonElement? id, string code)

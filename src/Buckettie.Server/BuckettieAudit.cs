@@ -220,11 +220,13 @@ internal sealed class AuditedRepositoryRegistrationService(
         string developBranch,
         string mainBranch,
         CancellationToken cancellationToken,
-        GitCommitAuthor? commitAuthor = null)
+        GitCommitAuthor? commitAuthor = null,
+        Guid? moyaiProjectId = null)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         RepositoryRegistrationOutcome result = await inner.RegisterAsync(
-            repositoryId, localRoot, remote, developBranch, mainBranch, cancellationToken, commitAuthor).ConfigureAwait(false);
+            repositoryId, localRoot, remote, developBranch, mainBranch, cancellationToken, commitAuthor, moyaiProjectId)
+            .ConfigureAwait(false);
         audit.Write(new(
             "bitbucket_repository_register",
             repositoryId,

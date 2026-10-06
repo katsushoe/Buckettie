@@ -11,6 +11,58 @@ public sealed class RepositoryUpdateServiceTests
 {
     private readonly IInteractiveApprovalPrompt _approvalPrompt = Substitute.For<IInteractiveApprovalPrompt>();
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task UpdateAsync_WithMoyaiBinding_ChangesOnlyAfterApproval(bool approved)
+    {
+        Guid project = Guid.NewGuid();
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        FakeRepositoryStore store = new();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+        _approvalPrompt.RequestApprovalAsync(
+                Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(approved ? ApprovalPromptOutcome.Approved() : ApprovalPromptOutcome.Denied());
+        RepositoryUpdateService service = new(allowlist, store, _approvalPrompt, new RepositoryMutationGate());
+
+        RepositoryUpdateOutcome outcome = await service.UpdateAsync("buckettie",
+            CreateRequest() with { MoyaiProjectId = project }, TestContext.Current.CancellationToken);
+
+        outcome.IsSuccess.Should().Be(approved);
+        RepositoryOptions stored = (await store.LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"];
+        stored.MoyaiProjectId.Should().Be(approved ? project : null);
+        await _approvalPrompt.Received(1).RequestApprovalAsync(
+            Arg.Is<ApprovalPromptRequest>(request => request.MoyaiProjectId == project.ToString("D")),
+            Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task UpdateAsync_RemovingMoyaiBinding_ChangesOnlyAfterApproval(bool approved)
+    {
+        Guid project = Guid.NewGuid();
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        FakeRepositoryStore store = new();
+        await store.InsertAsync("buckettie", CreateRepository(), TestContext.Current.CancellationToken);
+        _approvalPrompt.RequestApprovalAsync(
+                Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ApprovalPromptOutcome.Approved());
+        RepositoryUpdateService service = new(allowlist, store, _approvalPrompt, new RepositoryMutationGate());
+        (await service.UpdateAsync("buckettie", CreateRequest() with { MoyaiProjectId = project },
+            TestContext.Current.CancellationToken)).IsSuccess.Should().BeTrue();
+        _approvalPrompt.RequestApprovalAsync(
+                Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(approved ? ApprovalPromptOutcome.Approved() : ApprovalPromptOutcome.Denied());
+
+        RepositoryUpdateOutcome outcome = await service.UpdateAsync("buckettie",
+            CreateRequest() with { RemoveMoyaiProjectId = true }, TestContext.Current.CancellationToken);
+
+        outcome.IsSuccess.Should().Be(approved);
+        RepositoryOptions stored = (await store.LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"];
+        stored.MoyaiProjectId.Should().Be(approved ? null : project);
+    }
+
     [Fact]
     public async Task UpdateAsync_WhenApproved_WritesStoreAndUpdatesAllowlistBranchPolicyOnly()
     {
