@@ -168,6 +168,57 @@ public sealed class ProviderAuthenticationTests
             new RepositoryAllowlist(invalid), NullLogger<ProviderAuthenticationBoundary>.Instance, TestContext.Current.CancellationToken, moyaiIntegration: true));
     }
 
+    [Theory]
+    [InlineData("valid", "auth_binding_missing")]
+    [InlineData("expired", "auth_assertion_expired")]
+    [InlineData("future", "auth_assertion_not_yet_valid")]
+    [InlineData("signature", "auth_assertion_invalid")]
+    [InlineData("unknown-key", "auth_key_unknown")]
+    public async Task Boundary_MissingBinding_DistinguishesCredentialFailures(string scenario, string expected)
+    {
+        using Fixture fixture = new();
+        BuckettieOptions options = fixture.Options with
+        {
+            ProviderAuthentication = fixture.Options.ProviderAuthentication! with { Bindings = [] },
+        };
+        ProviderAuthenticationBoundary boundary = await ProviderAuthenticationBoundary.CreateAsync(options,
+            new RepositoryAllowlist(options), NullLogger<ProviderAuthenticationBoundary>.Instance,
+            TestContext.Current.CancellationToken, moyaiIntegration: true);
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        Dictionary<string, object> changes = new();
+        if (scenario == "expired") { changes["iat"] = now - 600; changes["nbf"] = now - 600; changes["exp"] = now - 480; }
+        if (scenario == "future") { changes["iat"] = now + 600; changes["nbf"] = now + 600; changes["exp"] = now + 720; }
+        string token = fixture.Sign(changes, keyId: scenario == "unknown-key" ? "unknown" : "key-1");
+        if (scenario == "signature")
+        {
+            string[] parts = token.Split('.');
+            parts[2] = (parts[2][0] == 'A' ? "B" : "A") + parts[2][1..];
+            token = string.Join('.', parts);
+        }
+        await AssertRejected(boundary, fixture.Request(token), expected, token);
+    }
+
+    [Fact]
+    public async Task Boundary_RegistryBinding_AuthenticatesWithoutConfiguredBinding()
+    {
+        using Fixture fixture = new();
+        Guid project = fixture.Options.ProviderAuthentication!.Bindings[0].ProjectId;
+        BuckettieOptions options = fixture.Options with
+        {
+            ProviderAuthentication = fixture.Options.ProviderAuthentication with { Bindings = [] },
+            Repositories = new Dictionary<string, RepositoryOptions>
+            {
+                ["example"] = fixture.Options.Repositories["example"] with { MoyaiProjectId = project },
+            },
+        };
+        ProviderAuthenticationBoundary boundary = await ProviderAuthenticationBoundary.CreateAsync(options,
+            new RepositoryAllowlist(options), NullLogger<ProviderAuthenticationBoundary>.Instance,
+            TestContext.Current.CancellationToken, moyaiIntegration: true);
+        bool dispatched = false;
+        await boundary.InvokeAsync(fixture.Request(fixture.Sign()), _ => { dispatched = true; return Task.CompletedTask; });
+        dispatched.Should().BeTrue();
+    }
+
     private static async Task AssertRejected(ProviderAuthenticationBoundary boundary, DefaultHttpContext context, string code, string? token = null)
     {
         bool called = false;

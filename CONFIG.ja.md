@@ -43,7 +43,7 @@ TokenはBinary Directory基準の`..\data\secrets`へDPAPI LocalMachine暗号化
 
 ## Repository登録・修正・登録解除
 
-`bitbucket_repository_register` MCP Tool（またはCLIの`buckettie repo register`）は、以下の手動フローを使わずにRepositoryを1件追加します。受け付けるのは`repository`（新規Repository ID）、`local_root`、および任意の`remote`／`develop_branch`／`main_branch`だけです。`workspace`と`slug`は常に対象Local RepositoryのGit Remoteから導出され、呼び出し元は指定できません。`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`は、指定されたBranch名から上記の例と同じ保守的な形でServer側が既定値を設定します。
+`bitbucket_repository_register` MCP Tool（またはCLIの`buckettie repo register`）は、以下の手動フローを使わずにRepositoryを1件追加します。新規Repository IDとLocal Pathに加え、任意のRemote・Branch名、commit作成者名とメールアドレスの組、Moyai Project IDを受け付けます。`workspace`と`slug`は常に対象Local RepositoryのGit Remoteから導出され、呼び出し元は指定できません。`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`は、指定されたBranch名から上記の例と同じ保守的な形でServer側が既定値を設定します。
 
 `bitbucket_repository_update` MCP Tool（またはCLIの`buckettie repo update`）は、登録済みRepositoryの`direct_push_branches`、`pull_branches`、`protected_branches`、`tag_target_branch`、`tag_pattern`、`require_clean_working_tree`を変更します。`workspace`／`slug`／`local_root`／`remote`／`develop_branch`／`main_branch`はここでは変更できません。これらは登録時にGit Remoteに対して検証済みの値として固定されるため、指し示すRepositoryを変える場合は登録解除してから再登録します。
 
@@ -54,6 +54,28 @@ TokenはBinary Directory基準の`..\data\secrets`へDPAPI LocalMachine暗号化
 ServiceはLocalSystemで動作し、そのGit作成者は通常未設定のため、Repositoryごとにcommit作成者（`commit_author_name`、`commit_author_email`）を保持します。`buckettie repo register`は実行者のGit設定の`user.name`／`user.email`を既定値とし、`--commit-author-name`／`--commit-author-email`（またはregister/updateの同名MCP引数）で明示指定できます。名前とメールアドレスは両方必要で、制御文字や山括弧は使えません（`commit_author_invalid`）。`bitbucket_repository_commit`は登録済みの作成者を使い、なければRepository自身のGit設定を使います。どちらもない場合はStage前に`author_identity_missing`で失敗します。作成者は`GIT_AUTHOR_*`／`GIT_COMMITTER_*`で渡し、サービス実行アカウントの設定には依存しません。
 
 これら3操作はいずれも`stop`/`restart`を必要としません。これらのToolが対応しない形の登録・修正が必要な場合は、引き続き手動編集フロー（対象がSQLite Databaseへ変わった点を除き[Repository保存先](#repository保存先)参照）を使用します。
+
+## Moyai ProjectとのBinding
+
+Serverが`--moyai`で動作する場合、Repository登録時に実際のMoyai Project UUIDを指定します。
+
+```powershell
+buckettie repo register <repository> <local-root> --moyai-project-id <UUID>
+buckettie repo update <repository> --moyai-project-id <UUID>
+buckettie repo update <repository> --remove-moyai-project-id
+```
+
+MCPのregister/updateでは`moyaiProjectId`、updateでは`removeMoyaiProjectId`も指定できます。
+登録DBのBinding追加・解除にはServerのデスクトップでの対話承認が必要です。
+UUIDはRepository DBに保存され、正規化Repository名は検証済みGit Remoteから導出します。
+設定JSONの`provider_authentication.bindings`が優先されるため、登録DBのUUIDを解除しても
+JSONのBindingは消えません。DBのBinding変更は再起動不要で即時反映します。
+Issuer・Trust・JSONのBindingを変更した場合は管理者権限のターミナルから再起動してください。
+公開TrustとIssuerの設定は別途必要です。
+
+署名等の検証を通過したMoyai要求で、登録済みRepositoryのBindingがない場合は
+`auth_binding_missing`を返します。署名不正・期限切れ・リプレイはそれぞれの認証エラーで区別し、
+未検証の呼び出し元にはBindingの有無を開示しません。[認証設定](docs/provider-authentication.md)も参照してください。
 
 ## Gitリモートの解決
 

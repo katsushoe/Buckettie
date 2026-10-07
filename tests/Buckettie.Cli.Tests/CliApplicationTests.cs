@@ -154,6 +154,21 @@ public sealed class CliApplicationTests : IDisposable
         executor.Arguments.Should().Equal("start", "Buckettie");
     }
 
+    [Theory]
+    [InlineData(false, "Administrator privileges are required", "elevated terminal")]
+    [InlineData(true, "管理者権限が必要", "管理者として実行")]
+    public async Task Restart_AccessDenied_ExplainsCauseAndRemedy(bool japanese, string cause, string remedy)
+    {
+        FakeServiceCommandExecutor executor = new(new(5, "sensitive native diagnostic"));
+        StringWriter output = new();
+        string[] arguments = japanese ? ["--config", WriteConfiguration("ja-JP"), "restart"] : ["restart"];
+        int exitCode = await CliApplication.RunAsync(arguments, output, new StringWriter(),
+            TestContext.Current.CancellationToken, executor);
+        exitCode.Should().Be(1);
+        output.ToString().Should().Contain(cause).And.Contain(remedy).And.NotContain("sensitive");
+        executor.Arguments.Should().Equal("query", "Buckettie");
+    }
+
     [Fact]
     public async Task RepositoryRegister_WhenNoInputOption_UsesGuiTokenPromptByDefault()
     {

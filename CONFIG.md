@@ -42,7 +42,7 @@ Tokens are DPAPI LocalMachine-encrypted files below `..\data\secrets` relative t
 
 ## Repository Registration, Update, and Unregistration
 
-The `bitbucket_repository_register` MCP tool (or `buckettie repo register`) adds one repository without the manual stop/edit/restart flow below. It accepts only `repository` (the new Repository ID), `local_root`, and optionally `remote`, `develop_branch`, and `main_branch`. `workspace` and `slug` are always derived from the local repository's actual Git remote; the caller cannot supply them. `direct_push_branches`, `pull_branches`, `protected_branches`, `tag_target_branch`, `tag_pattern`, and `require_clean_working_tree` are entirely server-defaulted from the supplied branch names, matching the same conservative shape as the example above.
+The `bitbucket_repository_register` MCP tool (or `buckettie repo register`) adds one repository without the manual stop/edit/restart flow below. It accepts the new Repository ID and local path, optional remote and branch names, an optional commit author pair, and an optional Moyai Project ID. `workspace` and `slug` are always derived from the local repository's actual Git remote; the caller cannot supply them. `direct_push_branches`, `pull_branches`, `protected_branches`, `tag_target_branch`, `tag_pattern`, and `require_clean_working_tree` are entirely server-defaulted from the supplied branch names, matching the same conservative shape as the example above.
 
 The selected Git remote must use `https://bitbucket.org/<workspace>/<repository>.git`. SSH forms such as `git@bitbucket.org:...` and `ssh://...` are rejected with `ssh_remote_not_supported`. For an existing SSH clone, run `git remote set-url origin https://bitbucket.org/<workspace>/<repository>.git` before registration or further Buckettie Git operations.
 
@@ -55,6 +55,28 @@ The `bitbucket_repository_unregister` MCP tool (or `buckettie repo unregister`) 
 The service runs as LocalSystem, whose Git identity is normally empty, so each repository stores a commit author (`commit_author_name`, `commit_author_email`). `buckettie repo register` defaults it to the caller's Git `user.name`/`user.email`, and `--commit-author-name`/`--commit-author-email` (or the same MCP arguments on register/update) set it explicitly; both values are required together and must not contain control characters or angle brackets (`commit_author_invalid`). `bitbucket_repository_commit` uses the registered author, falls back to the repository's own Git config, and otherwise fails with `author_identity_missing` before staging. The author is passed through `GIT_AUTHOR_*`/`GIT_COMMITTER_*`, never through the service account's configuration.
 
 None of these three operations need `stop`/`restart`. A registration or update that needs a different shape than these tools support still uses the manual edit flow (now against the SQLite database — see [Repository Storage](#repository-storage)).
+
+## Moyai Project Binding
+
+When the server runs with `--moyai`, supply the actual Moyai Project UUID when registering a repository:
+
+```powershell
+buckettie repo register <repository> <local-root> --moyai-project-id <UUID>
+buckettie repo update <repository> --moyai-project-id <UUID>
+buckettie repo update <repository> --remove-moyai-project-id
+```
+
+Register/update expose `moyaiProjectId` in MCP; update also exposes `removeMoyaiProjectId`.
+The server requests desktop approval before saving or removing the registration's binding.
+The UUID is persisted in the repository database; its canonical repository identity comes from the
+validated Git remote. An existing `provider_authentication.bindings` JSON entry takes precedence,
+so clearing a registration's UUID does not remove that JSON entry. Database binding changes take effect
+immediately without restarting; changing issuer, trust or JSON bindings requires a restart from an
+administrator terminal. Public trust and issuer configuration are still required.
+
+A verified Moyai request to a registered repository with no binding returns `auth_binding_missing`.
+Invalid signatures, expiry and replay retain their own authentication errors; unverified callers cannot
+use this diagnostic to discover bindings. See [Provider Authentication](docs/provider-authentication.md).
 
 ## Git Remote Resolution
 

@@ -180,6 +180,26 @@ public sealed class SqliteRepositoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task MoyaiBinding_InsertUpdateAndRemoval_SurviveDatabaseReopen()
+    {
+        SqliteRepositoryStore store = CreateStore();
+        Guid first = Guid.NewGuid();
+        Guid second = Guid.NewGuid();
+        await store.InsertAsync("buckettie", CreateRepository() with { MoyaiProjectId = first },
+            TestContext.Current.CancellationToken);
+        (await CreateStore().LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"]
+            .MoyaiProjectId.Should().Be(first);
+        await store.UpdateAsync("buckettie", CreateRepository() with { MoyaiProjectId = second },
+            TestContext.Current.CancellationToken);
+        (await CreateStore().LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"]
+            .MoyaiProjectId.Should().Be(second);
+        await store.UpdateAsync("buckettie", CreateRepository() with { MoyaiProjectId = null },
+            TestContext.Current.CancellationToken);
+        (await CreateStore().LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"]
+            .MoyaiProjectId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Open_DatabaseWithoutAuthorColumns_AddsThemAndKeepsExistingRows()
     {
         Directory.CreateDirectory(_directory);
