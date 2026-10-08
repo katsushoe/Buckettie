@@ -71,12 +71,23 @@ The server requests desktop approval before saving or removing the registration'
 The UUID is persisted in the repository database; its canonical repository identity comes from the
 validated Git remote. An existing `provider_authentication.bindings` JSON entry takes precedence,
 so clearing a registration's UUID does not remove that JSON entry. Database binding changes take effect
-immediately without restarting; changing issuer, trust or JSON bindings requires a restart from an
-administrator terminal. Public trust and issuer configuration are still required.
+immediately without restarting. Changing issuer, the trust/replay file paths or JSON bindings requires
+a restart from an administrator terminal. Public entries replaced at the same trust path are reloaded
+on validation and do not require a restart. Public trust and issuer configuration are still required.
 
 A verified Moyai request to a registered repository with no binding returns `auth_binding_missing`.
 Invalid signatures, expiry and replay retain their own authentication errors; unverified callers cannot
 use this diagnostic to discover bindings. See [Provider Authentication](docs/provider-authentication.md).
+
+### Trust Bundle operation
+
+Follow the [placement and key-rotation procedure](docs/provider-authentication.md#trust-bundle-placement-and-key-rotation).
+Keep the existing protected filename unless a path migration is approved. During planned rotation,
+publish both public keys before the Moyai owner switches signing, verify fresh signed reads, then retire
+the old accepted entry after the remaining assertion validity and clock skew have elapsed. A `retiring`
+key remains accepted; emergency revocation uses `revoked` or removal. Preserve replay history and
+never restore a compromised key during recovery. Production file changes and restarts need approval
+for the exact operation; preparing this procedure does not apply them.
 
 ## Git Remote Resolution
 

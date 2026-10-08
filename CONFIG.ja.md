@@ -70,12 +70,22 @@ MCPのregister/updateでは`moyaiProjectId`、updateでは`removeMoyaiProjectId`
 UUIDはRepository DBに保存され、正規化Repository名は検証済みGit Remoteから導出します。
 設定JSONの`provider_authentication.bindings`が優先されるため、登録DBのUUIDを解除しても
 JSONのBindingは消えません。DBのBinding変更は再起動不要で即時反映します。
-Issuer・Trust・JSONのBindingを変更した場合は管理者権限のターミナルから再起動してください。
+Issuer・Trust/Replayの参照パス・JSONのBindingを変更した場合は管理者権限のターミナルから再起動してください。
+同じTrustパスの公開鍵エントリだけを置き換えた場合は検証時に再読込され、再起動は不要です。
 公開TrustとIssuerの設定は別途必要です。
 
 署名等の検証を通過したMoyai要求で、登録済みRepositoryのBindingがない場合は
 `auth_binding_missing`を返します。署名不正・期限切れ・リプレイはそれぞれの認証エラーで区別し、
-未検証の呼び出し元にはBindingの有無を開示しません。[認証設定](docs/provider-authentication.md)も参照してください。
+未検証の呼び出し元にはBindingの有無を開示しません。[認証設定（英語）](docs/provider-authentication.md)も参照してください。
+
+### Trust Bundleの運用
+
+[配置・鍵更新手順（英語）](docs/provider-authentication.md#trust-bundle-placement-and-key-rotation)に従います。
+参照パスの移行を承認されるまでは、既存の保護されたファイル名を維持します。通常の鍵更新では、
+Moyai担当が署名鍵を切り替える前に新旧の公開鍵を配置し、新しい署名付き読み取り要求で確認します。
+旧署名の残り有効期間と許容時刻差を経過してから旧鍵の受入を終了します。`retiring`の鍵は引き続き受け入れられるため、
+緊急失効では`revoked`または削除を使用します。Replay履歴を保持し、復旧時に漏えいした鍵を再有効化しません。
+本番ファイルの変更・再起動には対象操作の承認が必要です。この手順の文書化だけでは本番へ適用しません。
 
 ## Gitリモートの解決
 
