@@ -38,6 +38,19 @@ public interface IGitCommandClient
     public Task<GitCommandResult> CommitAsync(
         string repositoryRoot, string message, GitCommitAuthor author, CancellationToken cancellationToken);
 
+    /// <summary>全変更または指定pathspecの変更をuntracked fileも含めてstashします。</summary>
+    public Task<GitCommandResult> PushStashAsync(
+        string repositoryRoot, string message, IReadOnlyList<string> paths, CancellationToken cancellationToken);
+
+    /// <summary>stashのselector、object ID、subjectを取得します。</summary>
+    public Task<GitCommandResult> ListStashesAsync(string repositoryRoot, CancellationToken cancellationToken);
+
+    /// <summary>指定stash objectをindexとともに適用します。</summary>
+    public Task<GitCommandResult> ApplyStashAsync(string repositoryRoot, string stashId, CancellationToken cancellationToken);
+
+    /// <summary>stashのreflog selectorを削除します。</summary>
+    public Task<GitCommandResult> DropStashAsync(string repositoryRoot, string selector, CancellationToken cancellationToken);
+
     /// <summary>Repositoryから見えるGit設定値を取得します。未設定なら失敗を返します。</summary>
     public Task<GitCommandResult> GetConfigValueAsync(
         string repositoryRoot, string key, CancellationToken cancellationToken);

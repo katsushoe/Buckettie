@@ -54,7 +54,9 @@ public sealed record BuckettieGitData(
     string? Diff,
     string? CommitHash,
     GitHistoryRewriteData? HistoryRewrite,
-    GitForceWithLeaseData? ForceWithLease);
+    GitForceWithLeaseData? ForceWithLease,
+    IReadOnlyList<GitStashEntry>? Stashes = null,
+    GitStashEntry? Stash = null);
 
 /// <summary>get_version Toolの成功データです。</summary>
 public sealed record BuckettieVersionData(string Version);
@@ -88,7 +90,7 @@ internal static class BuckettieToolResultMapper
         {
             return new(true, result.Operation, result.Repository,
                 new(result.Branch, result.Status, result.Diff, result.CommitHash,
-                    result.HistoryRewrite, result.ForceWithLease), null);
+                    result.HistoryRewrite, result.ForceWithLease, result.Stashes, result.Stash), null);
         }
 
         string providerCode = GitCode(result.Error ?? GitGatewayError.GitFailed);
@@ -141,6 +143,10 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.ProtectedBranch => "protected_branch",
         GitGatewayError.NothingToPush => "nothing_to_push",
         GitGatewayError.NothingToCommit => "nothing_to_commit",
+        GitGatewayError.InvalidStashPath => "stash_path_invalid",
+        GitGatewayError.InvalidStashReference => "stash_reference_invalid",
+        GitGatewayError.InvalidStashMessage => "stash_message_invalid",
+        GitGatewayError.NothingToStash => "nothing_to_stash",
         GitGatewayError.AuthorIdentityMissing => "author_identity_missing",
         GitGatewayError.InvalidCommitMessage => "commit_message_invalid",
         GitGatewayError.NonFastForward => "non_fast_forward",

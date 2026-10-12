@@ -15,6 +15,21 @@ public interface IGitGateway
     public Task<GitGatewayResult> CommitAsync(
         string repository, string message, CancellationToken cancellationToken = default);
 
+    /// <summary>選択したRepository相対パスの変更をstashします。</summary>
+    public Task<GitGatewayResult> PushStashAsync(
+        string repository, string message, IReadOnlyList<string>? paths, CancellationToken cancellationToken = default);
+
+    /// <summary>Repositoryのstash一覧を取得します。</summary>
+    public Task<GitGatewayResult> ListStashesAsync(string repository, CancellationToken cancellationToken = default);
+
+    /// <summary>指定stashを適用します。</summary>
+    public Task<GitGatewayResult> ApplyStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default);
+
+    /// <summary>指定stashを削除します。</summary>
+    public Task<GitGatewayResult> DropStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default);
+
     /// <summary>設定済みRemoteからfetchします。</summary>
     public Task<GitGatewayResult> FetchAsync(string repository, CancellationToken cancellationToken = default);
 

@@ -37,6 +37,10 @@ public enum GitGatewayError
     SignedCommitConfirmationRequired,
     RemoteVerificationFailed,
     AuthorIdentityMissing,
+    InvalidStashPath,
+    InvalidStashReference,
+    InvalidStashMessage,
+    NothingToStash,
 }
 
 /// <summary>Git commitの氏名とメールアドレスです。</summary>
@@ -88,6 +92,9 @@ public sealed record GitForceWithLeaseData(
     string VerifiedRemoteHead,
     bool RemoteUpdated);
 
+/// <summary>Repository stashの一覧要素です。</summary>
+public sealed record GitStashEntry(string Id, string Subject);
+
 /// <summary>
 /// Repository状態を表します。
 /// </summary>
@@ -119,7 +126,9 @@ public sealed record GitGatewayResult(
     string? CommitHash = null,
     string? ErrorDetail = null,
     GitHistoryRewriteData? HistoryRewrite = null,
-    GitForceWithLeaseData? ForceWithLease = null)
+    GitForceWithLeaseData? ForceWithLease = null,
+    IReadOnlyList<GitStashEntry>? Stashes = null,
+    GitStashEntry? Stash = null)
 {
     /// <summary>成功結果を生成します。</summary>
     public static GitGatewayResult Success(
@@ -128,8 +137,11 @@ public sealed record GitGatewayResult(
         string? branch = null,
         GitRepositoryStatus? status = null,
         string? diff = null,
-        string? commitHash = null) =>
-        new(true, operation, repository, branch, status, null, null, diff, commitHash);
+        string? commitHash = null,
+        IReadOnlyList<GitStashEntry>? stashes = null,
+        GitStashEntry? stash = null) =>
+        new(true, operation, repository, branch, status, null, null, diff, commitHash,
+            Stashes: stashes, Stash: stash);
 
     /// <summary>失敗結果を生成します。</summary>
     public static GitGatewayResult Failure(

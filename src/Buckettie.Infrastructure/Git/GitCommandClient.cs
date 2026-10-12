@@ -107,6 +107,34 @@ public sealed class GitCommandClient : IGitCommandClient
     }
 
     /// <inheritdoc />
+    public Task<GitCommandResult> PushStashAsync(
+        string repositoryRoot, string message, IReadOnlyList<string> paths, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        List<string> arguments = ["stash", "push", "--include-untracked", "--message", message];
+        if (paths.Count > 0)
+        {
+            arguments.Add("--");
+            arguments.AddRange(paths.Select(path => $":(literal){path}"));
+        }
+        return ExecuteAsync(repositoryRoot, arguments, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> ListStashesAsync(string repositoryRoot, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["stash", "list", "--format=%H%x1f%gs"], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> ApplyStashAsync(
+        string repositoryRoot, string stashId, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["stash", "apply", "--index", stashId], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> DropStashAsync(
+        string repositoryRoot, string selector, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["stash", "drop", selector], cancellationToken);
+
+    /// <inheritdoc />
     public Task<GitCommandResult> GetConfigValueAsync(
         string repositoryRoot,
         string key,

@@ -600,6 +600,15 @@ public sealed class GitGatewayTests
             .Returns(email is null ? GitCommandResult.Failed(GitCommandFailure.Failed) : GitCommandResult.Success(email + "\n"));
     }
 
+    [Fact]
+    public async Task PushStashAsync_RejectsUnsafeSelectedPathBeforeGit()
+    {
+        GitGatewayResult result = await CreateGateway().PushStashAsync("buckettie", "before split", ["../outside.txt"], TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.InvalidStashPath);
+        await _git.DidNotReceive().PushStashAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
     private GitGateway CreateGateway(RepositoryOptions? repository = null)
     {
         BuckettieOptions options = new()

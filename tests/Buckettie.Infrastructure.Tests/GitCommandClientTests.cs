@@ -11,6 +11,16 @@ public sealed class GitCommandClientTests
     private readonly FakeProcessExecutor _executor = new();
 
     [Fact]
+    public async Task PushStashAsync_SelectedPathsUseLiteralPathspecsAfterOptionTerminator()
+    {
+        await CreateClient().PushStashAsync("repository-root", "before split", ["src/a.cs", "docs/read me.md"], TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "stash", "push", "--include-untracked", "--message", "before split", "--",
+            ":(literal)src/a.cs", ":(literal)docs/read me.md");
+    }
+
+    [Fact]
     public async Task PullFastForwardOnlyAsync_WhenCalled_UsesFixedArguments()
     {
         GitCommandClient client = CreateClient();

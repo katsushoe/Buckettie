@@ -1,4 +1,5 @@
-﻿using Buckettie.Application.Configuration;
+﻿using System.Collections.Concurrent;
+using Buckettie.Application.Configuration;
 using Buckettie.Application.Repositories;
 using Buckettie.Domain;
 using System.Globalization;
@@ -11,9 +12,12 @@ namespace Buckettie.Application.Git;
 /// </summary>
 public sealed class GitGateway : IGitGateway
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> StashLocks = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Regex FullShaPattern = new("^[0-9a-fA-F]{40}$", RegexOptions.CultureInvariant);
     private static readonly Regex BranchPattern = new("^(?!.*(?:\\.\\.|//|@\\{|\\\\))[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$", RegexOptions.CultureInvariant);
     private const int MaximumErrorDetailLength = 1024;
+    private const int MaximumStashPathCount = 128;
+    private static readonly Regex StashIdPattern = new("^[0-9a-fA-F]{40}$", RegexOptions.CultureInvariant);
     private static readonly Regex UrlPattern = new(
         "(?i)\\b(?:https?|ssh)://[^\\s'\\\"]+|\\b[^@\\s]+@[^:\\s]+:[^\\s]+",
         RegexOptions.CultureInvariant);
@@ -175,6 +179,141 @@ public sealed class GitGateway : IGitGateway
             boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
         return MapCommandFailure(operation, repository, result)
             ?? GitGatewayResult.Success(operation, repository, diff: result.StandardOutput);
+    }
+
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> PushStashAsync(
+        string repository, string message, IReadOnlyList<string>? paths, CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_stash_push";
+        if (string.IsNullOrWhiteSpace(message) || message.Length > 256 || message.Contains('\n') || message.Contains('\r'))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidStashMessage);
+        if (!TryValidateStashPaths(paths, out string[] safePaths))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidStashPath);
+
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+        return await WithStashLockAsync(boundary.Repository.LocalRoot, async () =>
+        {
+            (GitGatewayResult? beforeError, IReadOnlyList<GitStashEntry> before) = await ReadStashesAsync(
+                boundary.Repository.LocalRoot, repository, operation, cancellationToken).ConfigureAwait(false);
+            if (beforeError is not null) return beforeError;
+            GitCommandResult pushed = await _git.PushStashAsync(boundary.Repository.LocalRoot, message, safePaths, cancellationToken)
+                .ConfigureAwait(false);
+            GitGatewayResult? pushError = MapCommandFailure(operation, repository, pushed);
+            if (pushError is not null) return pushError;
+            (GitGatewayResult? afterError, IReadOnlyList<GitStashEntry> after) = await ReadStashesAsync(
+                boundary.Repository.LocalRoot, repository, operation, cancellationToken).ConfigureAwait(false);
+            if (afterError is not null) return afterError;
+            GitStashEntry? created = after.FirstOrDefault(item => before.All(previous => !string.Equals(previous.Id, item.Id, StringComparison.OrdinalIgnoreCase)));
+            return created is null
+                ? GitGatewayResult.Failure(operation, repository, GitGatewayError.NothingToStash)
+                : GitGatewayResult.Success(operation, repository, stash: created);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> ListStashesAsync(string repository, CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_stash_list";
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+        return await WithStashLockAsync(boundary.Repository.LocalRoot, async () =>
+        {
+            (GitGatewayResult? error, IReadOnlyList<GitStashEntry> stashes) = await ReadStashesAsync(
+                boundary.Repository.LocalRoot, repository, operation, cancellationToken).ConfigureAwait(false);
+            return error ?? GitGatewayResult.Success(operation, repository, stashes: stashes);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> ApplyStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_stash_apply";
+        if (!StashIdPattern.IsMatch(stashId ?? string.Empty))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidStashReference);
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+        return await WithStashLockAsync(boundary.Repository.LocalRoot, async () =>
+        {
+            (GitGatewayResult? listError, IReadOnlyList<GitStashEntry> stashes) = await ReadStashesAsync(
+                boundary.Repository.LocalRoot, repository, operation, cancellationToken).ConfigureAwait(false);
+            if (listError is not null) return listError;
+            GitStashEntry? stash = stashes.FirstOrDefault(item => string.Equals(item.Id, stashId, StringComparison.OrdinalIgnoreCase));
+            if (stash is null) return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidStashReference);
+            GitCommandResult applied = await _git.ApplyStashAsync(boundary.Repository.LocalRoot, stash.Id, cancellationToken)
+                .ConfigureAwait(false);
+            return MapCommandFailure(operation, repository, applied) ?? GitGatewayResult.Success(operation, repository, stash: stash);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> DropStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_stash_drop";
+        if (!StashIdPattern.IsMatch(stashId ?? string.Empty))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidStashReference);
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+        return await WithStashLockAsync(boundary.Repository.LocalRoot, async () =>
+        {
+            (GitGatewayResult? listError, IReadOnlyList<GitStashEntry> stashes) = await ReadStashesAsync(
+                boundary.Repository.LocalRoot, repository, operation, cancellationToken).ConfigureAwait(false);
+            if (listError is not null) return listError;
+            int index = -1;
+            for (int i = 0; i < stashes.Count; i++)
+                if (string.Equals(stashes[i].Id, stashId, StringComparison.OrdinalIgnoreCase)) { index = i; break; }
+            if (index < 0) return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidStashReference);
+            GitCommandResult dropped = await _git.DropStashAsync(boundary.Repository.LocalRoot, $"stash@{{{index}}}", cancellationToken)
+                .ConfigureAwait(false);
+            return MapCommandFailure(operation, repository, dropped) ?? GitGatewayResult.Success(operation, repository, stash: stashes[index]);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<(GitGatewayResult? Error, IReadOnlyList<GitStashEntry> Entries)> ReadStashesAsync(
+        string root, string repository, string operation, CancellationToken cancellationToken)
+    {
+        GitCommandResult result = await _git.ListStashesAsync(root, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? error = MapCommandFailure(operation, repository, result);
+        if (error is not null) return (error, []);
+        List<GitStashEntry> entries = [];
+        foreach (string line in result.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] fields = line.Split('\u001f', 2);
+            if (fields.Length == 2 && StashIdPattern.IsMatch(fields[0]))
+                entries.Add(new(fields[0], fields[1]));
+        }
+        return (null, entries);
+    }
+
+    private static async Task<T> WithStashLockAsync<T>(string repositoryRoot, Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        SemaphoreSlim gate = StashLocks.GetOrAdd(Path.GetFullPath(repositoryRoot), static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await operation().ConfigureAwait(false); }
+        finally { gate.Release(); }
+    }
+
+    private static bool TryValidateStashPaths(IReadOnlyList<string>? paths, out string[] safePaths)
+    {
+        safePaths = [];
+        if (paths is null) return true;
+        if (paths.Count > MaximumStashPathCount) return false;
+        List<string> normalized = [];
+        foreach (string? path in paths)
+        {
+            if (string.IsNullOrWhiteSpace(path) || path.Any(char.IsControl)) return false;
+            string item = path.Replace('\\', '/');
+            string[] segments = item.Split('/');
+            if (item.StartsWith("/", StringComparison.Ordinal) || item.Contains(':') ||
+                segments.Any(segment => segment is "" or "." or ".." || string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase)))
+                return false;
+            normalized.Add(item);
+        }
+        safePaths = normalized.Distinct(StringComparer.Ordinal).ToArray();
+        return true;
     }
 
     /// <summary>
