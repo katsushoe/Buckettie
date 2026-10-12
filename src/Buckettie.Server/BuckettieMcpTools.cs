@@ -111,6 +111,7 @@ public sealed class BuckettieMcpTools
             ["explicit_push"] = true,
             ["repository_diff"] = true,
             ["repository_commit"] = true,
+            ["repository_commit_selected"] = true,
             ["repository_stash_push"] = true,
             ["repository_stash_list"] = true,
             ["repository_stash_apply"] = true,
@@ -165,6 +166,20 @@ public sealed class BuckettieMcpTools
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(
             WithRemoteAsync(remote, () => _git.CommitAsync(repository, message, cancellationToken)), _language);
+
+    /// <summary>unified diffで選択した変更だけをcommitします。</summary>
+    [McpServerTool(Name = "bitbucket_repository_commit_selected", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
+    [Description("指定した期待HEAD上でunified diff patchの変更だけをcommitします。既存のstaged変更がある場合は拒否します。 / Commits only the changes in the unified diff patch against the expected HEAD; rejects if the index already contains staged changes.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> RepositoryCommitSelectedAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("commit message。 / Commit message.")] string message,
+        [Description("作業ツリー差分作成時点のHEAD。初回commitでは空文字列。 / HEAD at diff creation; empty for the initial commit.")] string expected_head,
+        [Description("commitするunified diff patch。 / Unified diff patch to commit.")] string patch,
+        [Description(RemoteDescription)] string? remote = null,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.CommitSelectedAsync(repository, message, expected_head, patch, cancellationToken)), _language);
 
     /// <summary>指定されたRepository相対pathだけの変更をstashします。paths省略時は全変更が対象です。</summary>
     [McpServerTool(Name = "bitbucket_repository_stash_push", ReadOnly = false, Destructive = true,

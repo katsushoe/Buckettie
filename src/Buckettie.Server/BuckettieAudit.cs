@@ -68,6 +68,11 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
         string repository, string message, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_repository_commit", repository, () => inner.CommitAsync(repository, message, cancellationToken));
 
+    public Task<GitGatewayResult> CommitSelectedAsync(
+        string repository, string message, string expectedHead, string patch, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_commit_selected", repository,
+            () => inner.CommitSelectedAsync(repository, message, expectedHead, patch, cancellationToken));
+
     public Task<GitGatewayResult> PushStashAsync(
         string repository, string message, IReadOnlyList<string>? paths, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_repository_stash_push", repository,

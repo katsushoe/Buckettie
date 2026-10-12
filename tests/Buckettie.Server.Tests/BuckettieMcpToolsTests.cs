@@ -20,6 +20,7 @@ public sealed class BuckettieMcpToolsTests
         "bitbucket_repository_status",
         "bitbucket_repository_diff",
         "bitbucket_repository_commit",
+        "bitbucket_repository_commit_selected",
         "bitbucket_repository_stash_push",
         "bitbucket_repository_stash_list",
         "bitbucket_repository_stash_apply",
@@ -109,6 +110,7 @@ public sealed class BuckettieMcpToolsTests
         destructive.Should().BeEquivalentTo(
             "bitbucket_push",
             "bitbucket_repository_commit",
+            "bitbucket_repository_commit_selected",
             "bitbucket_repository_stash_push",
             "bitbucket_repository_stash_apply",
             "bitbucket_repository_stash_drop",
@@ -542,6 +544,7 @@ public sealed class BuckettieMcpToolsTests
             new KeyValuePair<string, bool>("explicit_push", true),
             new KeyValuePair<string, bool>("repository_diff", true),
             new KeyValuePair<string, bool>("repository_commit", true),
+            new KeyValuePair<string, bool>("repository_commit_selected", true),
             new KeyValuePair<string, bool>("repository_stash_push", true),
             new KeyValuePair<string, bool>("repository_stash_list", true),
             new KeyValuePair<string, bool>("repository_stash_apply", true),
@@ -559,6 +562,10 @@ public sealed class BuckettieMcpToolsTests
 
         public Task<GitGatewayResult> CommitAsync(
             string repository, string message, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> CommitSelectedAsync(
+            string repository, string message, string expectedHead, string patch, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<GitGatewayResult> PushStashAsync(string repository, string message, IReadOnlyList<string>? paths, CancellationToken cancellationToken = default) =>

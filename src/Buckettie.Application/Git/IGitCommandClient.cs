@@ -38,6 +38,11 @@ public interface IGitCommandClient
     public Task<GitCommandResult> CommitAsync(
         string repositoryRoot, string message, GitCommitAuthor author, CancellationToken cancellationToken);
 
+    /// <summary>期待HEADに対するunified diff patchだけをcommitし、working treeの他の変更を維持します。</summary>
+    public Task<GitCommandResult> CommitSelectedAsync(
+        string repositoryRoot, string message, GitCommitAuthor author, string expectedHead, string patch,
+        CancellationToken cancellationToken);
+
     /// <summary>全変更または指定pathspecの変更をuntracked fileも含めてstashします。</summary>
     public Task<GitCommandResult> PushStashAsync(
         string repositoryRoot, string message, IReadOnlyList<string> paths, CancellationToken cancellationToken);

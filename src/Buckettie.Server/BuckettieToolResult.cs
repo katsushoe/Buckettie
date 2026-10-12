@@ -143,6 +143,8 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.ProtectedBranch => "protected_branch",
         GitGatewayError.NothingToPush => "nothing_to_push",
         GitGatewayError.NothingToCommit => "nothing_to_commit",
+        GitGatewayError.InvalidSelectedCommitPatch => "selected_commit_patch_invalid",
+        GitGatewayError.StagedChangesPresent => "staged_changes_present",
         GitGatewayError.InvalidStashPath => "stash_path_invalid",
         GitGatewayError.InvalidStashReference => "stash_reference_invalid",
         GitGatewayError.InvalidStashMessage => "stash_message_invalid",

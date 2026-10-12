@@ -157,6 +157,36 @@ public sealed class GitGatewayTests
     }
 
     [Fact]
+    public async Task CommitSelectedAsync_RejectsExistingStagedChangesBeforeCallingGit()
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(new string('a', 40)));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("M  staged.cs"));
+
+        GitGatewayResult result = await CreateGateway().CommitSelectedAsync(
+            "buckettie", "selected", new string('a', 40), "diff --git a/a b/a", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.StagedChangesPresent);
+        await _git.DidNotReceive().CommitSelectedAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<GitCommitAuthor>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CommitSelectedAsync_RejectsWhenExpectedHeadDoesNotMatch()
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(new string('b', 40)));
+
+        GitGatewayResult result = await CreateGateway().CommitSelectedAsync(
+            "buckettie", "selected", new string('a', 40), "diff --git a/a b/a", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.ExpectedHeadMismatch);
+        await _git.DidNotReceive().GetStatusAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CommitAsync_WhenBranchIsAllowed_CommitsAllChangesAndReturnsHead()
     {
         GitGateway gateway = CreateGateway();

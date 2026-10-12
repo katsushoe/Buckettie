@@ -41,6 +41,8 @@ public enum GitGatewayError
     InvalidStashReference,
     InvalidStashMessage,
     NothingToStash,
+    InvalidSelectedCommitPatch,
+    StagedChangesPresent,
 }
 
 /// <summary>Git commitの氏名とメールアドレスです。</summary>

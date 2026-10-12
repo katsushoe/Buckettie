@@ -414,6 +414,60 @@ public sealed class GitGateway : IGitGateway
     }
 
     /// <inheritdoc />
+    public async Task<GitGatewayResult> CommitSelectedAsync(
+        string repository, string message, string expectedHead, string patch,
+        CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_commit_selected";
+        if (string.IsNullOrWhiteSpace(message) || message.Length > 4096 ||
+            expectedHead is null || string.IsNullOrWhiteSpace(patch) || patch.Length > 4 * 1024 * 1024 ||
+            (expectedHead.Length != 0 && !System.Text.RegularExpressions.Regex.IsMatch(expectedHead, "\\A[0-9a-fA-F]{40,64}\\z")))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidSelectedCommitPatch);
+
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken).ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+
+        GitCommandResult branchResult = await _git.GetCurrentBranchAsync(boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? error = MapCommandFailure(operation, repository, branchResult);
+        if (error is not null) return error;
+        string branch = branchResult.StandardOutput.Trim();
+        PolicyResult policy = CreatePolicy(repository, boundary.Repository).ValidatePush(branch, true);
+        if (!policy.IsAllowed) return GitGatewayResult.Failure(operation, repository, MapPolicyError(policy.ErrorCode), branch);
+
+        GitCommandResult headResult = await _git.GetHeadAsync(boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        string currentHead = headResult.IsSuccess ? headResult.StandardOutput.Trim() : string.Empty;
+        if ((!headResult.IsSuccess && headResult.Failure != GitCommandFailure.ReferenceNotFound) ||
+            !string.Equals(currentHead, expectedHead, StringComparison.OrdinalIgnoreCase))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.ExpectedHeadMismatch, branch);
+
+        GitCommandResult status = await _git.GetStatusAsync(boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        error = MapCommandFailure(operation, repository, status, branch);
+        if (error is not null) return error;
+        if (status.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Any(line => line.Length >= 2 && line[0] != ' ' && line[0] != '?'))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.StagedChangesPresent, branch);
+
+        GitCommitAuthor? author = await ResolveCommitAuthorAsync(boundary.Repository, cancellationToken).ConfigureAwait(false);
+        if (author is null) return GitGatewayResult.Failure(operation, repository, GitGatewayError.AuthorIdentityMissing, branch);
+
+        GitCommandResult commit = await _git.CommitSelectedAsync(
+            boundary.Repository.LocalRoot, message, author, expectedHead, patch, cancellationToken).ConfigureAwait(false);
+        error = MapCommandFailure(operation, repository, commit, branch);
+        if (error is not null)
+        {
+            if (commit.StandardError.Contains("HEAD changed", StringComparison.Ordinal))
+                return GitGatewayResult.Failure(operation, repository, GitGatewayError.ExpectedHeadMismatch, branch);
+            if (commit.StandardError.Contains("patch does not apply", StringComparison.OrdinalIgnoreCase) ||
+                commit.StandardError.Contains("corrupt patch", StringComparison.OrdinalIgnoreCase))
+                return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidSelectedCommitPatch, branch);
+            return error;
+        }
+        GitCommandResult newHead = await _git.GetHeadAsync(boundary.Repository.LocalRoot, cancellationToken).ConfigureAwait(false);
+        error = MapCommandFailure(operation, repository, newHead, branch);
+        return error ?? GitGatewayResult.Success(operation, repository, branch, commitHash: newHead.StandardOutput.Trim());
+    }
+
+    /// <inheritdoc />
     public async Task<GitGatewayResult> FetchAsync(
         string repository,
         CancellationToken cancellationToken = default)

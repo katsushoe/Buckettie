@@ -15,6 +15,10 @@ public interface IGitGateway
     public Task<GitGatewayResult> CommitAsync(
         string repository, string message, CancellationToken cancellationToken = default);
 
+    /// <summary>期待HEAD上で選択したunified diff patchだけをcommitします。</summary>
+    public Task<GitGatewayResult> CommitSelectedAsync(
+        string repository, string message, string expectedHead, string patch, CancellationToken cancellationToken = default);
+
     /// <summary>選択したRepository相対パスの変更をstashします。</summary>
     public Task<GitGatewayResult> PushStashAsync(
         string repository, string message, IReadOnlyList<string>? paths, CancellationToken cancellationToken = default);

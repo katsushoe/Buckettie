@@ -28,7 +28,7 @@ public static class ProviderToolPolicy
             or "bitbucket_branch_get" or "bitbucket_tag_list" or "bitbucket_tag_get"
             or "bitbucket_pr_list" or "bitbucket_pr_get" or "bitbucket_pr_diff"
             or "buckettie_release_get" or "bitbucket_history_rewrite_preview" => ["repository.read"],
-        "bitbucket_repository_commit" => ["repository.commit"],
+        "bitbucket_repository_commit" or "bitbucket_repository_commit_selected" => ["repository.commit"],
         "bitbucket_repository_stash_push" or "bitbucket_repository_stash_apply" or "bitbucket_repository_stash_drop"
             => ["repository.stash.write"],
         "bitbucket_push" => ["repository.push"],

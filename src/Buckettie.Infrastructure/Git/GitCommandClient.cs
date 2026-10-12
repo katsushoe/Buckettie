@@ -107,6 +107,76 @@ public sealed class GitCommandClient : IGitCommandClient
     }
 
     /// <inheritdoc />
+    public async Task<GitCommandResult> CommitSelectedAsync(
+        string repositoryRoot,
+        string message,
+        GitCommitAuthor author,
+        string expectedHead,
+        string patch,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(author);
+        if (!GitCommitAuthor.IsValid(author.Name, author.Email))
+            throw new ArgumentException("Invalid commit author.", nameof(author));
+        ArgumentException.ThrowIfNullOrWhiteSpace(patch);
+
+        string temporaryIndex = Path.Combine(Path.GetTempPath(), $"buckettie-selected-commit-{Guid.NewGuid():N}.index");
+        Dictionary<string, string> environment = new(StringComparer.Ordinal)
+        {
+            ["GIT_INDEX_FILE"] = temporaryIndex,
+            ["GIT_AUTHOR_NAME"] = author.Name,
+            ["GIT_AUTHOR_EMAIL"] = author.Email,
+            ["GIT_COMMITTER_NAME"] = author.Name,
+            ["GIT_COMMITTER_EMAIL"] = author.Email,
+        };
+
+        try
+        {
+            GitCommandResult initialize = string.IsNullOrEmpty(expectedHead)
+                ? await ExecuteAsync(repositoryRoot, ["read-tree", "--empty"], cancellationToken, environment).ConfigureAwait(false)
+                : await ExecuteAsync(repositoryRoot, ["read-tree", expectedHead], cancellationToken, environment).ConfigureAwait(false);
+            if (!initialize.IsSuccess) return initialize;
+
+            GitCommandResult check = await ExecuteAsync(repositoryRoot, ["apply", "--cached", "--check"],
+                cancellationToken, environment, standardInput: patch).ConfigureAwait(false);
+            if (!check.IsSuccess) return check;
+
+            GitCommandResult apply = await ExecuteAsync(repositoryRoot, ["apply", "--cached"],
+                cancellationToken, environment, standardInput: patch).ConfigureAwait(false);
+            if (!apply.IsSuccess) return apply;
+
+           GitCommandResult currentHead = await GetHeadAsync(repositoryRoot, cancellationToken).ConfigureAwait(false);
+           string observedHead = currentHead.IsSuccess ? currentHead.StandardOutput.Trim() : string.Empty;
+           if ((!currentHead.IsSuccess && currentHead.Failure != GitCommandFailure.ReferenceNotFound) ||
+               !string.Equals(observedHead, expectedHead, StringComparison.OrdinalIgnoreCase))
+               return GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound, "HEAD changed before selected commit.");
+
+            GitCommandResult commit = await ExecuteAsync(repositoryRoot, ["commit", "--message", message, "--"],
+                cancellationToken, environment).ConfigureAwait(false);
+            if (!commit.IsSuccess) return commit;
+
+            // Keep unselected worktree edits while advancing the real index to the new HEAD.
+            return await ExecuteAsync(repositoryRoot, ["read-tree", "HEAD"], cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            foreach (string path in new[] { temporaryIndex, $"{temporaryIndex}.lock" })
+            {
+                try
+                {
+                    if (File.Exists(path)) File.Delete(path);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+    }
+
+    /// <inheritdoc />
     public Task<GitCommandResult> PushStashAsync(
         string repositoryRoot, string message, IReadOnlyList<string> paths, CancellationToken cancellationToken)
     {
