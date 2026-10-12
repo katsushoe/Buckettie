@@ -43,12 +43,33 @@ public sealed class GitCommandClient : IGitCommandClient
     }
 
     /// <inheritdoc />
-    public Task<GitCommandResult> GetCurrentBranchAsync(string repositoryRoot, CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"], cancellationToken);
+    public async Task<GitCommandResult> GetCurrentBranchAsync(string repositoryRoot, CancellationToken cancellationToken)
+    {
+        GitCommandResult current = await ExecuteAsync(
+            repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"], cancellationToken).ConfigureAwait(false);
+        if (current.IsSuccess && !string.Equals(current.StandardOutput.Trim(), "HEAD", StringComparison.Ordinal))
+        {
+            return current;
+        }
+
+        // An unborn branch still has a symbolic HEAD; rev-parse may not resolve it until its first commit.
+        GitCommandResult symbolic = await ExecuteAsync(
+            repositoryRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"], cancellationToken).ConfigureAwait(false);
+        return symbolic.IsSuccess ? symbolic : current;
+    }
 
     /// <inheritdoc />
-    public Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryRoot, ["rev-parse", "HEAD"], cancellationToken);
+    public async Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken)
+    {
+        GitCommandResult result = await ExecuteAsync(
+            repositoryRoot,
+            ["rev-parse", "--verify", "--quiet", "--end-of-options", "HEAD"],
+            cancellationToken,
+            missingReferenceAllowed: true).ConfigureAwait(false);
+        return result.Failure == GitCommandFailure.ReferenceNotFound
+            ? GitCommandResult.Success(string.Empty)
+            : result;
+    }
 
     /// <inheritdoc />
     public Task<GitCommandResult> GetRemoteHeadAsync(
@@ -77,8 +98,19 @@ public sealed class GitCommandClient : IGitCommandClient
         ExecuteAsync(repositoryRoot, ["status", "--porcelain=v1"], cancellationToken);
 
     /// <inheritdoc />
-    public Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryRoot, ["diff", "--no-ext-diff", "--binary", "HEAD", "--"], cancellationToken);
+    public async Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken)
+    {
+        GitCommandResult head = await GetHeadAsync(repositoryRoot, cancellationToken).ConfigureAwait(false);
+        if (!head.IsSuccess)
+        {
+            return head;
+        }
+
+        string[] arguments = string.IsNullOrEmpty(head.StandardOutput.Trim())
+            ? ["diff", "--no-ext-diff", "--binary", "--cached", "--"]
+            : ["diff", "--no-ext-diff", "--binary", "HEAD", "--"];
+        return await ExecuteAsync(repositoryRoot, arguments, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public Task<GitCommandResult> StageAllAsync(string repositoryRoot, CancellationToken cancellationToken) =>

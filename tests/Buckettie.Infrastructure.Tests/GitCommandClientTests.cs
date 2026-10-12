@@ -196,6 +196,7 @@ public sealed class GitCommandClientTests
     [Fact]
     public async Task GetDiffAsync_WhenCalled_UsesHeadAndDisablesExternalDiff()
     {
+        _executor.Result = new(0, "abc123\n", string.Empty, false, false, false);
         GitCommandClient client = CreateClient();
 
         await client.GetDiffAsync("repository-root", TestContext.Current.CancellationToken);
@@ -204,6 +205,32 @@ public sealed class GitCommandClientTests
             "-c", "safe.directory=repository-root",
             "diff", "--no-ext-diff", "--binary", "HEAD", "--");
         _executor.Request.Environment.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetDiffAsync_WhenRepositoryHasNoCommit_UsesCachedDiff()
+    {
+        GitCommandClient client = CreateClient();
+
+        GitCommandResult result = await client.GetDiffAsync("repository-root", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "diff", "--no-ext-diff", "--binary", "--cached", "--");
+    }
+
+    [Fact]
+    public async Task GetHeadAsync_WhenHeadDoesNotExist_ReturnsSuccessWithEmptyValue()
+    {
+        _executor.Result = new(1, string.Empty, string.Empty, false, false, false);
+        GitCommandClient client = CreateClient();
+
+        GitCommandResult result = await client.GetHeadAsync("repository-root", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.StandardOutput.Should().BeEmpty();
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "rev-parse", "--verify", "--quiet", "--end-of-options", "HEAD");
     }
 
     [Fact]

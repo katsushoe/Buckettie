@@ -119,11 +119,12 @@ public sealed class GitGateway : IGitGateway
         List<string> missingReferences = [];
         int? ahead = null;
         int? behind = null;
+        bool hasLocalHead = !string.IsNullOrWhiteSpace(head.StandardOutput);
         if (!developHead.IsSuccess)
         {
             missingReferences.Add(comparisonReference);
         }
-        else
+        else if (hasLocalHead)
         {
             GitCommandResult divergence = await _git.GetAheadBehindAsync(
                 boundary.Repository.LocalRoot, boundary.Remote,
@@ -157,7 +158,9 @@ public sealed class GitGateway : IGitGateway
             behind,
             string.IsNullOrWhiteSpace(status.StandardOutput),
             comparisonReference,
-            developHead.IsSuccess ? null : "remote_tracking_ref_missing_or_not_fetched",
+            !hasLocalHead
+                ? "local_head_missing"
+                : developHead.IsSuccess ? null : "remote_tracking_ref_missing_or_not_fetched",
             missingReferences.Distinct(StringComparer.Ordinal).ToArray());
         return GitGatewayResult.Success(operation, repository, branchName, repositoryStatus);
     }

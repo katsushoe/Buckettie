@@ -8,7 +8,7 @@ public interface IGitCommandClient
     /// <summary>現在のbranch名を取得します。</summary>
     public Task<GitCommandResult> GetCurrentBranchAsync(string repositoryRoot, CancellationToken cancellationToken);
 
-    /// <summary>現在のHEAD hashを取得します。</summary>
+    /// <summary>現在のHEAD hashを取得します。unborn branchの場合は成功と空文字列を返します。</summary>
     public Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken);
 
     /// <summary>設定済みRemote追跡BranchのHEAD hashを取得します。</summary>
@@ -28,7 +28,7 @@ public interface IGitCommandClient
     /// <summary>作業ツリー状態を取得します。</summary>
     public Task<GitCommandResult> GetStatusAsync(string repositoryRoot, CancellationToken cancellationToken);
 
-    /// <summary>HEADに対する作業ツリー差分を取得します。</summary>
+    /// <summary>commit済みならHEADとの差分、unborn branchならstage済み差分を取得します。</summary>
     public Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken);
 
     /// <summary>作業ツリーの変更をすべてIndexへ追加します。</summary>

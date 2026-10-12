@@ -98,7 +98,7 @@ public sealed record GitForceWithLeaseData(
 public sealed record GitStashEntry(string Id, string Subject);
 
 /// <summary>
-/// Repository状態を表します。
+/// Repository状態を表します。初回commit前は<see cref="LocalHead"/>が空文字列で、比較件数は利用できません。
 /// </summary>
 public sealed record GitRepositoryStatus(
     string Repository,

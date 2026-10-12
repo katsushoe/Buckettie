@@ -42,6 +42,33 @@ public sealed class GitGatewayTests
             "refs/remotes/origin/develop", null, []));
     }
 
+    [Fact]
+    public async Task GetStatusAsync_WhenRepositoryHasUnbornBranch_ReturnsBranchAndEmptyHeadWithoutDivergence()
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("develop"));
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success(string.Empty));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("?? README.md"));
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", "develop", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound));
+        _git.GetRemoteHeadAsync(RepositoryRoot, "origin", "main", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound));
+
+        GitGatewayResult result = await CreateGateway().GetStatusAsync("buckettie", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Status!.LocalBranch.Should().Be("develop");
+        result.Status.LocalHead.Should().BeEmpty();
+        result.Status.WorkingTreeClean.Should().BeFalse();
+        result.Status.Ahead.Should().BeNull();
+        result.Status.Behind.Should().BeNull();
+        result.Status.ComparisonUnavailableReason.Should().Be("local_head_missing");
+        await _git.DidNotReceive().GetAheadBehindAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
