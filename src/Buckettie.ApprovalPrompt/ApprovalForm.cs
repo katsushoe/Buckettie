@@ -18,6 +18,8 @@ internal sealed class ApprovalForm : Form
     private readonly TextBox? _tokenTextBox;
     private int _remainingSeconds = TimeoutSeconds;
 
+    internal bool TimedOut { get; private set; }
+
     /// <summary>承認Dialogを構築します。</summary>
     public ApprovalForm(ApprovalPromptRequest request)
     {
@@ -106,6 +108,7 @@ internal sealed class ApprovalForm : Form
         _countdownLabel.Text = FormatCountdown(_remainingSeconds);
         if (_remainingSeconds <= 0)
         {
+            TimedOut = true;
             _countdownTimer.Stop();
             DialogResult = DialogResult.No;
             Close();
