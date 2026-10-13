@@ -1,17 +1,23 @@
 param(
-    [string]$DisplayVersion = '1.3.39.0',
-    [string]$ProductVersion = '1.3.3900',
+    [string]$DisplayVersion = '1.3.40.0',
+    [string]$ProductVersion = '1.3.4000',
     [string]$RuntimeIdentifier = 'win-x64',
+    [string]$BuildWorkDirectory = '.local\installer',
     [switch]$NoRestore
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$installerWorkDirectory = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.local\installer'))
-$publishDirectory = Join-Path $repositoryRoot '.local\installer\publish'
+$installerWorkRoot = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.local\installer'))
+$installerWorkDirectory = [IO.Path]::GetFullPath((Join-Path $repositoryRoot $BuildWorkDirectory))
+if (-not $installerWorkDirectory.StartsWith("$installerWorkRoot\", [StringComparison]::OrdinalIgnoreCase) -and
+    -not $installerWorkDirectory.Equals($installerWorkRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Build work directory must be inside the installer work root: $installerWorkDirectory"
+}
+$publishDirectory = Join-Path $installerWorkDirectory 'publish'
 $projectPublishDirectory = Join-Path $installerWorkDirectory 'projects'
-$installerConfigDirectory = Join-Path $repositoryRoot '.local\installer\config'
-$outputDirectory = Join-Path $repositoryRoot '.local\installer\output'
+$installerConfigDirectory = Join-Path $installerWorkDirectory 'config'
+$outputDirectory = Join-Path $installerWorkDirectory 'output'
 $installerProject = Join-Path $repositoryRoot 'installer\Buckettie.Installer\Buckettie.Installer.wixproj'
 # Merge isolated outputs with the CLI last to retain its newer dependencies.
 $projects = @(
@@ -23,10 +29,10 @@ $projects = @(
 
 if (-not $NoRestore) {
     foreach ($project in $projects) {
-        dotnet restore (Join-Path $repositoryRoot $project) -r $RuntimeIdentifier --nologo
+        dotnet restore (Join-Path $repositoryRoot $project) -r $RuntimeIdentifier --nologo -m:1
         if ($LASTEXITCODE -ne 0) { throw "Project restore failed: $project" }
     }
-    dotnet restore $installerProject --nologo
+    dotnet restore $installerProject --nologo -m:1
     if ($LASTEXITCODE -ne 0) { throw 'Installer restore failed.' }
 }
 
@@ -58,7 +64,7 @@ foreach ($language in @('ja-JP', 'en-US')) {
 
 foreach ($project in $projects) {
     $projectOutput = Join-Path $projectPublishDirectory ([IO.Path]::GetFileNameWithoutExtension($project))
-    dotnet publish (Join-Path $repositoryRoot $project) -c Release -r $RuntimeIdentifier --self-contained true -o $projectOutput --nologo --no-restore
+    dotnet publish (Join-Path $repositoryRoot $project) -c Release -r $RuntimeIdentifier --self-contained true -o $projectOutput --nologo --no-restore -m:1
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed: $project" }
     Copy-Item -Path (Join-Path $projectOutput '*') -Destination $publishDirectory -Recurse -Force
 }
@@ -68,7 +74,7 @@ if ($LASTEXITCODE -ne 0 -or $publishedVersion -ne $DisplayVersion) {
     throw 'Published CLI failed its version smoke test.'
 }
 
-dotnet build $installerProject -c Release --nologo --no-restore -p:DisplayVersion=$DisplayVersion -p:ProductVersion=$ProductVersion -p:PublishDir=$publishDirectory -p:InstallerConfigDir=$installerConfigDirectory -p:OutputPath=$outputDirectory
+dotnet build $installerProject -c Release --nologo --no-restore -m:1 -p:DisplayVersion=$DisplayVersion -p:ProductVersion=$ProductVersion -p:PublishDir=$publishDirectory -p:InstallerConfigDir=$installerConfigDirectory -p:OutputPath=$outputDirectory
 if ($LASTEXITCODE -ne 0) { throw 'MSI build failed.' }
 
 $msiPath = Join-Path $outputDirectory "Buckettie-$DisplayVersion-win-x64.msi"
