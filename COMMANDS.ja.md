@@ -27,6 +27,7 @@
 | `buckettie repo register <id> <local-root> ...` | 最前面・画面中央のDialogでAPI Tokenを入力してからMCPサービス経由でRepositoryを登録します。MCPから直接登録する場合も、未登録TokenをMCP引数へ露出せずホスト上で入力します。`--console-token`では非表示のTerminal入力を使用します。commit作成者の既定値は実行者のGit設定の`user.name`／`user.email`で、`--commit-author-name`と`--commit-author-email`で指定できます。`--remote`は任意で、省略時はリモートを自動で解決します（[Gitリモートの解決](CONFIG.ja.md#gitリモートの解決)）。 |
 | `buckettie repo unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。`repo update <id> --commit-author-name X --commit-author-email Y`は作成者だけを変更し、省略したブランチ設定は登録済みの値を維持します。 |
 | `buckettie branch list\|get\|create\|delete ...` | Bitbucketブランチを一覧・取得・作成・削除します。作成元の明示指定が必須です。develop、main、保護ブランチは削除できません。 |
+| `buckettie branch switch <id> <branch>` | Allowlist済みlocal checkoutを既存local branchへ切り替えます。dirtyなら拒否し、fetchやbranch作成はしません。同一branchは変更なしで成功します。 |
 | `buckettie pr list\|get\|diff\|create\|merge ...` | Bitbucketプルリクエストの一覧・詳細・差分・作成・マージを実行します。 |
 | `buckettie tag list\|get\|create\|delete\|push ...` | ポリシー準拠タグの一覧・取得・作成・削除・明示的pushを実行します。作成元の明示指定が必須です。 |
 | `buckettie provider capabilities` | Repository diff・commitを含むRepository Contract操作の対応可否を表示します。 |
