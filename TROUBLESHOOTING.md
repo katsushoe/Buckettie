@@ -17,6 +17,14 @@ For `repo fetch`, `repo pull`, and `repo push`, inspect `error.code`, `error.sug
 - Check the layout and access rights for `bin`, `config`, `logs`, and `data`.
 - Inspect Service Control Manager errors in the Windows Event Viewer System log.
 
+## Approval Prompt Crashes or Closes Unexpectedly
+
+- The approval and token-entry dialogs write unexpected exception dumps to `%LOCALAPPDATA%\Akatsukisoft\Buckettie\logs\approval-prompt-YYYYMMDD.log`.
+- In an interactive session, the prompt shows a safe error dialog with the log path and exits without approving or returning a token.
+- In a non-interactive session, no desktop dialog is available; the prompt writes the dump when possible and exits without approving or returning a token.
+- Exception dumps redact common token, password, authorization, and URL credential patterns. Do not share a dump publicly without reviewing it.
+- Expected pipe disconnects return a failure exit code and do not grant approval.
+
 ## Token or Authentication Failure
 
 - Run `auth test` and inspect each Repository ID result.
