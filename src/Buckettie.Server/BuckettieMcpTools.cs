@@ -100,6 +100,7 @@ public sealed class BuckettieMcpTools
     {
         Dictionary<string, bool> operations = new(StringComparer.Ordinal)
         {
+            ["branch_switch"] = true,
             ["branch_create"] = true,
             ["branch_delete"] = true,
             ["tag_delete"] = true,
@@ -154,6 +155,16 @@ public sealed class BuckettieMcpTools
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(
             WithRemoteAsync(remote, () => _git.GetDiffAsync(repository, cancellationToken)), _language);
+
+    /// <summary>cleanな作業ツリーで既存のlocal branchへ切り替えます。</summary>
+    [McpServerTool(Name = "buckettie_branch_switch", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("登録済みリポジトリの既存Local Branchへ切り替えます。作業ツリーがdirtyなら拒否し、fetchやbranch作成はしません。 / Switches to an existing local branch in an allowed repository. Rejects a dirty worktree and never fetches or creates branches.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> SwitchBranchAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("切替先の既存Local Branch名。 / Existing local branch name to switch to.")] string branch,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(_git.SwitchBranchAsync(repository, branch, cancellationToken), _language);
 
     /// <summary>Policyに従って作業ツリーの変更をlocal commitします。</summary>
     [McpServerTool(Name = "bitbucket_repository_commit", ReadOnly = false, Destructive = true,

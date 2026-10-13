@@ -16,6 +16,109 @@ public sealed class GitGatewayTests
     private readonly IRepositoryEnvironment _environment = Substitute.For<IRepositoryEnvironment>();
 
     [Fact]
+    public async Task SwitchBranchAsync_WhenTargetIsExistingAndTreeClean_SwitchesLocalBranch()
+    {
+        ConfigureBoundary();
+        _git.CheckBranchNameAsync(RepositoryRoot, "feature/test", Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetLocalBranchReferenceAsync(RepositoryRoot, "feature/test", Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.SwitchBranchAsync(RepositoryRoot, "feature/test", Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+
+        GitGatewayResult result = await CreateGateway().SwitchBranchAsync("buckettie", "feature/test", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Operation.Should().Be("branch_switch");
+        result.Branch.Should().Be("feature/test");
+        result.BranchSwitch.Should().Be(new GitBranchSwitchData("develop", "feature/test", Switched: true));
+        await _git.Received(1).SwitchBranchAsync(RepositoryRoot, "feature/test", Arg.Any<CancellationToken>());
+        await _git.DidNotReceive().FetchAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SwitchBranchAsync_WhenAlreadyOnTarget_IsNoOpEvenIfTreeIsDirty()
+    {
+        ConfigureBoundary();
+        _git.CheckBranchNameAsync(RepositoryRoot, "develop", Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+
+        GitGatewayResult result = await CreateGateway().SwitchBranchAsync("buckettie", "develop", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.BranchSwitch.Should().Be(new GitBranchSwitchData("develop", "develop", Switched: false));
+        await _git.DidNotReceive().GetStatusAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _git.DidNotReceive().SwitchBranchAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SwitchBranchAsync_WhenTreeIsDirty_RejectsBeforeCheckingReference()
+    {
+        ConfigureBoundary();
+        _git.CheckBranchNameAsync(RepositoryRoot, "main", Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success(" M file.txt"));
+
+        GitGatewayResult result = await CreateGateway().SwitchBranchAsync("buckettie", "main", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.WorkingTreeDirty);
+        await _git.DidNotReceive().GetLocalBranchReferenceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _git.DidNotReceive().SwitchBranchAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SwitchBranchAsync_WhenTargetDoesNotExistLocally_ReturnsBranchNotFound()
+    {
+        ConfigureBoundary();
+        _git.CheckBranchNameAsync(RepositoryRoot, "missing", Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success("develop"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>()).Returns(GitCommandResult.Success());
+        _git.GetLocalBranchReferenceAsync(RepositoryRoot, "missing", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound));
+
+        GitGatewayResult result = await CreateGateway().SwitchBranchAsync("buckettie", "missing", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.BranchNotFound);
+        await _git.DidNotReceive().SwitchBranchAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("-b")]
+    [InlineData("--orphan")]
+    [InlineData("main..develop")]
+    [InlineData("HEAD@{1}")]
+    [InlineData("")]
+    public async Task SwitchBranchAsync_WhenNameIsOptionOrRevisionExpression_RejectsWithoutRunningGit(string branch)
+    {
+        GitGatewayResult result = await CreateGateway().SwitchBranchAsync("buckettie", branch, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.InvalidReference);
+        _git.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SwitchBranchAsync_WhenRefIsInvalid_ReturnsInvalidReference()
+    {
+        ConfigureBoundary();
+        _git.CheckBranchNameAsync(RepositoryRoot, "bad name", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Failed(GitCommandFailure.Failed));
+
+        GitGatewayResult result = await CreateGateway().SwitchBranchAsync("buckettie", "bad name", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.InvalidReference);
+        await _git.DidNotReceive().GetCurrentBranchAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SwitchBranchAsync_WhenRepositoryIsNotAllowlisted_DoesNotCallGit()
+    {
+        GitGatewayResult result = await CreateGateway().SwitchBranchAsync(
+            "unknown", "main", TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be(GitGatewayError.RepositoryNotAllowed);
+        _git.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetStatusAsync_WhenRepositoryIsValid_ReturnsStatus()
     {
         GitGateway gateway = CreateGateway();

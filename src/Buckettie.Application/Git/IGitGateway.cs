@@ -11,6 +11,9 @@ public interface IGitGateway
     /// <summary>RepositoryのHEADに対する作業ツリー差分を取得します。</summary>
     public Task<GitGatewayResult> GetDiffAsync(string repository, CancellationToken cancellationToken = default);
 
+    /// <summary>作業ツリーがcleanな場合に限り、既存のlocal branchへ切り替えます。</summary>
+    public Task<GitGatewayResult> SwitchBranchAsync(string repository, string branch, CancellationToken cancellationToken = default);
+
     /// <summary>Policyに従って作業ツリーの変更をlocal commitします。</summary>
     public Task<GitGatewayResult> CommitAsync(
         string repository, string message, CancellationToken cancellationToken = default);

@@ -59,6 +59,18 @@ public sealed class GitCommandClient : IGitCommandClient
     }
 
     /// <inheritdoc />
+    public Task<GitCommandResult> CheckBranchNameAsync(string repositoryRoot, string branch, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["check-ref-format", $"refs/heads/{branch}"], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> GetLocalBranchReferenceAsync(string repositoryRoot, string branch, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["rev-parse", "--verify", "--quiet", "--end-of-options", $"refs/heads/{branch}"], cancellationToken, missingReferenceAllowed: true);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> SwitchBranchAsync(string repositoryRoot, string branch, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["switch", "--no-guess", "--", branch], cancellationToken);
+
+    /// <inheritdoc />
     public async Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken)
     {
         GitCommandResult result = await ExecuteAsync(

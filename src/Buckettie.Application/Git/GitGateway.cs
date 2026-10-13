@@ -319,6 +319,63 @@ public sealed class GitGateway : IGitGateway
         return true;
     }
 
+    /// <inheritdoc />
+    public async Task<GitGatewayResult> SwitchBranchAsync(
+        string repository, string branch, CancellationToken cancellationToken = default)
+    {
+        const string operation = "branch_switch";
+        // The same conservative name rule as other branch tools rejects option-like and revision-expression input
+        // before any Git process runs; check-ref-format below still applies Git's own rules.
+        if (string.IsNullOrWhiteSpace(branch) || !BranchPattern.IsMatch(branch))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidReference, branch);
+
+        BoundaryResult boundary = await ValidateBoundaryAsync(repository, operation, cancellationToken)
+            .ConfigureAwait(false);
+        if (!boundary.IsValid || boundary.Repository is null) return boundary.Failure!;
+        string root = boundary.Repository.LocalRoot;
+
+        GitCommandResult valid = await _git.CheckBranchNameAsync(root, branch, cancellationToken).ConfigureAwait(false);
+        if (!valid.IsSuccess)
+        {
+            if (valid.Failure == GitCommandFailure.Failed)
+                return GitGatewayResult.Failure(operation, repository, GitGatewayError.InvalidReference, branch);
+            return MapCommandFailure(operation, repository, valid, branch)!;
+        }
+
+        GitCommandResult current = await _git.GetCurrentBranchAsync(root, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? currentError = MapCommandFailure(operation, repository, current, branch);
+        if (currentError is not null) return currentError;
+        string previous = current.StandardOutput.Trim();
+        if (string.Equals(previous, branch, StringComparison.Ordinal))
+            return GitGatewayResult.Success(operation, repository, branch) with
+            {
+                BranchSwitch = new(previous, branch, Switched: false),
+            };
+
+        GitCommandResult status = await _git.GetStatusAsync(root, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? statusError = MapCommandFailure(operation, repository, status, branch);
+        if (statusError is not null) return statusError;
+        if (!string.IsNullOrWhiteSpace(status.StandardOutput))
+            return GitGatewayResult.Failure(operation, repository, GitGatewayError.WorkingTreeDirty, branch);
+
+        GitCommandResult reference = await _git.GetLocalBranchReferenceAsync(root, branch, cancellationToken)
+            .ConfigureAwait(false);
+        if (!reference.IsSuccess)
+        {
+            if (reference.Failure == GitCommandFailure.ReferenceNotFound)
+                return GitGatewayResult.Failure(operation, repository, GitGatewayError.BranchNotFound, branch);
+            return MapCommandFailure(operation, repository, reference, branch)!;
+        }
+
+        GitCommandResult switched = await _git.SwitchBranchAsync(root, branch, cancellationToken).ConfigureAwait(false);
+        GitGatewayResult? switchError = MapCommandFailure(operation, repository, switched, branch);
+        if (switchError is not null) return switchError;
+        return GitGatewayResult.Success(operation, repository, branch) with
+        {
+            BranchSwitch = new(previous, branch, Switched: true),
+        };
+    }
+
     /// <summary>
     /// commit作成者を決定します。登録値を優先し、なければRepositoryから見えるGit設定を使います。
     /// サービス実行アカウントの作成者へは暗黙に退避しません。

@@ -34,6 +34,7 @@ public static class ProviderToolPolicy
         "bitbucket_push" => ["repository.push"],
         "bitbucket_pull" => ["repository.pull"],
         "bitbucket_branch_create" or "bitbucket_branch_delete" => ["repository.branch.write"],
+        "buckettie_branch_switch" => ["repository.branch.write"],
         "bitbucket_tag_create" or "bitbucket_tag_delete" or "bitbucket_tag_push" => ["repository.tag.write"],
         "buckettie_release_create" => ["release.publish"],
         "buckettie_release_publish" => ["release.publish", "artifact.upload"],

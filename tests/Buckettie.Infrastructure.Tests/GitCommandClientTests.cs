@@ -21,6 +21,36 @@ public sealed class GitCommandClientTests
     }
 
     [Fact]
+    public async Task CheckBranchNameAsync_WhenCalled_ValidatesOnlyLocalBranchRef()
+    {
+        await CreateClient().CheckBranchNameAsync("repository-root", "feature/work", TestContext.Current.CancellationToken);
+
+        _executor.Request!.FileName.Should().Be("git");
+        _executor.Request.WorkingDirectory.Should().Be("repository-root");
+        _executor.Request.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "check-ref-format", "refs/heads/feature/work");
+    }
+
+    [Fact]
+    public async Task GetLocalBranchReferenceAsync_WhenCalled_UsesQualifiedLocalRefAndEndOfOptions()
+    {
+        await CreateClient().GetLocalBranchReferenceAsync("repository-root", "feature/work", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "rev-parse", "--verify", "--quiet",
+            "--end-of-options", "refs/heads/feature/work");
+    }
+
+    [Fact]
+    public async Task SwitchBranchAsync_WhenCalled_UsesNoGuessAndArgumentTerminator()
+    {
+        await CreateClient().SwitchBranchAsync("repository-root", "feature/work", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "switch", "--no-guess", "--", "feature/work");
+    }
+
+    [Fact]
     public async Task PullFastForwardOnlyAsync_WhenCalled_UsesFixedArguments()
     {
         GitCommandClient client = CreateClient();

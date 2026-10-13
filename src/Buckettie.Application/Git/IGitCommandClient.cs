@@ -8,6 +8,15 @@ public interface IGitCommandClient
     /// <summary>現在のbranch名を取得します。</summary>
     public Task<GitCommandResult> GetCurrentBranchAsync(string repositoryRoot, CancellationToken cancellationToken);
 
+    /// <summary>branch名のGit ref形式を検証します。</summary>
+    public Task<GitCommandResult> CheckBranchNameAsync(string repositoryRoot, string branch, CancellationToken cancellationToken);
+
+    /// <summary>既存のlocal branch refを検証します。</summary>
+    public Task<GitCommandResult> GetLocalBranchReferenceAsync(string repositoryRoot, string branch, CancellationToken cancellationToken);
+
+    /// <summary>既存のlocal branchへ切り替えます（remote追跡branchの自動作成なし）。</summary>
+    public Task<GitCommandResult> SwitchBranchAsync(string repositoryRoot, string branch, CancellationToken cancellationToken);
+
     /// <summary>現在のHEAD hashを取得します。unborn branchの場合は成功と空文字列を返します。</summary>
     public Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken);
 

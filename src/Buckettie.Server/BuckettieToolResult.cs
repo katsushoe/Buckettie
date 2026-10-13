@@ -55,6 +55,7 @@ public sealed record BuckettieGitData(
     string? CommitHash,
     GitHistoryRewriteData? HistoryRewrite,
     GitForceWithLeaseData? ForceWithLease,
+    GitBranchSwitchData? BranchSwitch = null,
     IReadOnlyList<GitStashEntry>? Stashes = null,
     GitStashEntry? Stash = null);
 
@@ -90,10 +91,12 @@ internal static class BuckettieToolResultMapper
         {
             return new(true, result.Operation, result.Repository,
                 new(result.Branch, result.Status, result.Diff, result.CommitHash,
-                    result.HistoryRewrite, result.ForceWithLease, result.Stashes, result.Stash), null);
+                    result.HistoryRewrite, result.ForceWithLease, result.BranchSwitch, result.Stashes, result.Stash), null);
         }
 
-        string providerCode = GitCode(result.Error ?? GitGatewayError.GitFailed);
+        string providerCode = result.Operation == "branch_switch" && result.Error == GitGatewayError.InvalidReference
+            ? "branch_switch_invalid_ref"
+            : GitCode(result.Error ?? GitGatewayError.GitFailed);
         return new(false, result.Operation, result.Repository, null,
             CreateGitError(
                 providerCode,
@@ -137,6 +140,7 @@ internal static class BuckettieToolResultMapper
         GitGatewayError.PermissionDenied => "permission_denied",
         GitGatewayError.Conflict => "conflict",
         GitGatewayError.ReferenceNotFound => "tag_not_found",
+        GitGatewayError.BranchNotFound => "branch_not_found",
         GitGatewayError.InvalidReference => "tag_invalid",
         GitGatewayError.WorkingTreeDirty => "working_tree_dirty",
         GitGatewayError.BranchNotAllowed => "branch_not_allowed",
@@ -406,6 +410,7 @@ internal static class BuckettieToolResultMapper
         "git_failed" => "The Git operation failed.",
         "conflict" => "The Git operation encountered a conflict.",
         "working_tree_dirty" => "The working tree must be clean.",
+        "branch_switch_invalid_ref" => "The branch name is not a valid Git reference.",
         "branch_not_allowed" => "The branch is not allowed.",
         "branch_not_found" => "The branch was not found.",
         "branch_already_exists" => "The branch already exists.",
@@ -475,6 +480,7 @@ internal static class BuckettieToolResultMapper
         "git_failed" => "Git操作に失敗しました。",
         "conflict" => "Git操作で競合が発生しました。",
         "working_tree_dirty" => "作業ツリーをクリーンな状態にしてください。",
+        "branch_switch_invalid_ref" => "ブランチ名が有効なGit参照形式ではありません。",
         "branch_not_allowed" => "このブランチは許可されていません。",
         "branch_not_found" => "ブランチが見つかりません。",
         "branch_already_exists" => "ブランチは既に存在します。",

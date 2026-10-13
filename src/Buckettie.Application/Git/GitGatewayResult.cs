@@ -18,6 +18,7 @@ public enum GitGatewayError
     PermissionDenied,
     Conflict,
     ReferenceNotFound,
+    BranchNotFound,
     InvalidReference,
     WorkingTreeDirty,
     BranchNotAllowed,
@@ -85,6 +86,12 @@ public sealed record GitForceWithLeaseRequest(
     string ExpectedRemoteHead,
     string Reason);
 
+/// <summary>local branch切替の結果です。</summary>
+/// <param name="PreviousBranch">切替前のbranch。</param>
+/// <param name="CurrentBranch">切替後のbranch。</param>
+/// <param name="Switched">実際に切り替えた場合true、既に対象branchだった場合falseです。</param>
+public sealed record GitBranchSwitchData(string PreviousBranch, string CurrentBranch, bool Switched);
+
 /// <summary>force-with-lease結果です。</summary>
 public sealed record GitForceWithLeaseData(
     string Remote,
@@ -129,6 +136,7 @@ public sealed record GitGatewayResult(
     string? ErrorDetail = null,
     GitHistoryRewriteData? HistoryRewrite = null,
     GitForceWithLeaseData? ForceWithLease = null,
+    GitBranchSwitchData? BranchSwitch = null,
     IReadOnlyList<GitStashEntry>? Stashes = null,
     GitStashEntry? Stash = null)
 {

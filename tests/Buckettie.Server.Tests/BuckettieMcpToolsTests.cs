@@ -19,6 +19,7 @@ public sealed class BuckettieMcpToolsTests
         "bitbucket_provider_capabilities",
         "bitbucket_repository_status",
         "bitbucket_repository_diff",
+        "buckettie_branch_switch",
         "bitbucket_repository_commit",
         "bitbucket_repository_commit_selected",
         "bitbucket_repository_stash_push",
@@ -108,6 +109,7 @@ public sealed class BuckettieMcpToolsTests
             .ToArray();
 
         destructive.Should().BeEquivalentTo(
+            "buckettie_branch_switch",
             "bitbucket_push",
             "bitbucket_repository_commit",
             "bitbucket_repository_commit_selected",
@@ -537,6 +539,7 @@ public sealed class BuckettieMcpToolsTests
             .Should().Contain("\"remote_resolution\":");
         result.Data.Operations.Should().Contain(
         [
+            new KeyValuePair<string, bool>("branch_switch", true),
             new KeyValuePair<string, bool>("branch_create", true),
             new KeyValuePair<string, bool>("branch_delete", true),
             new KeyValuePair<string, bool>("tag_delete", true),
@@ -558,6 +561,9 @@ public sealed class BuckettieMcpToolsTests
             throw new NotSupportedException();
 
         public Task<GitGatewayResult> GetDiffAsync(string repository, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GitGatewayResult> SwitchBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<GitGatewayResult> CommitAsync(
