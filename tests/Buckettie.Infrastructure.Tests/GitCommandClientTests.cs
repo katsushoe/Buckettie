@@ -11,6 +11,46 @@ public sealed class GitCommandClientTests
     private readonly FakeProcessExecutor _executor = new();
 
     [Fact]
+    public async Task PushStashAsync_SelectedPathsUseLiteralPathspecsAfterOptionTerminator()
+    {
+        await CreateClient().PushStashAsync("repository-root", "before split", ["src/a.cs", "docs/read me.md"], TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "stash", "push", "--include-untracked", "--message", "before split", "--",
+            ":(literal)src/a.cs", ":(literal)docs/read me.md");
+    }
+
+    [Fact]
+    public async Task CheckBranchNameAsync_WhenCalled_ValidatesOnlyLocalBranchRef()
+    {
+        await CreateClient().CheckBranchNameAsync("repository-root", "feature/work", TestContext.Current.CancellationToken);
+
+        _executor.Request!.FileName.Should().Be("git");
+        _executor.Request.WorkingDirectory.Should().Be("repository-root");
+        _executor.Request.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "check-ref-format", "refs/heads/feature/work");
+    }
+
+    [Fact]
+    public async Task GetLocalBranchReferenceAsync_WhenCalled_UsesQualifiedLocalRefAndEndOfOptions()
+    {
+        await CreateClient().GetLocalBranchReferenceAsync("repository-root", "feature/work", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "rev-parse", "--verify", "--quiet",
+            "--end-of-options", "refs/heads/feature/work");
+    }
+
+    [Fact]
+    public async Task SwitchBranchAsync_WhenCalled_UsesNoGuessAndArgumentTerminator()
+    {
+        await CreateClient().SwitchBranchAsync("repository-root", "feature/work", TestContext.Current.CancellationToken);
+
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "switch", "--no-guess", "--", "feature/work");
+    }
+
+    [Fact]
     public async Task PullFastForwardOnlyAsync_WhenCalled_UsesFixedArguments()
     {
         GitCommandClient client = CreateClient();
@@ -186,6 +226,7 @@ public sealed class GitCommandClientTests
     [Fact]
     public async Task GetDiffAsync_WhenCalled_UsesHeadAndDisablesExternalDiff()
     {
+        _executor.Result = new(0, "abc123\n", string.Empty, false, false, false);
         GitCommandClient client = CreateClient();
 
         await client.GetDiffAsync("repository-root", TestContext.Current.CancellationToken);
@@ -194,6 +235,32 @@ public sealed class GitCommandClientTests
             "-c", "safe.directory=repository-root",
             "diff", "--no-ext-diff", "--binary", "HEAD", "--");
         _executor.Request.Environment.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetDiffAsync_WhenRepositoryHasNoCommit_UsesCachedDiff()
+    {
+        GitCommandClient client = CreateClient();
+
+        GitCommandResult result = await client.GetDiffAsync("repository-root", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "diff", "--no-ext-diff", "--binary", "--cached", "--");
+    }
+
+    [Fact]
+    public async Task GetHeadAsync_WhenHeadDoesNotExist_ReturnsSuccessWithEmptyValue()
+    {
+        _executor.Result = new(1, string.Empty, string.Empty, false, false, false);
+        GitCommandClient client = CreateClient();
+
+        GitCommandResult result = await client.GetHeadAsync("repository-root", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.StandardOutput.Should().BeEmpty();
+        _executor.Request!.Arguments.Should().Equal(
+            "-c", "safe.directory=repository-root", "rev-parse", "--verify", "--quiet", "--end-of-options", "HEAD");
     }
 
     [Fact]

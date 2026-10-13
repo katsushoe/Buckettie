@@ -8,7 +8,16 @@ public interface IGitCommandClient
     /// <summary>現在のbranch名を取得します。</summary>
     public Task<GitCommandResult> GetCurrentBranchAsync(string repositoryRoot, CancellationToken cancellationToken);
 
-    /// <summary>現在のHEAD hashを取得します。</summary>
+    /// <summary>branch名のGit ref形式を検証します。</summary>
+    public Task<GitCommandResult> CheckBranchNameAsync(string repositoryRoot, string branch, CancellationToken cancellationToken);
+
+    /// <summary>既存のlocal branch refを検証します。</summary>
+    public Task<GitCommandResult> GetLocalBranchReferenceAsync(string repositoryRoot, string branch, CancellationToken cancellationToken);
+
+    /// <summary>既存のlocal branchへ切り替えます（remote追跡branchの自動作成なし）。</summary>
+    public Task<GitCommandResult> SwitchBranchAsync(string repositoryRoot, string branch, CancellationToken cancellationToken);
+
+    /// <summary>現在のHEAD hashを取得します。unborn branchの場合は成功と空文字列を返します。</summary>
     public Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken);
 
     /// <summary>設定済みRemote追跡BranchのHEAD hashを取得します。</summary>
@@ -28,7 +37,7 @@ public interface IGitCommandClient
     /// <summary>作業ツリー状態を取得します。</summary>
     public Task<GitCommandResult> GetStatusAsync(string repositoryRoot, CancellationToken cancellationToken);
 
-    /// <summary>HEADに対する作業ツリー差分を取得します。</summary>
+    /// <summary>commit済みならHEADとの差分、unborn branchならstage済み差分を取得します。</summary>
     public Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken);
 
     /// <summary>作業ツリーの変更をすべてIndexへ追加します。</summary>
@@ -37,6 +46,24 @@ public interface IGitCommandClient
     /// <summary>Indexの変更を、明示した作成者と指定メッセージでcommitします。</summary>
     public Task<GitCommandResult> CommitAsync(
         string repositoryRoot, string message, GitCommitAuthor author, CancellationToken cancellationToken);
+
+    /// <summary>期待HEADに対するunified diff patchだけをcommitし、working treeの他の変更を維持します。</summary>
+    public Task<GitCommandResult> CommitSelectedAsync(
+        string repositoryRoot, string message, GitCommitAuthor author, string expectedHead, string patch,
+        CancellationToken cancellationToken);
+
+    /// <summary>全変更または指定pathspecの変更をuntracked fileも含めてstashします。</summary>
+    public Task<GitCommandResult> PushStashAsync(
+        string repositoryRoot, string message, IReadOnlyList<string> paths, CancellationToken cancellationToken);
+
+    /// <summary>stashのselector、object ID、subjectを取得します。</summary>
+    public Task<GitCommandResult> ListStashesAsync(string repositoryRoot, CancellationToken cancellationToken);
+
+    /// <summary>指定stash objectをindexとともに適用します。</summary>
+    public Task<GitCommandResult> ApplyStashAsync(string repositoryRoot, string stashId, CancellationToken cancellationToken);
+
+    /// <summary>stashのreflog selectorを削除します。</summary>
+    public Task<GitCommandResult> DropStashAsync(string repositoryRoot, string selector, CancellationToken cancellationToken);
 
     /// <summary>Repositoryから見えるGit設定値を取得します。未設定なら失敗を返します。</summary>
     public Task<GitCommandResult> GetConfigValueAsync(

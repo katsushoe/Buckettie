@@ -239,6 +239,29 @@ public sealed class RepositoryLifecycleCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task BranchSwitch_SendsExistingBranchToProviderTool()
+    {
+        int port = GetFreePort();
+        string path = WriteConfiguration(port);
+        using HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/mcp/");
+        listener.Start();
+        Task<string> serverTask = RespondOnceAsync(listener,
+            """{"result":{"structuredContent":{"ok":true,"operation":"branch_switch","repository":"example","data":{"branch":"feature/test","branch_switch":{"previous_branch":"develop","current_branch":"feature/test","switched":true}},"error":null}}}""");
+        StringWriter output = new();
+
+        int exitCode = await CliApplication.RunAsync(
+            ["--config", path, "branch", "switch", "example", "feature/test"],
+            output, new StringWriter(), TestContext.Current.CancellationToken);
+
+        string request = await serverTask;
+        request.Should().Contain("\"name\":\"buckettie_branch_switch\"")
+            .And.Contain("\"repository\":\"example\"")
+            .And.Contain("\"branch\":\"feature/test\"");
+        exitCode.Should().Be(0);
+    }
+
+    [Fact]
     public async Task TagCreate_WhenSourceIsOmitted_ReturnsUsageErrorWithoutService()
     {
         string path = WriteConfiguration(GetFreePort());

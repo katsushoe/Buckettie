@@ -1,6 +1,6 @@
 # DOCUMENTS.ja.md Version
 
-2026.08.17
+2026.10.08
 
 [English](DOCUMENTS.md) | [日本語](DOCUMENTS.ja.md)
 
@@ -28,6 +28,7 @@
 | `README.md` / `README.ja.md` | 同左 | Yes | 製品概要、Quick Start、文書入口。 |
 | `MCP_SETUP.md` / `MCP_SETUP.ja.md` | 同左 | Yes | MCP Server導入とClient登録。 |
 | `CONFIG.md` / `CONFIG.ja.md` | 同左 | Yes | JSON設定仕様。 |
+| Provider認証（英語） | `docs/provider-authentication.md` | Yes | Assertion設定、Trust Bundle配置と鍵更新手順。 |
 | `COMMANDS.md` / `COMMANDS.ja.md` | 同左 | Yes | Management CLIと終了Code。 |
 | `INSTALLATION.md` | `INSTALLATION.md` | Yes | 配置、Token登録、Service導入手順。 |
 | `OPERATIONS.md` | `OPERATIONS.md` | Yes | 日常運用、Token更新、Upgrade手順。 |

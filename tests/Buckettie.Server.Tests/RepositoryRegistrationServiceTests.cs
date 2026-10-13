@@ -28,6 +28,37 @@ public sealed class RepositoryRegistrationServiceTests
         _tokenStore.Read(Arg.Any<string>()).Returns(ApiTokenStoreResult.Success("existing-token"));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RegisterAsync_MoyaiBinding_RequiresApprovalAndDerivesRemoteIdentity(bool approved)
+    {
+        Guid project = Guid.NewGuid();
+        RepositoryAllowlist allowlist = CreateAllowlist();
+        FakeRepositoryStore store = new();
+        RepositoryRegistrationService service = CreateService(allowlist, store);
+        _approvalPrompt.RequestApprovalAsync(
+            Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(approved ? ApprovalPromptOutcome.Approved() : ApprovalPromptOutcome.Denied());
+
+        RepositoryRegistrationOutcome outcome = await service.RegisterAsync(
+            "newrepo", LocalRoot, "origin", "develop", "main", TestContext.Current.CancellationToken,
+            moyaiProjectId: project);
+
+        outcome.IsSuccess.Should().Be(approved);
+        var repositories = await store.LoadAllAsync(TestContext.Current.CancellationToken);
+        if (approved)
+        {
+            repositories["newrepo"].MoyaiProjectId.Should().Be(project);
+            repositories["newrepo"].Workspace.Should().Be("example-workspace");
+            repositories["newrepo"].Slug.Should().Be("new-repo");
+        }
+        else repositories.Should().NotContainKey("newrepo");
+        await _approvalPrompt.Received(1).RequestApprovalAsync(
+            Arg.Is<ApprovalPromptRequest>(request => request.MoyaiProjectId == project.ToString("D")),
+            Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task RegisterAsync_WhenValidationFails_NeverRequestsApproval()
     {

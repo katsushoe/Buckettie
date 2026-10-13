@@ -43,12 +43,45 @@ public sealed class GitCommandClient : IGitCommandClient
     }
 
     /// <inheritdoc />
-    public Task<GitCommandResult> GetCurrentBranchAsync(string repositoryRoot, CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"], cancellationToken);
+    public async Task<GitCommandResult> GetCurrentBranchAsync(string repositoryRoot, CancellationToken cancellationToken)
+    {
+        GitCommandResult current = await ExecuteAsync(
+            repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"], cancellationToken).ConfigureAwait(false);
+        if (current.IsSuccess && !string.Equals(current.StandardOutput.Trim(), "HEAD", StringComparison.Ordinal))
+        {
+            return current;
+        }
+
+        // An unborn branch still has a symbolic HEAD; rev-parse may not resolve it until its first commit.
+        GitCommandResult symbolic = await ExecuteAsync(
+            repositoryRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"], cancellationToken).ConfigureAwait(false);
+        return symbolic.IsSuccess ? symbolic : current;
+    }
 
     /// <inheritdoc />
-    public Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryRoot, ["rev-parse", "HEAD"], cancellationToken);
+    public Task<GitCommandResult> CheckBranchNameAsync(string repositoryRoot, string branch, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["check-ref-format", $"refs/heads/{branch}"], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> GetLocalBranchReferenceAsync(string repositoryRoot, string branch, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["rev-parse", "--verify", "--quiet", "--end-of-options", $"refs/heads/{branch}"], cancellationToken, missingReferenceAllowed: true);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> SwitchBranchAsync(string repositoryRoot, string branch, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["switch", "--no-guess", "--", branch], cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<GitCommandResult> GetHeadAsync(string repositoryRoot, CancellationToken cancellationToken)
+    {
+        GitCommandResult result = await ExecuteAsync(
+            repositoryRoot,
+            ["rev-parse", "--verify", "--quiet", "--end-of-options", "HEAD"],
+            cancellationToken,
+            missingReferenceAllowed: true).ConfigureAwait(false);
+        return result.Failure == GitCommandFailure.ReferenceNotFound
+            ? GitCommandResult.Success(string.Empty)
+            : result;
+    }
 
     /// <inheritdoc />
     public Task<GitCommandResult> GetRemoteHeadAsync(
@@ -77,8 +110,19 @@ public sealed class GitCommandClient : IGitCommandClient
         ExecuteAsync(repositoryRoot, ["status", "--porcelain=v1"], cancellationToken);
 
     /// <inheritdoc />
-    public Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryRoot, ["diff", "--no-ext-diff", "--binary", "HEAD", "--"], cancellationToken);
+    public async Task<GitCommandResult> GetDiffAsync(string repositoryRoot, CancellationToken cancellationToken)
+    {
+        GitCommandResult head = await GetHeadAsync(repositoryRoot, cancellationToken).ConfigureAwait(false);
+        if (!head.IsSuccess)
+        {
+            return head;
+        }
+
+        string[] arguments = string.IsNullOrEmpty(head.StandardOutput.Trim())
+            ? ["diff", "--no-ext-diff", "--binary", "--cached", "--"]
+            : ["diff", "--no-ext-diff", "--binary", "HEAD", "--"];
+        return await ExecuteAsync(repositoryRoot, arguments, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public Task<GitCommandResult> StageAllAsync(string repositoryRoot, CancellationToken cancellationToken) =>
@@ -105,6 +149,104 @@ public sealed class GitCommandClient : IGitCommandClient
         };
         return ExecuteAsync(repositoryRoot, ["commit", "--message", message, "--"], cancellationToken, environment);
     }
+
+    /// <inheritdoc />
+    public async Task<GitCommandResult> CommitSelectedAsync(
+        string repositoryRoot,
+        string message,
+        GitCommitAuthor author,
+        string expectedHead,
+        string patch,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(author);
+        if (!GitCommitAuthor.IsValid(author.Name, author.Email))
+            throw new ArgumentException("Invalid commit author.", nameof(author));
+        ArgumentException.ThrowIfNullOrWhiteSpace(patch);
+
+        string temporaryIndex = Path.Combine(Path.GetTempPath(), $"buckettie-selected-commit-{Guid.NewGuid():N}.index");
+        Dictionary<string, string> environment = new(StringComparer.Ordinal)
+        {
+            ["GIT_INDEX_FILE"] = temporaryIndex,
+            ["GIT_AUTHOR_NAME"] = author.Name,
+            ["GIT_AUTHOR_EMAIL"] = author.Email,
+            ["GIT_COMMITTER_NAME"] = author.Name,
+            ["GIT_COMMITTER_EMAIL"] = author.Email,
+        };
+
+        try
+        {
+            GitCommandResult initialize = string.IsNullOrEmpty(expectedHead)
+                ? await ExecuteAsync(repositoryRoot, ["read-tree", "--empty"], cancellationToken, environment).ConfigureAwait(false)
+                : await ExecuteAsync(repositoryRoot, ["read-tree", expectedHead], cancellationToken, environment).ConfigureAwait(false);
+            if (!initialize.IsSuccess) return initialize;
+
+            GitCommandResult check = await ExecuteAsync(repositoryRoot, ["apply", "--cached", "--check"],
+                cancellationToken, environment, standardInput: patch).ConfigureAwait(false);
+            if (!check.IsSuccess) return check;
+
+            GitCommandResult apply = await ExecuteAsync(repositoryRoot, ["apply", "--cached"],
+                cancellationToken, environment, standardInput: patch).ConfigureAwait(false);
+            if (!apply.IsSuccess) return apply;
+
+           GitCommandResult currentHead = await GetHeadAsync(repositoryRoot, cancellationToken).ConfigureAwait(false);
+           string observedHead = currentHead.IsSuccess ? currentHead.StandardOutput.Trim() : string.Empty;
+           if ((!currentHead.IsSuccess && currentHead.Failure != GitCommandFailure.ReferenceNotFound) ||
+               !string.Equals(observedHead, expectedHead, StringComparison.OrdinalIgnoreCase))
+               return GitCommandResult.Failed(GitCommandFailure.ReferenceNotFound, "HEAD changed before selected commit.");
+
+            GitCommandResult commit = await ExecuteAsync(repositoryRoot, ["commit", "--message", message, "--"],
+                cancellationToken, environment).ConfigureAwait(false);
+            if (!commit.IsSuccess) return commit;
+
+            // Keep unselected worktree edits while advancing the real index to the new HEAD.
+            return await ExecuteAsync(repositoryRoot, ["read-tree", "HEAD"], cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            foreach (string path in new[] { temporaryIndex, $"{temporaryIndex}.lock" })
+            {
+                try
+                {
+                    if (File.Exists(path)) File.Delete(path);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> PushStashAsync(
+        string repositoryRoot, string message, IReadOnlyList<string> paths, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        List<string> arguments = ["stash", "push", "--include-untracked", "--message", message];
+        if (paths.Count > 0)
+        {
+            arguments.Add("--");
+            arguments.AddRange(paths.Select(path => $":(literal){path}"));
+        }
+        return ExecuteAsync(repositoryRoot, arguments, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> ListStashesAsync(string repositoryRoot, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["stash", "list", "--format=%H%x1f%gs"], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> ApplyStashAsync(
+        string repositoryRoot, string stashId, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["stash", "apply", "--index", stashId], cancellationToken);
+
+    /// <inheritdoc />
+    public Task<GitCommandResult> DropStashAsync(
+        string repositoryRoot, string selector, CancellationToken cancellationToken) =>
+        ExecuteAsync(repositoryRoot, ["stash", "drop", selector], cancellationToken);
 
     /// <inheritdoc />
     public Task<GitCommandResult> GetConfigValueAsync(

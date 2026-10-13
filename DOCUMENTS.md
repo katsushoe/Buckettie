@@ -1,6 +1,6 @@
 # DOCUMENTS.md Version
 
-2026.08.17
+2026.10.08
 
 [English](DOCUMENTS.md) | [日本語](DOCUMENTS.ja.md)
 
@@ -28,6 +28,7 @@ Public user and developer documents are tracked by Git. Progress, plans, and ope
 | `README.md` / `README.ja.md` | `README.md` / `README.ja.md` | Yes | Product overview, quick start, and document entry. |
 | `MCP_SETUP.md` / `MCP_SETUP.ja.md` | Same | Yes | MCP server setup and client registration. |
 | `CONFIG.md` / `CONFIG.ja.md` | Same | Yes | JSON configuration contract. |
+| Provider authentication | `docs/provider-authentication.md` | Yes | Assertion configuration, Trust Bundle placement and key rotation. |
 | `COMMANDS.md` / `COMMANDS.ja.md` | Same | Yes | Management CLI and exit codes. |
 | `INSTALLATION.md` | `INSTALLATION.md` | Yes | Deployment, token registration, and service setup. |
 | `OPERATIONS.md` | `OPERATIONS.md` | Yes | Routine operation, token update, and upgrade. |

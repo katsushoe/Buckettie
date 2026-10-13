@@ -17,14 +17,17 @@
 | `buckettie config check` | 厳密な設定Contractを検証します。 |
 | `buckettie config show` | 有効な秘密値以外の設定を表示します。 |
 | `buckettie repo list` | 設定済みRepository IDを一覧表示します。 |
-| `buckettie repo status <id>` | ローカルRepositoryを検証して状態を表示します。 |
-| `buckettie repo diff <id>` | `HEAD`に対する作業ツリー差分を取得します。 |
-| `buckettie repo commit <id> <message>` | 作業ツリーの変更をすべてStageし、Policyで許可された現在Branchへlocal commitします。commit作成者は登録済みの作成者、なければRepositoryのGit設定の`user.name`／`user.email`です。どちらもない場合はStage前に`author_identity_missing`で失敗します。 |
+| `buckettie repo status <id>` | ローカルRepositoryを検証して状態を表示します。初回commit前のunborn branchでは`local_head`が空文字になります。 |
+| `buckettie repo diff <id>` | `HEAD`に対する作業ツリー差分を取得します。初回commit前はstage済みdiffを返します。 |
+| `buckettie repo commit <id> <message>` | 作業ツリーの変更をすべてStageし、Policyで許可された現在Branchへlocal commitします。unborn branchでは初回commitを作成できます。commit作成者は登録済みの作成者、なければRepositoryのGit設定の`user.name`／`user.email`です。どちらもない場合はStage前に`author_identity_missing`で失敗します。 |
 | `buckettie repo fetch\|pull\|push <id>` | MCPサービス経由でポリシー検証付きGit操作を実行します。 |
+| `buckettie mcp call bitbucket_repository_stash_<push\|list\|apply\|drop> <arguments-json>` | Repository相対`paths`で選んだ変更（省略時は全変更）をstashし、一覧・完全なstash object IDによる適用・削除を行います。汎用MCP CLI経由でも同じGateway・承認・監査Policyを使います。 |
+| `bitbucket_repository_commit_selected` | `repository`, `message`, `expected_head`, `patch`: 指定したunified diff patchだけをcommitします。staged変更がある場合、またはHEADが差分作成時から変わった場合は拒否します。 |
 | `buckettie repo list` / MCP `list_projects` | 操作前に選択する登録済みリポジトリIDを一覧します。MCPクライアントは毎回のpush前に`list_projects`を呼び出します。 |
 | `buckettie repo register <id> <local-root> ...` | 最前面・画面中央のDialogでAPI Tokenを入力してからMCPサービス経由でRepositoryを登録します。MCPから直接登録する場合も、未登録TokenをMCP引数へ露出せずホスト上で入力します。`--console-token`では非表示のTerminal入力を使用します。commit作成者の既定値は実行者のGit設定の`user.name`／`user.email`で、`--commit-author-name`と`--commit-author-email`で指定できます。`--remote`は任意で、省略時はリモートを自動で解決します（[Gitリモートの解決](CONFIG.ja.md#gitリモートの解決)）。 |
 | `buckettie repo unregister\|update ...` | MCPサービス経由で許可リストとブランチポリシーを管理します。`repo update <id> --commit-author-name X --commit-author-email Y`は作成者だけを変更し、省略したブランチ設定は登録済みの値を維持します。 |
 | `buckettie branch list\|get\|create\|delete ...` | Bitbucketブランチを一覧・取得・作成・削除します。作成元の明示指定が必須です。develop、main、保護ブランチは削除できません。 |
+| `buckettie branch switch <id> <branch>` | Allowlist済みlocal checkoutを既存local branchへ切り替えます。dirtyなら拒否し、fetchやbranch作成はしません。同一branchは変更なしで成功します。 |
 | `buckettie pr list\|get\|diff\|create\|merge ...` | Bitbucketプルリクエストの一覧・詳細・差分・作成・マージを実行します。 |
 | `buckettie tag list\|get\|create\|delete\|push ...` | ポリシー準拠タグの一覧・取得・作成・削除・明示的pushを実行します。作成元の明示指定が必須です。 |
 | `buckettie provider capabilities` | Repository diff・commitを含むRepository Contract操作の対応可否を表示します。 |
@@ -50,4 +53,6 @@ ServiceはLocalSystemとして実行し、`..\data\secrets`のMachine保護Token
 
 `buckettie tag create <repository> <tag> <source> [--message X]`とMCP `bitbucket_tag_create`は、許可された作成元Branch名または完全40桁コミットSHAが必須です。BranchはBitbucketで解決し、CommitはBitbucketで存在を確認します。解決済みSHAをTag targetとして送信し、応答とも照合します。省略・不正入力は`tag_source_invalid`、不存在または参照不能は`tag_source_not_found`です。返却には`source`、`source_kind`、`source_hash`、`target_hash`が含まれます。`--message`省略時はBitbucket JSONの`message`項目自体を省略します。
 
-`repo status`は設定済みremote-tracking参照が欠落しても、ローカルBranch/HEAD/作業ツリー状態を返します。`remote_develop_head`/`remote_main_head`はnullになり得ます。developとの比較不能時の`ahead`/`behind`もnullです。`comparison_reference`、`comparison_unavailable_reason`、`missing_remote_references`で理由を示し、未fetchの可能性もあるためBitbucket上の不存在とは断定しません。他のエラーは失敗として扱います。Provider能力は`contract_version: 3`、`branch_source_required: true`、`tag_source_required: true`、`repository_status_nullable: true`を返し、Moyaiはsourceの無損失転送とnullの保持が必要です。設計判断は[ADR 0014](docs/adr/0014-explicit-branch-source-and-partial-status.md)と[ADR 0015](docs/adr/0015-explicit-tag-source.md)を参照してください。
+MCP `buckettie_branch_switch`は`repository`と`branch`を受け取り、許可済みのローカルリポジトリを既存のローカルBranchへ切り替えます（`git switch --no-guess`、固定引数）。fetch、Branch作成、リモート追跡Branchのcheckoutは行いません。現在のBranchを指定した場合は変更なしで成功し、作業ツリーに未commitの変更があれば`working_tree_dirty`、ローカルBranchがなければ`branch_not_found`、不正またはオプションに見える名前は`branch_switch_invalid_ref`です。成功時は`branch_switch`に`previous_branch`、`current_branch`、`switched`を返します。必要なScopeは`repository.branch.write`、監査名は`buckettie_branch_switch`で、`bitbucket_provider_capabilities.data.operations.branch_switch`は`true`です。設計は[ADR 0017](docs/adr/0017-safe-local-branch-switch.md)を参照してください。
+
+`repo status`は設定済みremote-tracking参照が欠落しても、ローカルBranch/HEAD/作業ツリー状態を返します。初回commit前（unborn branch）はsymbolic `HEAD`から`local_branch`を解決し、commitが存在しないことを示すため`local_head`を空文字にします。このとき`ahead`/`behind`はnull、`comparison_unavailable_reason`は`local_head_missing`です。`repo diff`はcommit前にはstage済みdiffを返し、初回commit後は通常どおり`HEAD`との差分を返します。`repo commit`は許可Branch上で全変更をstageして初回commitを作成でき、commit後は空のremoteへ初回pushできます。既存のBranch/Repositoryポリシーは維持されます。通常のRepositoryでも`remote_develop_head`/`remote_main_head`はnullになり得ます。developとの比較不能時の`ahead`/`behind`もnullです。`comparison_reference`、`comparison_unavailable_reason`、`missing_remote_references`で理由を示し、未fetchの可能性もあるためBitbucket上の不存在とは断定しません。他のエラーは失敗として扱います。Provider能力は`contract_version: 3`、`branch_source_required: true`、`tag_source_required: true`、`repository_status_nullable: true`を返し、Moyaiはsourceの無損失転送とnullの保持が必要です。設計判断は[ADR 0014](docs/adr/0014-explicit-branch-source-and-partial-status.md)と[ADR 0015](docs/adr/0015-explicit-tag-source.md)を参照してください。

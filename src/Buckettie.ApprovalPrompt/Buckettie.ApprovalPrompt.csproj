@@ -7,4 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="../Buckettie.Application/Buckettie.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Buckettie.ApprovalPrompt.Tests" />
+  </ItemGroup>
 </Project>

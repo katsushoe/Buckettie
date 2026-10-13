@@ -11,9 +11,31 @@ public interface IGitGateway
     /// <summary>RepositoryのHEADに対する作業ツリー差分を取得します。</summary>
     public Task<GitGatewayResult> GetDiffAsync(string repository, CancellationToken cancellationToken = default);
 
+    /// <summary>作業ツリーがcleanな場合に限り、既存のlocal branchへ切り替えます。</summary>
+    public Task<GitGatewayResult> SwitchBranchAsync(string repository, string branch, CancellationToken cancellationToken = default);
+
     /// <summary>Policyに従って作業ツリーの変更をlocal commitします。</summary>
     public Task<GitGatewayResult> CommitAsync(
         string repository, string message, CancellationToken cancellationToken = default);
+
+    /// <summary>期待HEAD上で選択したunified diff patchだけをcommitします。</summary>
+    public Task<GitGatewayResult> CommitSelectedAsync(
+        string repository, string message, string expectedHead, string patch, CancellationToken cancellationToken = default);
+
+    /// <summary>選択したRepository相対パスの変更をstashします。</summary>
+    public Task<GitGatewayResult> PushStashAsync(
+        string repository, string message, IReadOnlyList<string>? paths, CancellationToken cancellationToken = default);
+
+    /// <summary>Repositoryのstash一覧を取得します。</summary>
+    public Task<GitGatewayResult> ListStashesAsync(string repository, CancellationToken cancellationToken = default);
+
+    /// <summary>指定stashを適用します。</summary>
+    public Task<GitGatewayResult> ApplyStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default);
+
+    /// <summary>指定stashを削除します。</summary>
+    public Task<GitGatewayResult> DropStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default);
 
     /// <summary>設定済みRemoteからfetchします。</summary>
     public Task<GitGatewayResult> FetchAsync(string repository, CancellationToken cancellationToken = default);

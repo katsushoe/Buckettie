@@ -64,9 +64,35 @@ internal sealed class AuditedGitGateway(IGitGateway inner, IBuckettieAuditLogger
     public Task<GitGatewayResult> GetDiffAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_repository_diff", repository, () => inner.GetDiffAsync(repository, cancellationToken));
 
+    public Task<GitGatewayResult> SwitchBranchAsync(string repository, string branch, CancellationToken cancellationToken = default) =>
+        RunAsync("buckettie_branch_switch", repository, () => inner.SwitchBranchAsync(repository, branch, cancellationToken));
+
     public Task<GitGatewayResult> CommitAsync(
         string repository, string message, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_repository_commit", repository, () => inner.CommitAsync(repository, message, cancellationToken));
+
+    public Task<GitGatewayResult> CommitSelectedAsync(
+        string repository, string message, string expectedHead, string patch, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_commit_selected", repository,
+            () => inner.CommitSelectedAsync(repository, message, expectedHead, patch, cancellationToken));
+
+    public Task<GitGatewayResult> PushStashAsync(
+        string repository, string message, IReadOnlyList<string>? paths, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_stash_push", repository,
+            () => inner.PushStashAsync(repository, message, paths, cancellationToken));
+
+    public Task<GitGatewayResult> ListStashesAsync(string repository, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_stash_list", repository, () => inner.ListStashesAsync(repository, cancellationToken));
+
+    public Task<GitGatewayResult> ApplyStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_stash_apply", repository,
+            () => inner.ApplyStashAsync(repository, stashId, cancellationToken));
+
+    public Task<GitGatewayResult> DropStashAsync(
+        string repository, string stashId, CancellationToken cancellationToken = default) =>
+        RunAsync("bitbucket_repository_stash_drop", repository,
+            () => inner.DropStashAsync(repository, stashId, cancellationToken));
 
     public Task<GitGatewayResult> FetchAsync(string repository, CancellationToken cancellationToken = default) =>
         RunAsync("bitbucket_fetch", repository, () => inner.FetchAsync(repository, cancellationToken));

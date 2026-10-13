@@ -100,6 +100,7 @@ public sealed class BuckettieMcpTools
     {
         Dictionary<string, bool> operations = new(StringComparer.Ordinal)
         {
+            ["branch_switch"] = true,
             ["branch_create"] = true,
             ["branch_delete"] = true,
             ["tag_delete"] = true,
@@ -111,6 +112,11 @@ public sealed class BuckettieMcpTools
             ["explicit_push"] = true,
             ["repository_diff"] = true,
             ["repository_commit"] = true,
+            ["repository_commit_selected"] = true,
+            ["repository_stash_push"] = true,
+            ["repository_stash_list"] = true,
+            ["repository_stash_apply"] = true,
+            ["repository_stash_drop"] = true,
             ["history_rewrite_preview"] = true,
             ["history_rewrite_execute"] = true,
             ["force_push_with_lease"] = true,
@@ -150,6 +156,16 @@ public sealed class BuckettieMcpTools
         BuckettieToolResultMapper.MapGitAsync(
             WithRemoteAsync(remote, () => _git.GetDiffAsync(repository, cancellationToken)), _language);
 
+    /// <summary>cleanな作業ツリーで既存のlocal branchへ切り替えます。</summary>
+    [McpServerTool(Name = "buckettie_branch_switch", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("登録済みリポジトリの既存Local Branchへ切り替えます。作業ツリーがdirtyなら拒否し、fetchやbranch作成はしません。 / Switches to an existing local branch in an allowed repository. Rejects a dirty worktree and never fetches or creates branches.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> SwitchBranchAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("切替先の既存Local Branch名。 / Existing local branch name to switch to.")] string branch,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(_git.SwitchBranchAsync(repository, branch, cancellationToken), _language);
+
     /// <summary>Policyに従って作業ツリーの変更をlocal commitします。</summary>
     [McpServerTool(Name = "bitbucket_repository_commit", ReadOnly = false, Destructive = true,
         Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
@@ -161,6 +177,60 @@ public sealed class BuckettieMcpTools
         CancellationToken cancellationToken = default) =>
         BuckettieToolResultMapper.MapGitAsync(
             WithRemoteAsync(remote, () => _git.CommitAsync(repository, message, cancellationToken)), _language);
+
+    /// <summary>unified diffで選択した変更だけをcommitします。</summary>
+    [McpServerTool(Name = "bitbucket_repository_commit_selected", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = true, UseStructuredContent = true)]
+    [Description("指定した期待HEAD上でunified diff patchの変更だけをcommitします。既存のstaged変更がある場合は拒否します。 / Commits only the changes in the unified diff patch against the expected HEAD; rejects if the index already contains staged changes.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> RepositoryCommitSelectedAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("commit message。 / Commit message.")] string message,
+        [Description("作業ツリー差分作成時点のHEAD。初回commitでは空文字列。 / HEAD at diff creation; empty for the initial commit.")] string expected_head,
+        [Description("commitするunified diff patch。 / Unified diff patch to commit.")] string patch,
+        [Description(RemoteDescription)] string? remote = null,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.CommitSelectedAsync(repository, message, expected_head, patch, cancellationToken)), _language);
+
+    /// <summary>指定されたRepository相対pathだけの変更をstashします。paths省略時は全変更が対象です。</summary>
+    [McpServerTool(Name = "bitbucket_repository_stash_push", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("指定Repositoryの変更をuntracked fileも含めてstashします。pathsを指定すると、そのRepository相対pathだけを退避します。 / Stashes repository changes, including untracked files; when paths are supplied, only those repository-relative paths are stashed.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> PushStashAsync(
+        string repository,
+        string message,
+        IReadOnlyList<string>? paths = null,
+        string? remote = null,
+        CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.PushStashAsync(repository, message, paths, cancellationToken)), _language);
+
+    /// <summary>Repositoryのstash一覧を取得します。</summary>
+    [McpServerTool(Name = "bitbucket_repository_stash_list", ReadOnly = true, Destructive = false,
+        Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("登録Repositoryのstash一覧を返します。 / Lists stashes for an allowed repository.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> ListStashesAsync(
+        string repository, string? remote = null, CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.ListStashesAsync(repository, cancellationToken)), _language);
+
+    /// <summary>指定されたstashを適用します。</summary>
+    [McpServerTool(Name = "bitbucket_repository_stash_apply", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("IDが一致する登録済みRepositoryのstashをindexを含めて適用します。 / Applies a listed stash, including its index state.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> ApplyStashAsync(
+        string repository, string stashId, string? remote = null, CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.ApplyStashAsync(repository, stashId, cancellationToken)), _language);
+
+    /// <summary>指定されたstashを削除します。</summary>
+    [McpServerTool(Name = "bitbucket_repository_stash_drop", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("IDが一致する登録済みRepositoryのstashを削除します。 / Drops a listed stash from an allowed repository.")]
+    public Task<BuckettieToolResult<BuckettieGitData>> DropStashAsync(
+        string repository, string stashId, string? remote = null, CancellationToken cancellationToken = default) =>
+        BuckettieToolResultMapper.MapGitAsync(
+            WithRemoteAsync(remote, () => _git.DropStashAsync(repository, stashId, cancellationToken)), _language);
 
     /// <summary>最新commitのidentity書き換えを事前確認します。</summary>
     [McpServerTool(Name = "bitbucket_history_rewrite_preview", ReadOnly = true, Destructive = false,

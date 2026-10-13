@@ -24,13 +24,17 @@ public static class ProviderToolPolicy
     public static string[]? Scopes(string tool) => tool switch
     {
         "bitbucket_repository_status" or "bitbucket_repository_diff" or "bitbucket_branch_list"
+            or "bitbucket_repository_stash_list"
             or "bitbucket_branch_get" or "bitbucket_tag_list" or "bitbucket_tag_get"
             or "bitbucket_pr_list" or "bitbucket_pr_get" or "bitbucket_pr_diff"
             or "buckettie_release_get" or "bitbucket_history_rewrite_preview" => ["repository.read"],
-        "bitbucket_repository_commit" => ["repository.commit"],
+        "bitbucket_repository_commit" or "bitbucket_repository_commit_selected" => ["repository.commit"],
+        "bitbucket_repository_stash_push" or "bitbucket_repository_stash_apply" or "bitbucket_repository_stash_drop"
+            => ["repository.stash.write"],
         "bitbucket_push" => ["repository.push"],
         "bitbucket_pull" => ["repository.pull"],
         "bitbucket_branch_create" or "bitbucket_branch_delete" => ["repository.branch.write"],
+        "buckettie_branch_switch" => ["repository.branch.write"],
         "bitbucket_tag_create" or "bitbucket_tag_delete" or "bitbucket_tag_push" => ["repository.tag.write"],
         "buckettie_release_create" => ["release.publish"],
         "buckettie_release_publish" => ["release.publish", "artifact.upload"],

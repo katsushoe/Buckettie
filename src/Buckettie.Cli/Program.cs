@@ -141,6 +141,7 @@ internal static class CliApplication
                 ["branch", "get", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_get", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
                 ["branch", "create", var repository, var branch, var source] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_create", repository, new() { ["branch"] = branch, ["source"] = source }, cancellationToken).ConfigureAwait(false),
                 ["branch", "delete", var repository, var branch] => await CallRepositoryToolAsync(services, output, "bitbucket_branch_delete", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
+                ["branch", "switch", var repository, var branch] => await CallRepositoryToolAsync(services, output, "buckettie_branch_switch", repository, new() { ["branch"] = branch }, cancellationToken).ConfigureAwait(false),
                 ["pr", "list", var repository, .. var listArgs] => await ListPullRequestsAsync(services, repository, listArgs, output, cancellationToken).ConfigureAwait(false),
                 ["pr", "get", var repository, var pullRequestId] => await CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_get", repository, pullRequestId, [], cancellationToken).ConfigureAwait(false),
                 ["pr", "diff", var repository, var pullRequestId] => await CallPullRequestToolAsync(services, output, error, japanese, "bitbucket_pr_diff", repository, pullRequestId, [], cancellationToken).ConfigureAwait(false),
@@ -793,6 +794,7 @@ internal static class CliApplication
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>
         buckettie branch delete <repository> <branch>
+        buckettie branch switch <repository> <branch>
         buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
         buckettie pr get|diff <repository> <pull-request-id>
         buckettie pr create <repository> <title> <description> [--draft]
@@ -840,6 +842,7 @@ internal static class CliApplication
         buckettie branch get <repository> <branch>
         buckettie branch create <repository> <branch> <source-branch-or-full-sha>
         buckettie branch delete <repository> <branch>
+        buckettie branch switch <repository> <branch>
         buckettie pr list <repository> [--state OPEN|MERGED|DECLINED|SUPERSEDED] [--source X] [--destination X]
         buckettie pr get|diff <repository> <pull-request-id>
         buckettie pr create <repository> <title> <description> [--draft]

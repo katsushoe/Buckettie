@@ -11,4 +11,5 @@
   <Project Path="tests/Buckettie.Infrastructure.Tests/Buckettie.Infrastructure.Tests.csproj" />
   <Project Path="tests/Buckettie.Server.Tests/Buckettie.Server.Tests.csproj" />
   <Project Path="tests/Buckettie.Cli.Tests/Buckettie.Cli.Tests.csproj" />
+  <Project Path="tests/Buckettie.ApprovalPrompt.Tests/Buckettie.ApprovalPrompt.Tests.csproj" />
 </Solution>

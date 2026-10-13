@@ -18,6 +18,7 @@ public enum GitGatewayError
     PermissionDenied,
     Conflict,
     ReferenceNotFound,
+    BranchNotFound,
     InvalidReference,
     WorkingTreeDirty,
     BranchNotAllowed,
@@ -37,6 +38,12 @@ public enum GitGatewayError
     SignedCommitConfirmationRequired,
     RemoteVerificationFailed,
     AuthorIdentityMissing,
+    InvalidStashPath,
+    InvalidStashReference,
+    InvalidStashMessage,
+    NothingToStash,
+    InvalidSelectedCommitPatch,
+    StagedChangesPresent,
 }
 
 /// <summary>Git commitの氏名とメールアドレスです。</summary>
@@ -79,6 +86,12 @@ public sealed record GitForceWithLeaseRequest(
     string ExpectedRemoteHead,
     string Reason);
 
+/// <summary>local branch切替の結果です。</summary>
+/// <param name="PreviousBranch">切替前のbranch。</param>
+/// <param name="CurrentBranch">切替後のbranch。</param>
+/// <param name="Switched">実際に切り替えた場合true、既に対象branchだった場合falseです。</param>
+public sealed record GitBranchSwitchData(string PreviousBranch, string CurrentBranch, bool Switched);
+
 /// <summary>force-with-lease結果です。</summary>
 public sealed record GitForceWithLeaseData(
     string Remote,
@@ -88,8 +101,11 @@ public sealed record GitForceWithLeaseData(
     string VerifiedRemoteHead,
     bool RemoteUpdated);
 
+/// <summary>Repository stashの一覧要素です。</summary>
+public sealed record GitStashEntry(string Id, string Subject);
+
 /// <summary>
-/// Repository状態を表します。
+/// Repository状態を表します。初回commit前は<see cref="LocalHead"/>が空文字列で、比較件数は利用できません。
 /// </summary>
 public sealed record GitRepositoryStatus(
     string Repository,
@@ -119,7 +135,10 @@ public sealed record GitGatewayResult(
     string? CommitHash = null,
     string? ErrorDetail = null,
     GitHistoryRewriteData? HistoryRewrite = null,
-    GitForceWithLeaseData? ForceWithLease = null)
+    GitForceWithLeaseData? ForceWithLease = null,
+    GitBranchSwitchData? BranchSwitch = null,
+    IReadOnlyList<GitStashEntry>? Stashes = null,
+    GitStashEntry? Stash = null)
 {
     /// <summary>成功結果を生成します。</summary>
     public static GitGatewayResult Success(
@@ -128,8 +147,11 @@ public sealed record GitGatewayResult(
         string? branch = null,
         GitRepositoryStatus? status = null,
         string? diff = null,
-        string? commitHash = null) =>
-        new(true, operation, repository, branch, status, null, null, diff, commitHash);
+        string? commitHash = null,
+        IReadOnlyList<GitStashEntry>? stashes = null,
+        GitStashEntry? stash = null) =>
+        new(true, operation, repository, branch, status, null, null, diff, commitHash,
+            Stashes: stashes, Stash: stash);
 
     /// <summary>失敗結果を生成します。</summary>
     public static GitGatewayResult Failure(
