@@ -19,12 +19,29 @@ public sealed record RepositoryUpdateRequest(
     Guid? MoyaiProjectId = null,
     bool RemoveMoyaiProjectId = false);
 
+/// <summary>Repository Settings部分更新です。Fieldsに含む項目だけが更新対象です。</summary>
+public sealed record RepositorySettingsChanges(
+    IReadOnlySet<string> Fields,
+    HashSet<string>? DirectPushBranches = null,
+    HashSet<string>? ProtectedBranches = null,
+    HashSet<string>? PullBranches = null,
+    string? TagPattern = null,
+    string? TagTargetBranch = null,
+    bool? RequireCleanWorkingTree = null,
+    string? CommitAuthorName = null,
+    string? CommitAuthorEmail = null);
+
 /// <summary>Repository修正要求を1つの流れとして実行する境界です。</summary>
 public interface IRepositoryUpdateService
 {
     /// <summary>Repositoryの登録済みBranch Policyの修正を試みます。</summary>
     Task<RepositoryUpdateOutcome> UpdateAsync(
         string repositoryId, RepositoryUpdateRequest request, CancellationToken cancellationToken);
+
+    /// <summary>最新の登録値をロック下で読み、指定項目だけ部分更新します。</summary>
+    Task<RepositoryUpdateOutcome> UpdateSettingsAsync(
+        string repositoryId, RepositorySettingsChanges changes, CancellationToken cancellationToken,
+        Func<CancellationToken, Task>? revalidate = null, bool operationGateHeld = false);
 }
 
 /// <summary>
@@ -153,20 +170,98 @@ internal sealed class RepositoryUpdateService : IRepositoryUpdateService
             }
 
             _allowlist.Update(repositoryId, updated);
-            return RepositoryUpdateOutcome.Success(repositoryId);
+            return RepositoryUpdateOutcome.Success(repositoryId, updated, existing);
         }
         finally
         {
             _gate.Release();
         }
     }
+
+    /// <inheritdoc />
+    public async Task<RepositoryUpdateOutcome> UpdateSettingsAsync(
+        string repositoryId, RepositorySettingsChanges changes, CancellationToken cancellationToken,
+        Func<CancellationToken, Task>? revalidate = null, bool operationGateHeld = false)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+        string[] allowed = ["direct_push_branches", "protected_branches", "pull_branches", "tag_pattern",
+            "tag_target_branch", "require_clean_working_tree", "commit_author_name", "commit_author_email"];
+        if (!RepositoryId.IsLookupValid(repositoryId) || changes.Fields.Count == 0
+            || changes.Fields.Any(field => !allowed.Contains(field, StringComparer.Ordinal)))
+            return RepositoryUpdateOutcome.Failure(new BuckettieToolError(
+                "repository_settings_invalid", "Repository settings update is invalid."));
+        bool authorNameSpecified = changes.Fields.Contains("commit_author_name");
+        bool authorEmailSpecified = changes.Fields.Contains("commit_author_email");
+        if (authorNameSpecified != authorEmailSpecified
+            || (authorNameSpecified && !GitCommitAuthor.IsValid(changes.CommitAuthorName, changes.CommitAuthorEmail)))
+            return RepositoryUpdateOutcome.Failure(new BuckettieToolError(
+                "repository_settings_invalid", "Repository settings update is invalid."));
+        if (changes.Fields.Contains("tag_pattern")
+            && (changes.TagPattern is null || !TagPatternValidator.IsValid(changes.TagPattern)))
+            return RepositoryUpdateOutcome.Failure(new BuckettieToolError(
+                "repository_settings_invalid", "Repository settings update is invalid."));
+        if (changes.Fields.Contains("tag_target_branch") && string.IsNullOrWhiteSpace(changes.TagTargetBranch))
+            return RepositoryUpdateOutcome.Failure(new BuckettieToolError(
+                "repository_settings_invalid", "Repository settings update is invalid."));
+        if (changes.Fields.Contains("direct_push_branches") && changes.DirectPushBranches is null
+            || changes.Fields.Contains("protected_branches") && changes.ProtectedBranches is null
+            || changes.Fields.Contains("pull_branches") && changes.PullBranches is null
+            || changes.Fields.Contains("require_clean_working_tree") && changes.RequireCleanWorkingTree is null)
+            return RepositoryUpdateOutcome.Failure(new BuckettieToolError(
+                "repository_settings_invalid", "Repository settings update is invalid."));
+        bool acquiredGate = false;
+        if (!operationGateHeld)
+        {
+            if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
+                return RepositoryUpdateOutcome.Failure(BuckettieToolResultMapper.RegistrationInProgressError());
+            acquiredGate = true;
+        }
+        try
+        {
+            if (!_allowlist.TryGet(repositoryId, out RepositoryOptions? existing) || existing is null)
+                return RepositoryUpdateOutcome.Failure(BuckettieToolResultMapper.RegistrationValidationError(
+                    RepositoryValidationError.RepositoryNotRegistered));
+            RepositoryOptions updated = existing with
+            {
+                DirectPushBranches = changes.Fields.Contains("direct_push_branches") ? changes.DirectPushBranches! : existing.DirectPushBranches,
+                ProtectedBranches = changes.Fields.Contains("protected_branches") ? changes.ProtectedBranches! : existing.ProtectedBranches,
+                PullBranches = changes.Fields.Contains("pull_branches") ? changes.PullBranches! : existing.PullBranches,
+                TagPattern = changes.Fields.Contains("tag_pattern") ? changes.TagPattern! : existing.TagPattern,
+                TagTargetBranch = changes.Fields.Contains("tag_target_branch") ? changes.TagTargetBranch! : existing.TagTargetBranch,
+                RequireCleanWorkingTree = changes.Fields.Contains("require_clean_working_tree") ? changes.RequireCleanWorkingTree!.Value : existing.RequireCleanWorkingTree,
+                CommitAuthorName = authorNameSpecified ? changes.CommitAuthorName : existing.CommitAuthorName,
+                CommitAuthorEmail = authorEmailSpecified ? changes.CommitAuthorEmail : existing.CommitAuthorEmail,
+            };
+            ApprovalPromptRequest promptRequest = new(repositoryId, existing.Workspace, existing.Slug, existing.LocalRoot,
+                existing.Remote ?? BitbucketRemoteUrlValidator.RepositoryUrl(existing.Workspace, existing.Slug),
+                Operation: ApprovalOperation.Update);
+            ApprovalPromptOutcome approval = await _approvalPrompt.RequestApprovalAsync(promptRequest, ApprovalTimeout, cancellationToken)
+                .ConfigureAwait(false);
+            if (approval.Outcome != ApprovalOutcome.Approved)
+                return RepositoryUpdateOutcome.Failure(approval.Outcome == ApprovalOutcome.Denied
+                    ? new BuckettieToolError("repository_settings_approval_cancelled", "Repository settings approval was cancelled.")
+                    : BuckettieToolResultMapper.RegistrationApprovalError(approval.Outcome));
+            if (revalidate is not null) await revalidate(cancellationToken).ConfigureAwait(false);
+            if (!await _repositoryStore.UpdateAsync(repositoryId, updated, cancellationToken).ConfigureAwait(false))
+                return RepositoryUpdateOutcome.Failure(new BuckettieToolError(
+                    "repository_settings_write_failed", "Repository settings could not be saved."));
+            _allowlist.Update(repositoryId, updated);
+            return RepositoryUpdateOutcome.Success(repositoryId, updated, existing);
+        }
+        finally
+        {
+            if (acquiredGate) _gate.Release();
+        }
+    }
 }
 
 /// <summary>Repository修正要求の結果です。</summary>
-public sealed record RepositoryUpdateOutcome(bool IsSuccess, string? RepositoryId, BuckettieToolError? Error)
+public sealed record RepositoryUpdateOutcome(bool IsSuccess, string? RepositoryId, BuckettieToolError? Error,
+    RepositoryOptions? UpdatedOptions = null, RepositoryOptions? PreviousOptions = null)
 {
     /// <summary>成功結果を生成します。</summary>
-    public static RepositoryUpdateOutcome Success(string repositoryId) => new(true, repositoryId, null);
+    public static RepositoryUpdateOutcome Success(string repositoryId, RepositoryOptions? updated = null, RepositoryOptions? previous = null) =>
+        new(true, repositoryId, null, updated, previous);
 
     /// <summary>失敗結果を生成します。</summary>
     public static RepositoryUpdateOutcome Failure(BuckettieToolError error) => new(false, null, error);
