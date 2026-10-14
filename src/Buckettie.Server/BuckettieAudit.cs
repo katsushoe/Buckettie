@@ -310,4 +310,39 @@ internal sealed class AuditedRepositoryUpdateService(
             result.Error?.Code));
         return result;
     }
+
+    public async Task<RepositoryUpdateOutcome> UpdateSettingsAsync(
+        string repositoryId, RepositorySettingsChanges changes, CancellationToken cancellationToken,
+        Func<CancellationToken, Task>? revalidate = null, bool operationGateHeld = false)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        RepositoryUpdateOutcome result;
+        try
+        {
+            result = await inner.UpdateSettingsAsync(repositoryId, changes, cancellationToken, revalidate, operationGateHeld)
+                .ConfigureAwait(false);
+        }
+        catch (ModelContextProtocol.McpException exception)
+        {
+            audit.Write(new("bitbucket_repository_settings_update", repositoryId, null, null, null,
+                false, stopwatch.ElapsedMilliseconds, exception.Message));
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            audit.Write(new("bitbucket_repository_settings_update", repositoryId, null, null, null,
+                false, stopwatch.ElapsedMilliseconds, "cancelled"));
+            throw;
+        }
+        audit.Write(new(
+            "bitbucket_repository_settings_update",
+            repositoryId,
+            null,
+            null,
+            null,
+            result.IsSuccess,
+            stopwatch.ElapsedMilliseconds,
+            result.Error?.Code));
+        return result;
+    }
 }

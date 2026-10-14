@@ -78,6 +78,24 @@ public sealed record BuckettieRepositoryUnregistrationData(string RepositoryId);
 /// <summary>bitbucket_repository_update Toolの成功データです。</summary>
 public sealed record BuckettieRepositoryUpdateData(string RepositoryId, bool Approved);
 
+/// <summary>登録済みRepositoryの非秘密設定です。</summary>
+public sealed record BuckettieRepositorySettings(
+    [property: JsonPropertyName("direct_push_branches")] IReadOnlyList<string> DirectPushBranches,
+    [property: JsonPropertyName("protected_branches")] IReadOnlyList<string> ProtectedBranches,
+    [property: JsonPropertyName("pull_branches")] IReadOnlyList<string> PullBranches,
+    [property: JsonPropertyName("tag_pattern")] string TagPattern,
+    [property: JsonPropertyName("tag_target_branch")] string TagTargetBranch,
+    [property: JsonPropertyName("require_clean_working_tree")] bool RequireCleanWorkingTree,
+    [property: JsonPropertyName("commit_author_name")] string? CommitAuthorName,
+    [property: JsonPropertyName("commit_author_email")] string? CommitAuthorEmail);
+
+public sealed record BuckettieRepositorySettingsGetData(BuckettieRepositorySettings Settings);
+
+public sealed record BuckettieRepositorySettingsUpdateData(
+    BuckettieRepositorySettings Settings,
+    [property: JsonPropertyName("changed_fields")] IReadOnlyList<string> ChangedFields,
+    bool Approved);
+
 /// <summary>内部Gateway結果をMCP共通形式へ変換します。</summary>
 internal static class BuckettieToolResultMapper
 {

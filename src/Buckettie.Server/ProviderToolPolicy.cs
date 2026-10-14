@@ -23,12 +23,13 @@ public static class ProviderToolPolicy
     /// <summary>共通契約またはProvider固有Scopeを返します。</summary>
     public static string[]? Scopes(string tool) => tool switch
     {
-        "bitbucket_repository_status" or "bitbucket_repository_diff" or "bitbucket_branch_list"
+        "bitbucket_repository_status" or "bitbucket_repository_diff" or "bitbucket_repository_settings_get" or "bitbucket_branch_list"
             or "bitbucket_repository_stash_list"
             or "bitbucket_branch_get" or "bitbucket_tag_list" or "bitbucket_tag_get"
             or "bitbucket_pr_list" or "bitbucket_pr_get" or "bitbucket_pr_diff"
             or "buckettie_release_get" or "bitbucket_history_rewrite_preview" => ["repository.read"],
         "bitbucket_repository_commit" or "bitbucket_repository_commit_selected" => ["repository.commit"],
+        "bitbucket_repository_settings_update" => ["repository.settings.write"],
         "bitbucket_repository_stash_push" or "bitbucket_repository_stash_apply" or "bitbucket_repository_stash_drop"
             => ["repository.stash.write"],
         "bitbucket_push" => ["repository.push"],

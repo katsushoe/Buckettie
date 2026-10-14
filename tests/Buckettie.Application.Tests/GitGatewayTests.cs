@@ -344,6 +344,51 @@ public sealed class GitGatewayTests
     }
 
     [Fact]
+    public async Task CommitAsync_WhenBranchHasNoHead_CreatesItsFirstCommit()
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("develop"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("?? README.md"));
+        _git.StageAllAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+        ConfigureGitAuthor("Repository User", "user@example.com");
+        _git.CommitAsync(RepositoryRoot, "feat: initial", Arg.Any<GitCommitAuthor>(), Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+        _git.GetHeadAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("1111111111111111111111111111111111111111\n"));
+
+        GitGatewayResult result = await CreateGateway().CommitAsync(
+            "buckettie", "feat: initial", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Branch.Should().Be("develop");
+        result.CommitHash.Should().Be("1111111111111111111111111111111111111111");
+        await _git.Received(1).StageAllAsync(RepositoryRoot, Arg.Any<CancellationToken>());
+        await _git.Received(1).CommitAsync(RepositoryRoot, "feat: initial",
+            new GitCommitAuthor("Repository User", "user@example.com"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PushAsync_WhenCleanCurrentBranchIsAllowed_PushesWithoutRequiringRemoteBranchReference()
+    {
+        ConfigureBoundary();
+        _git.GetCurrentBranchAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success("develop"));
+        _git.GetStatusAsync(RepositoryRoot, Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+        _git.PushAsync(RepositoryRoot, "origin", "develop", "buckettie", Arg.Any<CancellationToken>())
+            .Returns(GitCommandResult.Success());
+
+        GitGatewayResult result = await CreateGateway().PushAsync("buckettie", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Branch.Should().Be("develop");
+        await _git.Received(1).PushAsync(RepositoryRoot, "origin", "develop", "buckettie", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CommitAsync_WithRegisteredAuthor_UsesItWithoutReadingGitConfig()
     {
         GitGateway gateway = CreateGateway(CreateRepository() with

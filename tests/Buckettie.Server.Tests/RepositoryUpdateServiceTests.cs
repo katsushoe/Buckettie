@@ -181,6 +181,80 @@ public sealed class RepositoryUpdateServiceTests
         stored.TagTargetBranch.Should().Be("release");
     }
 
+    [Fact]
+    public async Task UpdateSettingsAsync_AuthorOnlyChangePreservesOmittedFieldsAndRevalidatesAfterApproval()
+    {
+        Guid project = Guid.NewGuid();
+        RepositoryOptions original = CreateRepository() with
+        {
+            RequireCleanWorkingTree = false,
+            CommitAuthorName = "Old Author",
+            CommitAuthorEmail = "old@example.invalid",
+            MoyaiProjectId = project,
+            HistoryRewriteBranches = ["develop"],
+        };
+        RepositoryAllowlist allowlist = new(new BuckettieOptions
+        {
+            AtlassianEmail = "developer@example.com",
+            BitbucketUsername = "developer",
+            Repositories = new Dictionary<string, RepositoryOptions> { ["buckettie"] = original },
+        });
+        FakeRepositoryStore store = new();
+        await store.InsertAsync("buckettie", original, TestContext.Current.CancellationToken);
+        _approvalPrompt.RequestApprovalAsync(Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ApprovalPromptOutcome.Approved());
+        RepositoryUpdateService service = new(allowlist, store, _approvalPrompt, new RepositoryMutationGate());
+        bool revalidated = false;
+        RepositorySettingsChanges changes = new(new HashSet<string> { "commit_author_name", "commit_author_email" },
+            CommitAuthorName: "New Author", CommitAuthorEmail: "new@example.invalid");
+
+        RepositoryUpdateOutcome outcome = await service.UpdateSettingsAsync("buckettie", changes,
+            TestContext.Current.CancellationToken, _ => { revalidated = true; return Task.CompletedTask; });
+
+        outcome.IsSuccess.Should().BeTrue();
+        revalidated.Should().BeTrue();
+        RepositoryOptions stored = (await store.LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"];
+        stored.RequireCleanWorkingTree.Should().BeFalse();
+        stored.DirectPushBranches.Should().BeEquivalentTo(original.DirectPushBranches);
+        stored.PullBranches.Should().BeEquivalentTo(original.PullBranches);
+        stored.ProtectedBranches.Should().BeEquivalentTo(original.ProtectedBranches);
+        stored.TagPattern.Should().Be(original.TagPattern);
+        stored.TagTargetBranch.Should().Be(original.TagTargetBranch);
+        stored.HistoryRewriteBranches.Should().BeEquivalentTo(original.HistoryRewriteBranches);
+        stored.MoyaiProjectId.Should().Be(project);
+        stored.CommitAuthorName.Should().Be("New Author");
+        stored.CommitAuthorEmail.Should().Be("new@example.invalid");
+        outcome.PreviousOptions.Should().BeEquivalentTo(original);
+        outcome.UpdatedOptions.Should().BeEquivalentTo(stored);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenApprovalIsDeniedDoesNotWriteOrChangeAllowlist()
+    {
+        RepositoryOptions original = CreateRepository() with { RequireCleanWorkingTree = false };
+        RepositoryAllowlist allowlist = new(new BuckettieOptions
+        {
+            AtlassianEmail = "developer@example.com",
+            BitbucketUsername = "developer",
+            Repositories = new Dictionary<string, RepositoryOptions> { ["buckettie"] = original },
+        });
+        FakeRepositoryStore store = new();
+        await store.InsertAsync("buckettie", original, TestContext.Current.CancellationToken);
+        _approvalPrompt.RequestApprovalAsync(Arg.Any<ApprovalPromptRequest>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ApprovalPromptOutcome.Denied());
+        RepositoryUpdateService service = new(allowlist, store, _approvalPrompt, new RepositoryMutationGate());
+
+        RepositoryUpdateOutcome outcome = await service.UpdateSettingsAsync("buckettie",
+            new(new HashSet<string> { "require_clean_working_tree" }, RequireCleanWorkingTree: true),
+            TestContext.Current.CancellationToken);
+
+        outcome.IsSuccess.Should().BeFalse();
+        outcome.Error!.Code.Should().Be("repository_settings_approval_cancelled");
+        allowlist.TryGet("buckettie", out RepositoryOptions? current).Should().BeTrue();
+        current.Should().BeEquivalentTo(original);
+        (await store.LoadAllAsync(TestContext.Current.CancellationToken))["buckettie"].Should().BeEquivalentTo(original);
+    }
+
     [Theory]
     [InlineData("Only Name", null)]
     [InlineData(null, "only@example.com")]

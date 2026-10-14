@@ -17,6 +17,8 @@ public sealed class BuckettieMcpToolsTests
         "get_version",
         "list_projects",
         "bitbucket_provider_capabilities",
+        "bitbucket_repository_settings_get",
+        "bitbucket_repository_settings_update",
         "bitbucket_repository_status",
         "bitbucket_repository_diff",
         "buckettie_branch_switch",
@@ -113,6 +115,7 @@ public sealed class BuckettieMcpToolsTests
             "bitbucket_push",
             "bitbucket_repository_commit",
             "bitbucket_repository_commit_selected",
+            "bitbucket_repository_settings_update",
             "bitbucket_repository_stash_push",
             "bitbucket_repository_stash_apply",
             "bitbucket_repository_stash_drop",
@@ -472,6 +475,133 @@ public sealed class BuckettieMcpToolsTests
     }
 
     [Fact]
+    public async Task GetRepositorySettingsAsync_ReturnsRegisteredNonSecretValuesWithoutCallingGitOrBitbucket()
+    {
+        BuckettieOptions options = CreateOptions();
+        RepositoryOptions registered = CreateRepository("alpha") with
+        {
+            CommitAuthorName = "Registered Author",
+            CommitAuthorEmail = "author@example.invalid",
+        };
+        options = options with { Repositories = new Dictionary<string, RepositoryOptions> { ["alpha"] = registered } };
+        RepositoryAllowlist allowlist = new(options);
+        CapturingRepositoryUpdateService update = new(allowlist);
+        BuckettieMcpTools tools = CreateTools(options, update, allowlist);
+
+        BuckettieToolResult<BuckettieRepositorySettingsGetData> result = await tools.GetRepositorySettingsAsync("alpha");
+
+        result.Ok.Should().BeTrue();
+        result.Data!.Settings.CommitAuthorName.Should().Be("Registered Author");
+        result.Data.Settings.CommitAuthorEmail.Should().Be("author@example.invalid");
+        result.Data.Settings.RequireCleanWorkingTree.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateRepositorySettingsAsync_AuthorOnlyPreservesOmittedPoliciesIncludingExplicitFalse()
+    {
+        BuckettieOptions options = CreateOptions();
+        RepositoryOptions registered = CreateRepository("alpha") with
+        {
+            RequireCleanWorkingTree = false,
+            CommitAuthorName = "Old Author",
+            CommitAuthorEmail = "old@example.invalid",
+        };
+        options = options with { Repositories = new Dictionary<string, RepositoryOptions> { ["alpha"] = registered } };
+        RepositoryAllowlist allowlist = new(options);
+        CapturingRepositoryUpdateService update = new(allowlist);
+        BuckettieMcpTools tools = CreateTools(options, update, allowlist);
+        using JsonDocument changes = JsonDocument.Parse("""{"commit_author_name":"New Author","commit_author_email":"new@example.invalid"}""");
+
+        BuckettieToolResult<BuckettieRepositorySettingsUpdateData> result = await tools.UpdateRepositorySettingsAsync(
+            "alpha", changes.RootElement, TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeTrue();
+        update.Request.Should().NotBeNull();
+        update.Request!.DirectPushBranches.Should().BeEquivalentTo(registered.DirectPushBranches);
+        update.Request.PullBranches.Should().BeEquivalentTo(registered.PullBranches);
+        update.Request.ProtectedBranches.Should().BeEquivalentTo(registered.ProtectedBranches);
+        update.Request.TagPattern.Should().Be(registered.TagPattern);
+        update.Request.TagTargetBranch.Should().Be(registered.TagTargetBranch);
+        update.Request.RequireCleanWorkingTree.Should().BeFalse();
+        update.Request.CommitAuthorName.Should().Be("New Author");
+        update.Request.CommitAuthorEmail.Should().Be("new@example.invalid");
+    }
+
+    [Fact]
+    public async Task UpdateRepositorySettingsAsync_HalfAuthorPairRejectsBeforeApprovalOrWrite()
+    {
+        BuckettieOptions options = CreateOptions();
+        RepositoryAllowlist allowlist = new(options);
+        CapturingRepositoryUpdateService update = new(allowlist);
+        BuckettieMcpTools tools = CreateTools(options, update, allowlist);
+        using JsonDocument changes = JsonDocument.Parse("""{"commit_author_name":"New Author"}""");
+
+        BuckettieToolResult<BuckettieRepositorySettingsUpdateData> result = await tools.UpdateRepositorySettingsAsync(
+            "alpha", changes.RootElement, TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeFalse();
+        result.Error!.Code.Should().Be("repository_settings_invalid");
+        update.Request.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateRepositorySettingsAsync_ExplicitFalseAndEmptyArrayAreNotTreatedAsOmitted()
+    {
+        BuckettieOptions options = CreateOptions();
+        RepositoryAllowlist allowlist = new(options);
+        CapturingRepositoryUpdateService update = new(allowlist);
+        BuckettieMcpTools tools = CreateTools(options, update, allowlist);
+        using JsonDocument changes = JsonDocument.Parse("""{"require_clean_working_tree":false,"direct_push_branches":[]}""");
+
+        BuckettieToolResult<BuckettieRepositorySettingsUpdateData> result = await tools.UpdateRepositorySettingsAsync(
+            "alpha", changes.RootElement, TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeTrue();
+        update.Request!.RequireCleanWorkingTree.Should().BeFalse();
+        update.Request.DirectPushBranches.Should().BeEmpty();
+        result.Data!.ChangedFields.Should().Contain("require_clean_working_tree");
+        result.Data.ChangedFields.Should().Contain("direct_push_branches");
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"tag_pattern\":null}")]
+    [InlineData("{\"unknown\":true}")]
+    [InlineData("{\"require_clean_working_tree\":\"false\"}")]
+    public async Task UpdateRepositorySettingsAsync_InvalidChangesRejectBeforeCallingUpdate(string json)
+    {
+        BuckettieOptions options = CreateOptions();
+        RepositoryAllowlist allowlist = new(options);
+        CapturingRepositoryUpdateService update = new(allowlist);
+        BuckettieMcpTools tools = CreateTools(options, update, allowlist);
+        using JsonDocument changes = JsonDocument.Parse(json);
+
+        BuckettieToolResult<BuckettieRepositorySettingsUpdateData> result = await tools.UpdateRepositorySettingsAsync(
+            "alpha", changes.RootElement, TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeFalse();
+        result.Error!.Code.Should().Be("repository_settings_invalid");
+        update.Request.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateRepositorySettingsAsync_UnknownRepositoryRejectsWithoutUpdate()
+    {
+        BuckettieOptions options = CreateOptions();
+        RepositoryAllowlist allowlist = new(options);
+        CapturingRepositoryUpdateService update = new(allowlist);
+        BuckettieMcpTools tools = CreateTools(options, update, allowlist);
+        using JsonDocument changes = JsonDocument.Parse("""{"require_clean_working_tree":false}""");
+
+        BuckettieToolResult<BuckettieRepositorySettingsUpdateData> result = await tools.UpdateRepositorySettingsAsync(
+            "missing", changes.RootElement, TestContext.Current.CancellationToken);
+
+        result.Ok.Should().BeFalse();
+        result.Error!.Code.Should().Be("repository_not_registered");
+        update.Request.Should().BeNull();
+    }
+
+    [Fact]
     public async Task MapGitAsync_WhenPushRepositoryIsUnknown_ReturnsProjectCandidates()
     {
         GitGatewayResult gatewayResult = GitGatewayResult.Failure(
@@ -497,6 +627,19 @@ public sealed class BuckettieMcpToolsTests
         TagTargetBranch = "main",
         TagPattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+.*$",
     };
+
+    private static BuckettieOptions CreateOptions() => new()
+    {
+        AtlassianEmail = "developer@example.com",
+        BitbucketUsername = "developer",
+        Repositories = new Dictionary<string, RepositoryOptions> { ["alpha"] = CreateRepository("alpha") },
+    };
+
+    private static BuckettieMcpTools CreateTools(BuckettieOptions options, IRepositoryUpdateService update,
+        RepositoryAllowlist? allowlist = null) => new(
+            new UnusedGitGateway(), new UnusedBitbucketRepositoryGateway(),
+            new UnusedRepositoryRegistrationService(), new UnusedRepositoryUnregistrationService(),
+            update, options, allowlist ?? new RepositoryAllowlist(options));
 
     [Theory]
     [InlineData(false, "standalone")]
@@ -552,6 +695,8 @@ public sealed class BuckettieMcpToolsTests
             new KeyValuePair<string, bool>("repository_stash_list", true),
             new KeyValuePair<string, bool>("repository_stash_apply", true),
             new KeyValuePair<string, bool>("repository_stash_drop", true),
+            new KeyValuePair<string, bool>("repository_settings_read", true),
+            new KeyValuePair<string, bool>("repository_settings_update", true),
         ]);
     }
 
@@ -710,6 +855,11 @@ public sealed class BuckettieMcpToolsTests
         public Task<RepositoryUpdateOutcome> UpdateAsync(
             string repositoryId, RepositoryUpdateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<RepositoryUpdateOutcome> UpdateSettingsAsync(
+            string repositoryId, RepositorySettingsChanges changes, CancellationToken cancellationToken,
+            Func<CancellationToken, Task>? revalidate = null, bool operationGateHeld = false) =>
+            throw new NotSupportedException();
     }
 
     private sealed class StubRepositoryUnregistrationService(RepositoryUnregistrationOutcome outcome)
@@ -724,5 +874,45 @@ public sealed class BuckettieMcpToolsTests
         public Task<RepositoryUpdateOutcome> UpdateAsync(
             string repositoryId, RepositoryUpdateRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(outcome);
+
+        public Task<RepositoryUpdateOutcome> UpdateSettingsAsync(
+            string repositoryId, RepositorySettingsChanges changes, CancellationToken cancellationToken,
+            Func<CancellationToken, Task>? revalidate = null, bool operationGateHeld = false) =>
+            Task.FromResult(outcome);
+    }
+
+    private sealed class CapturingRepositoryUpdateService(RepositoryAllowlist allowlist) : IRepositoryUpdateService
+    {
+        public RepositoryUpdateRequest? Request { get; private set; }
+
+        public Task<RepositoryUpdateOutcome> UpdateAsync(string repositoryId, RepositoryUpdateRequest request,
+            CancellationToken cancellationToken)
+        {
+            Request = request;
+            return Task.FromResult(RepositoryUpdateOutcome.Success(repositoryId));
+        }
+
+        public Task<RepositoryUpdateOutcome> UpdateSettingsAsync(string repositoryId, RepositorySettingsChanges changes,
+            CancellationToken cancellationToken, Func<CancellationToken, Task>? revalidate = null, bool operationGateHeld = false)
+        {
+            if (!allowlist.TryGet(repositoryId, out RepositoryOptions? previous) || previous is null)
+                return Task.FromResult(RepositoryUpdateOutcome.Failure(new("repository_not_registered", "not found")));
+            RepositoryOptions updated = previous with
+            {
+                DirectPushBranches = changes.DirectPushBranches ?? previous.DirectPushBranches,
+                ProtectedBranches = changes.ProtectedBranches ?? previous.ProtectedBranches,
+                PullBranches = changes.PullBranches ?? previous.PullBranches,
+                TagPattern = changes.TagPattern ?? previous.TagPattern,
+                TagTargetBranch = changes.TagTargetBranch ?? previous.TagTargetBranch,
+                RequireCleanWorkingTree = changes.RequireCleanWorkingTree ?? previous.RequireCleanWorkingTree,
+                CommitAuthorName = changes.Fields.Contains("commit_author_name") ? changes.CommitAuthorName : previous.CommitAuthorName,
+                CommitAuthorEmail = changes.Fields.Contains("commit_author_email") ? changes.CommitAuthorEmail : previous.CommitAuthorEmail,
+            };
+            Request = new(updated.DirectPushBranches, updated.PullBranches, updated.ProtectedBranches,
+                updated.TagTargetBranch, updated.TagPattern, updated.RequireCleanWorkingTree,
+                CommitAuthorName: changes.CommitAuthorName, CommitAuthorEmail: changes.CommitAuthorEmail);
+            allowlist.Update(repositoryId, updated);
+            return Task.FromResult(RepositoryUpdateOutcome.Success(repositoryId, updated, previous));
+        }
     }
 }

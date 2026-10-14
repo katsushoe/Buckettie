@@ -105,7 +105,7 @@ certificate. A failed certificate or assertion never falls back to the loopback 
 
 Direct read access: a `tools/call` without an `Authorization` header that arrives from a loopback address on
 `mcp_port` may invoke `list_projects` and any tool whose scope mapping is exactly `repository.read`
-(status, diff, branch/tag/pull-request/release reads, history rewrite preview). This follows the Moyai
+(status, diff, repository settings, branch/tag/pull-request/release reads, history rewrite preview). This follows the Moyai
 consumer contract section "既存Tokenと直接接続" (2026-09-24) and works even when `provider_authentication` is
 not configured. A request that presents an assertion is always fully validated and never falls back to this
 direct-read allowance. The gateway also refuses any non-read operation during a direct-read request.
@@ -114,6 +114,11 @@ In Moyai integration mode, all other repository calls, including `bitbucket_fetc
 every change tool, need an operation-specific Moyai assertion even from direct Codex/Claude/CLI connections. These clients must use Moyai
 for such operations; there is no CLI token argument or copied assertion workflow. Administrative certificates
 cannot authorize push, commit or release tools.
+
+Repository settings use `bitbucket_repository_settings_get` (`repository.read`) and
+`bitbucket_repository_settings_update` (`repository.settings.write`). The latter is project-bound and still
+requires the interactive desktop approval; normal commit/push scopes do not authorize it. See
+[Repository settings contract](repository-settings.md) for fields, partial-update semantics, and examples.
 
 Moyai sends the assertion only in `Authorization: Bearer ...` on `tools/call`, together with the public
 `X-Moyai-Operation-Id` (1–200 ASCII letters/digits, `-`, `_`, `.`). It must use the exact scope set advertised
