@@ -36,6 +36,47 @@ public sealed class ProviderAuthenticationTests
     }
 
     [Theory]
+    [InlineData("bitbucket_repository_settings_get", "repository.read")]
+    [InlineData("bitbucket_repository_settings_update", "repository.settings.write")]
+    public async Task Boundary_RepositorySettingsToolsRequireTheirDedicatedScopes(string tool, string scope)
+    {
+        using Fixture fixture = new();
+        ProviderAuthenticationBoundary boundary = await fixture.CreateAsync();
+        string assertion = fixture.Sign(new() { ["scope"] = new[] { scope } });
+        bool called = false;
+
+        await boundary.InvokeAsync(fixture.Request(assertion, tool), _ => { called = true; return Task.CompletedTask; });
+
+        called.Should().BeTrue();
+        ProviderToolPolicy.Capability.ToolScopes[tool].Should().Equal(scope);
+    }
+
+    [Fact]
+    public async Task Boundary_RepositorySettingsUpdateRejectsCommitScope()
+    {
+        using Fixture fixture = new();
+        ProviderAuthenticationBoundary boundary = await fixture.CreateAsync();
+        string assertion = fixture.Sign(new() { ["scope"] = new[] { "repository.commit" } });
+
+        await AssertRejected(boundary, fixture.Request(assertion, "bitbucket_repository_settings_update"), "auth_scope_denied", assertion);
+    }
+
+    [Fact]
+    public async Task Boundary_RepositorySettingsUpdateRejectsMismatchedProject()
+    {
+        using Fixture fixture = new();
+        ProviderAuthenticationBoundary boundary = await fixture.CreateAsync();
+        string assertion = fixture.Sign(new()
+        {
+            ["scope"] = new[] { "repository.settings.write" },
+            ["project"] = "22222222-2222-4222-8222-222222222222",
+        });
+
+        await AssertRejected(boundary, fixture.Request(assertion, "bitbucket_repository_settings_update"),
+            "auth_project_mismatch", assertion);
+    }
+
+    [Theory]
     [InlineData("aud", "githubie", "auth_audience_mismatch")]
     [InlineData("prv", "githubie", "auth_audience_mismatch")]
     [InlineData("iss", "moyai:other", "auth_assertion_invalid")]
@@ -396,6 +437,8 @@ public sealed class ProviderAuthenticationTests
     [InlineData("list_projects", true)]
     [InlineData("bitbucket_repository_status", true)]
     [InlineData("bitbucket_repository_diff", true)]
+    [InlineData("bitbucket_repository_settings_get", true)]
+    [InlineData("bitbucket_repository_settings_update", false)]
     [InlineData("bitbucket_pr_diff", true)]
     [InlineData("buckettie_release_get", true)]
     [InlineData("bitbucket_history_rewrite_preview", true)]
@@ -412,6 +455,7 @@ public sealed class ProviderAuthenticationTests
 
     [Theory]
     [InlineData("bitbucket_repository_status")]
+    [InlineData("bitbucket_repository_settings_get")]
     [InlineData("list_projects")]
     public async Task Boundary_DirectLoopbackReadWithoutAssertion_Dispatches(string tool)
     {
@@ -439,6 +483,7 @@ public sealed class ProviderAuthenticationTests
     [InlineData("bitbucket_fetch")]
     [InlineData("bitbucket_pull")]
     [InlineData("bitbucket_repository_commit")]
+    [InlineData("bitbucket_repository_settings_update")]
     [InlineData("buckettie_release_publish")]
     public async Task Boundary_StandaloneWithoutMoyai_DispatchesChangeTools(string tool)
     {

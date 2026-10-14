@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Buckettie.Application.Configuration;
 using NSubstitute;
 using Xunit;
 
@@ -45,5 +46,29 @@ public sealed class AuditedRepositoryUpdateServiceTests
 
         _audit.Received(1).Write(Arg.Is<BuckettieAuditEvent>(auditEvent =>
             !auditEvent.IsSuccess && auditEvent.ErrorCode == "approval_denied"));
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenSuccessful_WritesSettingsToolAuditEvent()
+    {
+        RepositoryOptions options = new()
+        {
+            Workspace = "workspace", Slug = "buckettie", LocalRoot = "root", DevelopBranch = "develop",
+            MainBranch = "main", DirectPushBranches = ["develop"], PullBranches = ["develop"],
+            ProtectedBranches = ["main"], TagTargetBranch = "main", TagPattern = "^v.*$",
+        };
+        RepositoryUpdateOutcome outcome = RepositoryUpdateOutcome.Success("buckettie", options, options);
+        RepositorySettingsChanges changes = new(new HashSet<string> { "require_clean_working_tree" },
+            RequireCleanWorkingTree: false);
+        _inner.UpdateSettingsAsync("buckettie", changes, Arg.Any<CancellationToken>(),
+            Arg.Any<Func<CancellationToken, Task>?>(), Arg.Any<bool>()).Returns(outcome);
+        AuditedRepositoryUpdateService service = new(_inner, _audit);
+
+        await service.UpdateSettingsAsync("buckettie", changes, TestContext.Current.CancellationToken);
+
+        _audit.Received(1).Write(Arg.Is<BuckettieAuditEvent>(auditEvent =>
+            auditEvent.Tool == "bitbucket_repository_settings_update"
+            && auditEvent.Repository == "buckettie"
+            && auditEvent.IsSuccess));
     }
 }
