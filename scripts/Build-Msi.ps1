@@ -1,6 +1,6 @@
 param(
-    [string]$DisplayVersion = '1.3.40.0',
-    [string]$ProductVersion = '1.3.4000',
+    [string]$DisplayVersion = '1.3.41.0',
+    [string]$ProductVersion = '1.3.4100',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$BuildWorkDirectory = '.local\installer',
     [switch]$NoRestore

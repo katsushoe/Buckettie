@@ -1,3 +1,13 @@
+# Release 1.3.41.0
+
+Release date: 2026-10-14
+
+- Adds `bitbucket_repository_settings_get` for reading non-secret settings and `bitbucket_repository_settings_update` for policy and commit-author updates with dedicated Moyai authorization, interactive approval, and audited persistence.
+- Settings responses exclude tokens, passwords, private keys, encrypted credentials, and resolved local Git author values.
+- Validation: 16/16 repository-settings tests passed; Windows x64 MSI build completed with 0 warnings and 0 errors.
+- Upgrade to `C:\Buckettie`: installer succeeded; service, CLI, and MCP report 1.3.41.0. Existing repository configuration and service options were preserved.
+- Windows x64 MSI is unsigned.
+- MSI SHA-256: `D54304AEB1E93566182AF52E12483AEC7060A9A202EB3251CD3E62A19B78EBD8`.
 # Release 1.3.39.0
 
 Physical-machine validation date: 2026-10-06. GitHub publication is pending final approval.
