@@ -1,9 +1,11 @@
 ﻿using System.ComponentModel;
+using System.Text.Json;
 using Buckettie.Application.Bitbucket;
 using Buckettie.Application.Configuration;
 using Buckettie.Application.Git;
 using Buckettie.Application.Repositories;
 using ModelContextProtocol.Server;
+using Microsoft.AspNetCore.Http;
 
 namespace Buckettie.Server;
 
@@ -21,6 +23,7 @@ public sealed class BuckettieMcpTools
     private readonly RepositoryAllowlist? _allowlist;
     private readonly string _language;
     private readonly ProviderIntegrationMode _integration;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     /// <summary>MCP Toolを初期化します。</summary>
     public BuckettieMcpTools(
@@ -31,7 +34,8 @@ public sealed class BuckettieMcpTools
         IRepositoryUpdateService update,
         BuckettieOptions? options = null,
         RepositoryAllowlist? allowlist = null,
-        ProviderIntegrationMode? integration = null)
+        ProviderIntegrationMode? integration = null,
+        IHttpContextAccessor? httpContextAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(git);
         ArgumentNullException.ThrowIfNull(bitbucket);
@@ -46,6 +50,7 @@ public sealed class BuckettieMcpTools
         _allowlist = allowlist;
         _language = options?.Language ?? "en-US";
         _integration = integration ?? new ProviderIntegrationMode(false);
+        _httpContextAccessor = httpContextAccessor;
     }
 
     /// <summary>稼働中のBuckettieバージョンを取得します。</summary>
@@ -117,6 +122,8 @@ public sealed class BuckettieMcpTools
             ["repository_stash_list"] = true,
             ["repository_stash_apply"] = true,
             ["repository_stash_drop"] = true,
+            ["repository_settings_read"] = true,
+            ["repository_settings_update"] = true,
             ["history_rewrite_preview"] = true,
             ["history_rewrite_execute"] = true,
             ["force_push_with_lease"] = true,
@@ -131,6 +138,111 @@ public sealed class BuckettieMcpTools
                 RemoteResolution: new RemoteResolutionCapabilities(
                     GitRemoteResolver.ContractVersion, GitRemoteResolver.ContractMode)),
             null));
+    }
+
+    /// <summary>Repositoryの非秘密登録設定を読み取ります。GitやBitbucketには接続しません。</summary>
+    [McpServerTool(Name = "bitbucket_repository_settings_get", ReadOnly = true, Destructive = false,
+        Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("登録済みRepositoryの非秘密設定を読み取ります。作者nullは登録作者未設定を示します。Git状態やBitbucketへアクセスしません。 / Reads non-secret registered repository settings; null author values mean no registered author. Does not access Git state or Bitbucket.")]
+    public Task<BuckettieToolResult<BuckettieRepositorySettingsGetData>> GetRepositorySettingsAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository)
+    {
+        if (!RepositoryId.IsLookupValid(repository) || _allowlist is null
+            || !_allowlist.TryGet(repository, out RepositoryOptions? options) || options is null)
+            return Task.FromResult(new BuckettieToolResult<BuckettieRepositorySettingsGetData>(false,
+                "repository_settings_get", repository, null,
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.RepositoryNotRegistered)));
+        return Task.FromResult(new BuckettieToolResult<BuckettieRepositorySettingsGetData>(true,
+            "repository_settings_get", repository, new(ToPublicSettings(options)), null));
+    }
+
+    /// <summary>登録済みRepository設定を明示項目だけ部分更新します。対話承認が必須です。</summary>
+    [McpServerTool(Name = "bitbucket_repository_settings_update", ReadOnly = false, Destructive = true,
+        Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("非秘密の登録設定を指定項目だけ部分更新します。省略は保持、null/未知項目/空changesは拒否し、作者名とメールは同時指定します。対話承認が必須です。 / Partially updates specified non-secret registration settings. Omitted fields are preserved; null, unknown fields, and empty changes are rejected. Author name and email must be supplied together. Interactive approval is required.")]
+    public async Task<BuckettieToolResult<BuckettieRepositorySettingsUpdateData>> UpdateRepositorySettingsAsync(
+        [Description("BuckettieリポジトリID。 / Buckettie repository ID.")] string repository,
+        [Description("更新するsnake_case設定項目のJSONオブジェクト。省略項目は保持されます。 / JSON object of snake_case settings to update; omitted fields are preserved.")] JsonElement changes,
+        CancellationToken cancellationToken = default)
+    {
+        const string operation = "repository_settings_update";
+        BuckettieToolError invalid = new("repository_settings_invalid", "Repository settings update is invalid.",
+            "Specify a non-empty object containing only supported non-null settings; author fields must be a valid pair.");
+        if (!RepositoryId.IsLookupValid(repository) || _allowlist is null
+            || !_allowlist.TryGet(repository, out RepositoryOptions? existing) || existing is null)
+            return new(false, operation, repository, null,
+                BuckettieToolResultMapper.RegistrationValidationError(RepositoryValidationError.RepositoryNotRegistered));
+        if (changes.ValueKind != JsonValueKind.Object || !changes.EnumerateObject().Any())
+            return new(false, operation, repository, null, invalid);
+
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        HashSet<string>? direct = null, pull = null, protect = null;
+        string? tagPattern = null, tagTarget = null, authorName = null, authorEmail = null;
+        bool? clean = null;
+        bool nameSpecified = false, emailSpecified = false;
+        foreach (JsonProperty property in changes.EnumerateObject())
+        {
+            if (!seen.Add(property.Name) || property.Value.ValueKind == JsonValueKind.Null)
+                return new(false, operation, repository, null, invalid);
+            switch (property.Name)
+            {
+                case "direct_push_branches": if (!TryReadStringSet(property.Value, out direct)) return new(false, operation, repository, null, invalid); break;
+                case "protected_branches": if (!TryReadStringSet(property.Value, out protect)) return new(false, operation, repository, null, invalid); break;
+                case "pull_branches": if (!TryReadStringSet(property.Value, out pull)) return new(false, operation, repository, null, invalid); break;
+                case "tag_pattern": if (property.Value.ValueKind != JsonValueKind.String || property.Value.GetString() is not { Length: > 0 } p) return new(false, operation, repository, null, invalid); tagPattern = p; break;
+                case "tag_target_branch": if (property.Value.ValueKind != JsonValueKind.String || property.Value.GetString() is not { Length: > 0 } b) return new(false, operation, repository, null, invalid); tagTarget = b; break;
+                case "require_clean_working_tree": if (property.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return new(false, operation, repository, null, invalid); clean = property.Value.GetBoolean(); break;
+                case "commit_author_name": if (property.Value.ValueKind != JsonValueKind.String) return new(false, operation, repository, null, invalid); authorName = property.Value.GetString(); nameSpecified = true; break;
+                case "commit_author_email": if (property.Value.ValueKind != JsonValueKind.String) return new(false, operation, repository, null, invalid); authorEmail = property.Value.GetString(); emailSpecified = true; break;
+                default: return new(false, operation, repository, null, invalid);
+            }
+        }
+        if (nameSpecified != emailSpecified || (nameSpecified && !GitCommitAuthor.IsValid(authorName, authorEmail)))
+            return new(false, operation, repository, null, invalid);
+
+        RepositoryUpdateOutcome result = await _update.UpdateSettingsAsync(repository,
+            new(seen, direct, protect, pull, tagPattern, tagTarget, clean,
+                nameSpecified ? authorName : null, emailSpecified ? authorEmail : null), cancellationToken,
+            token => ProviderAuthenticationBoundary.EnsureCurrentAsync(_httpContextAccessor?.HttpContext, operation),
+            ProviderAuthenticationBoundary.IsOperationGateHeld(_httpContextAccessor?.HttpContext))
+            .ConfigureAwait(false);
+        if (!result.IsSuccess)
+            return new(false, operation, repository, null, BuckettieToolResultMapper.Localize(result.Error!, _language));
+        if (result.UpdatedOptions is not { } updated || result.PreviousOptions is not { } previous)
+            return new(false, operation, repository, null, new("repository_settings_write_failed", "Repository settings could not be read after update."));
+        BuckettieRepositorySettings next = ToPublicSettings(updated);
+        return new(true, operation, repository,
+            new(next, ChangedFields(ToPublicSettings(previous), next), true), null);
+    }
+
+    private static BuckettieRepositorySettings ToPublicSettings(RepositoryOptions options) => new(
+        options.DirectPushBranches.Order(StringComparer.Ordinal).ToArray(),
+        options.ProtectedBranches.Order(StringComparer.Ordinal).ToArray(),
+        options.PullBranches.Order(StringComparer.Ordinal).ToArray(),
+        options.TagPattern, options.TagTargetBranch, options.RequireCleanWorkingTree,
+        options.CommitAuthorName, options.CommitAuthorEmail);
+
+    private static bool TryReadStringSet(JsonElement value, out HashSet<string> values)
+    {
+        values = new(StringComparer.Ordinal);
+        if (value.ValueKind != JsonValueKind.Array) return false;
+        foreach (JsonElement item in value.EnumerateArray())
+            if (item.ValueKind != JsonValueKind.String || item.GetString() is not { Length: > 0 } text || !values.Add(text)) return false;
+        return true;
+    }
+
+    private static IReadOnlyList<string> ChangedFields(BuckettieRepositorySettings before, BuckettieRepositorySettings after)
+    {
+        List<string> changed = [];
+        if (!before.DirectPushBranches.SequenceEqual(after.DirectPushBranches)) changed.Add("direct_push_branches");
+        if (!before.ProtectedBranches.SequenceEqual(after.ProtectedBranches)) changed.Add("protected_branches");
+        if (!before.PullBranches.SequenceEqual(after.PullBranches)) changed.Add("pull_branches");
+        if (before.TagPattern != after.TagPattern) changed.Add("tag_pattern");
+        if (before.TagTargetBranch != after.TagTargetBranch) changed.Add("tag_target_branch");
+        if (before.RequireCleanWorkingTree != after.RequireCleanWorkingTree) changed.Add("require_clean_working_tree");
+        if (before.CommitAuthorName != after.CommitAuthorName) changed.Add("commit_author_name");
+        if (before.CommitAuthorEmail != after.CommitAuthorEmail) changed.Add("commit_author_email");
+        return changed;
     }
 
     /// <summary>Repositoryのローカル状態を取得します。</summary>

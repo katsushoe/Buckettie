@@ -14,6 +14,7 @@ internal sealed class ProviderAuthenticationBoundary
     private static readonly TimeSpan OperationWaitTimeout = TimeSpan.FromSeconds(10);
     private static readonly object DirectReadKey = new();
     private static readonly object StandaloneKey = new();
+    private static readonly object OperationGateHeldKey = new();
     private readonly BuckettieOptions _options;
     private readonly RepositoryAllowlist _repositories;
     private readonly IAssertionValidator? _validator;
@@ -115,6 +116,7 @@ internal sealed class ProviderAuthenticationBoundary
                         await BusyAsync(context, requestId).ConfigureAwait(false);
                         return;
                     }
+                    context.Items[OperationGateHeldKey] = true;
                 }
                 await AuthorizeToolAsync(context, parameters).ConfigureAwait(false);
             }
@@ -270,6 +272,10 @@ internal sealed class ProviderAuthenticationBoundary
             throw new ModelContextProtocol.McpException("authentication_unavailable");
         }
     }
+
+    /// <summary>現在のtools/callが外側のRepository operation gateを保持しているかを返します。</summary>
+    internal static bool IsOperationGateHeld(HttpContext? context) =>
+        context?.Items.ContainsKey(OperationGateHeldKey) == true;
 
     private static string Bearer(HttpContext context)
     {
